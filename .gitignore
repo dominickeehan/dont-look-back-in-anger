@@ -1,0 +1,15 @@
+*.pkl
+*.jpg
+*.jpeg
+*.png
+*.gif
+*/.vscode
+*/*.grbr
+*.grbr
+
+
+.idea/*
+.vscode/*
+__pycache__*
+*__pycache__*
+*.pyc
