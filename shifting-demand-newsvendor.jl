@@ -2,44 +2,32 @@ using  Random, Statistics, StatsBase, Distributions
 
 Random.seed!(42)
 
-shift_distribution = Uniform(-0.005,0.005)
+shift_distribution = Uniform(-0.1,0.1)
 
-number_of_consumers = 1000
+number_of_consumers = 10000
 initial_demand_probability = 0.1
 
-repetitions = 500
+repetitions = 2000
 history_length = 1000
 
-plot_history_length = 1000
+windowing_parameters = round.(Int, LinRange(1,51,51))
+SES_parameters = LinRange(0.0001,1.0,51)
 
-windowing_parameters = round.(Int, LinRange(1,T,51))
-SES_parameters = LinRange(0.001,1.0,51)
-
-function generate_shifted_demand_probabilities(T)
-    demand_probabilities = zeros(T+1)
-    demand_probabilities[1] = initial_demand_probability
-
-    for t in 2:T+1
-        demand_probabilities[t] = min(max(demand_probabilities[t-1] + rand(shift_distribution), 0), 1)
-    end
-
-    return demand_probabilities
-end
-
-function generate_demand_sequences_per_repetition(shifted_demand_probabilities)
-    T = length(shifted_demand_probabilities)
-    demands = [zeros(T) for _ in 1:repetitions]
+function generate_demand_sequences(T)
+    demand_sequences = [zeros(T+1) for _ in 1:repetitions]
 
     for repetition in 1:repetitions
-        for t in 1:T
-            demands[repetition][t] = rand(Binomial(number_of_consumers,shifted_demand_probabilities[t]))
+        demand_probability = initial_demand_probability
+        for t in 1:T+1
+            demand_sequences[repetition][t] = rand(Binomial(number_of_consumers, demand_probability))
+            demand_probability = min(max(demand_probability + rand(shift_distribution), 0), 1.0)
         end
     end
 
-    return demands
+    return demand_sequences
 end
 
-demands = generate_demand_sequences_per_repetition(generate_shifted_demand_probabilities(plot_history_length-1))
+demand_sequences = generate_demand_sequences(history_length)
 
 using Plots, Measures
 
@@ -68,8 +56,8 @@ default(framestyle = :box,
         tickfont = secondary_font,
         legendfont = legend_font)
 
-plt = plot(1:plot_history_length, 
-        demands, 
+plt = plot(1:history_length, 
+        demand_sequences[1][1:end-1], 
         xlabel = "Time (units)", 
         ylabel = "Demand (units)",
         labels = nothing, 
@@ -105,28 +93,34 @@ end
 
 include("weights.jl")
 
-demand_sequences_per_repetition = generate_demand_sequences_per_repetition(generate_shifted_demand_probabilities(history_length))
-
 using ProgressBars, IterTools
 function train(parameters, solve_for_weights)
 
-    parameter_costs = zeros((length(parameters),repetitions))
-    Threads.@threads for par in ProgressBar(1:length(parameters))
+    parameter_costs_per_repetition = zeros((length(parameters), repetitions))
+    Threads.@threads for parameter_index in ProgressBar(1:length(parameters))
         for repetition in 1:repetitions  
-            local samples = demand_sequences_per_repetition[repetition][1:history_length]
-            local sample_weights = solve_for_weights(samples, parameters[par])
-            local order = newsvendor_order_quantity(samples; weights = sample_weights)
-            parameter_costs[par,repetition] = newsvendor_loss(order, demand_sequences_per_repetition[repetition][history_length+1])
+            local samples = demand_sequences[repetition][1:history_length]
+            local sample_weights = solve_for_weights(samples, parameters[parameter_index])
+            local order_quantity = newsvendor_order_quantity(samples; weights = sample_weights)
+            parameter_costs_per_repetition[parameter_index, repetition] = newsvendor_loss(order_quantity, demand_sequences[repetition][history_length+1])
         end
     end
-    parameter_costs = mean(parameter_costs, dims=2)
 
-    return min(parameter_costs...), parameters[argmin(parameter_costs)]
-
+    return parameter_costs_per_repetition
 end
 
-# Windowing.
+windowing_costs = train(windowing_parameters, windowing_weights)
+windowing_parameter_index = argmin(vec(mean(windowing_costs, dims=2)))
+windowing_parameter = windowing_parameters[windowing_parameter_index]
+windowing_cost = minimum(vec(mean(windowing_costs, dims=2)))
+display("Optimal windowing cost: $windowing_cost parameter: $windowing_parameter")
 
-display(train(windowing_parameters, windowing_weights))
+SES_costs = train(SES_parameters, SES_weights)
+SES_parameter_index = argmin(vec(mean(SES_costs, dims=2)))
+SES_parameter = SES_parameters[SES_parameter_index]
+SES_cost = minimum(vec(mean(SES_costs, dims=2)))
+display("Optimal SES cost: $SES_cost parameter: $SES_parameter")
 
-display(train(SES_parameters, SES_weights))
+μ = mean(SES_costs[SES_parameter_index,:] - windowing_costs[windowing_parameter_index,:])
+s = sem(SES_costs[SES_parameter_index,:] - windowing_costs[windowing_parameter_index,:])
+display("SES - windowing: $μ ± $s")

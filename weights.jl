@@ -7,6 +7,9 @@ function SES_weights(history_of_observations, α)
     weights = [α*(1-α)^(t-1) for t in T:-1:1]
     weights .= weights/sum(weights)
 
+    #weights = [max(1-weights[t],0) for t in T:-1:1]
+    #weights .= weights/sum(weights)
+
     return weights
 end
 
