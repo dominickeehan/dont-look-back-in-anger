@@ -10,25 +10,6 @@ function SES_weights(history_of_observations, α)
     return weights
 end
 
-function bowing_weights(history_of_observations, parameters)
-
-    #T = length(history_of_observations)
-
-    T = parameters[1]
-    α = parameters[2]
-
-    weights = [α*(1-α)^(t-1) for t in T:-1:1]
-    weights .= weights/sum(weights)
-
-    weights = [max(1-weights[t],0) for t in T:-1:1]
-    weights .= weights/sum(weights)
-
-    #return_weights = zeros(length(history_of_observations))
-    #return_weights[end-(T-1):end] = weights
-
-    return vcat(zeros(length(history_of_observations)-T), weights)
-end
-
 function windowing_weights(history_of_observations, window_size)
 
     T = length(history_of_observations)
@@ -46,4 +27,30 @@ function windowing_weights(history_of_observations, window_size)
     weights .= weights/sum(weights)
 
     return weights
+end
+
+
+function optimal_weights(history_of_observations, ρ_ϵ)
+
+    T = length(history_of_observations)
+
+    [ρ, ϵ] = ρ_ϵ
+
+    Problem = Model(optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0, "tol" => 1e-36))
+
+    @variables(Problem, begin
+                            1>= w[t=1:T] >=0 
+                        end)
+
+    @constraint(Problem, sum(w[t] for t in 1:T) == 1)
+    for t in 1:T-1
+        @constraint(Problem, w[t] >= w[t+1])
+    end
+
+    @objective(Problem, Max, (1/(sum(w[t]^2 for t in 1:T)))*(max(ϵ-sum(w[t]*t for t in 1:T)*ρ,0))^2)
+
+    optimize!(Problem)
+
+    return [value(w[t]) for t in T:-1:1]
+
 end

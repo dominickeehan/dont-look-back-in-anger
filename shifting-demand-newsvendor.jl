@@ -14,7 +14,7 @@ windowing_parameters = round.(Int, vcat(LinRange(1,51,51), history_length))
 SES_parameters = LinRange(0.0001,1.0,51)
 
 using IterTools
-bowing_parameters = vec(collect(IterTools.product(round.(Int, LinRange(2,51,50)), LinRange(0.0001,1.0,51))))
+ρ_ϵ_parameters = vec(collect(IterTools.product(LinRange(0.0,1.0,51), LinRange(0.0,1.0,51))))
 
 function generate_demand_sequences(T)
     demand_sequences = [zeros(T+1) for _ in 1:repetitions]
@@ -131,8 +131,8 @@ display("Optimal SES cost: $SES_cost parameter: $SES_parameter")
 s = sem(SES_costs[SES_parameter_index,:] - windowing_costs[windowing_parameter_index,:])
 display("SES - windowing: $μ ± $s")
 
-bowing_costs = train(bowing_parameters, bowing_weights)
-bowing_parameter_index = argmin(vec(mean(bowing_costs, dims=2)))
-bowing_parameter = bowing_parameters[bowing_parameter_index]
-bowing_cost = minimum(vec(mean(bowing_costs, dims=2)))
-display("Optimal bowing cost: $bowing_cost parameter: $bowing_parameter")
+ρ_ϵ_costs = train(ρ_ϵ_parameters, optimal_weights)
+ρ_ϵ_parameter_index = argmin(vec(mean(ρ_ϵ_costs, dims=2)))
+ρ_ϵ_parameter = ρ_ϵ_parameters[ρ_ϵ_parameter_index]
+ρ_ϵ_cost = minimum(vec(mean(ρ_ϵ_costs, dims=2)))
+display("Optimal cost: $ρ_ϵ_cost parameter: $ρ_ϵ_parameter")
