@@ -1,11 +1,14 @@
-using  Random, Statistics, StatsBase, Distributions
+using Random, Statistics, StatsBase, Distributions
+
+using LinearAlgebra
 
 Random.seed!(42)
 
-shift_distribution = Uniform(-0.0005,0.0005)
+m = 10
 
-number_of_consumers = 10000
-initial_demand_probability = 0.1
+shift_distribution = MvNormal(zeros(m), ones(m)) # Product(fill(Uniform(-2,2), m))
+
+initial_mean = zeros(m)
 
 repetitions = 2000
 history_length = 1000
@@ -13,24 +16,21 @@ history_length = 1000
 windowing_parameters = round.(Int, vcat(LinRange(1,51,51), history_length))
 SES_parameters = LinRange(0.0001,1.0,51)
 
-using IterTools
-bowing_parameters = vec(collect(IterTools.product(round.(Int, LinRange(2,51,50)), LinRange(0.0001,1.0,51))))
-
-function generate_demand_sequences(T)
-    demand_sequences = [zeros(T+1) for _ in 1:repetitions]
+function generate_sample_sequences(T)
+    sample_sequences = [[zeros(m) for _ in 1:T+1] for _ in 1:repetitions]
 
     for repetition in 1:repetitions
-        demand_probability = initial_demand_probability
+        mean = initial_mean
         for t in 1:T+1
-            demand_sequences[repetition][t] = rand(Binomial(number_of_consumers, demand_probability))
-            demand_probability = min(max(demand_probability + rand(shift_distribution), 0), 1.0)
+            sample_sequences[repetition][t] = rand(MvNormal(mean, ones(m)))
+            mean = 0.01*initial_mean + 0.99*mean + rand(shift_distribution)
         end
     end
 
-    return demand_sequences
+    return sample_sequences
 end
 
-demand_sequences = generate_demand_sequences(history_length)
+sample_sequences = generate_sample_sequences(history_length)
 
 using Plots, Measures
 
@@ -60,16 +60,16 @@ default(framestyle = :box,
         legendfont = legend_font)
 
 plt = plot(1:history_length, 
-        demand_sequences[1][1:end-1], 
+        stack(sample_sequences[1][1:end-1])', 
         xlabel = "Time (units)", 
-        ylabel = "Demand (units)",
+        ylabel = "sample (units)",
         labels = nothing, 
-        color = palette(:tab10)[1],
-        markershape = :circle,
-        linewidth = 0,
-        markersize = 3.5, 
-        markerstrokewidth = 0.875,
-        markerstrokecolor = :black,
+        #color = palette(:tab10)[1],
+        #markershape = :circle,
+        #linewidth = 0,
+        #markersize = 3.5, 
+        #markerstrokewidth = 0.875,
+        #markerstrokecolor = :black,
         topmargin = 0pt, 
         rightmargin = 0pt,
         bottommargin = 5pt, 
@@ -81,17 +81,13 @@ display(plt)
 Co = 1 # Cost of overage.
 Cu = 1/3 # Cost of underage.
 
-newsvendor_loss(x,d) = Co*max(x-d,0) + Cu*max(d-x,0)
-function newsvendor_order_quantity(demands; weights = nothing) 
+loss(x,ξ) = norm(x-ξ, 2)^2
+function sample_mean(samples; weights = nothing) 
     if weights === nothing
-        return quantile(demands, Cu/(Co+Cu))
+        return mean(samples)
     else
-        return quantile(demands, Weights(weights), Cu/(Co+Cu))
+        return mean(samples, Weights(weights))
     end
-end
-
-function optimal_newsvendor_order_quantity(distribution) 
-    return quantile(distribution, Cu/(Co+Cu))
 end
 
 include("weights.jl")
@@ -102,10 +98,10 @@ function train(parameters, solve_for_weights)
     parameter_costs_per_repetition = zeros((length(parameters), repetitions))
     Threads.@threads for parameter_index in ProgressBar(1:length(parameters))
         for repetition in 1:repetitions  
-            local samples = demand_sequences[repetition][1:history_length]
+            local samples = sample_sequences[repetition][1:history_length]
             local sample_weights = solve_for_weights(samples, parameters[parameter_index])
-            local order_quantity = newsvendor_order_quantity(samples; weights = sample_weights)
-            parameter_costs_per_repetition[parameter_index, repetition] = newsvendor_loss(order_quantity, demand_sequences[repetition][history_length+1])
+            local mean_estimate = sample_mean(samples; weights = sample_weights)
+            parameter_costs_per_repetition[parameter_index, repetition] = loss(mean_estimate, sample_sequences[repetition][history_length+1])
         end
     end
 
@@ -130,9 +126,3 @@ display("Optimal SES cost: $SES_cost parameter: $SES_parameter")
 μ = mean(SES_costs[SES_parameter_index,:] - windowing_costs[windowing_parameter_index,:])
 s = sem(SES_costs[SES_parameter_index,:] - windowing_costs[windowing_parameter_index,:])
 display("SES - windowing: $μ ± $s")
-
-bowing_costs = train(bowing_parameters, bowing_weights)
-bowing_parameter_index = argmin(vec(mean(bowing_costs, dims=2)))
-bowing_parameter = bowing_parameters[bowing_parameter_index]
-bowing_cost = minimum(vec(mean(bowing_costs, dims=2)))
-display("Optimal bowing cost: $bowing_cost parameter: $bowing_parameter")
