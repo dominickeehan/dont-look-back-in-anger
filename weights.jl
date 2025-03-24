@@ -29,14 +29,16 @@ function windowing_weights(history_of_observations, window_size)
     return weights
 end
 
+using JuMP, Ipopt
+Ipoptimizer = optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0)#, "tol" => 1e-9)
 
 function optimal_weights(history_of_observations, ρ_ϵ)
 
     T = length(history_of_observations)
 
-    [ρ, ϵ] = ρ_ϵ
+    ρ, ϵ = ρ_ϵ
 
-    Problem = Model(optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0, "tol" => 1e-36))
+    Problem = Model(Ipoptimizer)
 
     @variables(Problem, begin
                             1>= w[t=1:T] >=0 
@@ -51,6 +53,6 @@ function optimal_weights(history_of_observations, ρ_ϵ)
 
     optimize!(Problem)
 
-    return [value(w[t]) for t in T:-1:1]
+    return [max(value(w[t]),0) for t in T:-1:1]
 
 end

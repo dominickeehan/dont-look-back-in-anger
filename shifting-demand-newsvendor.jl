@@ -7,14 +7,14 @@ shift_distribution = Uniform(-0.0005,0.0005)
 number_of_consumers = 10000
 initial_demand_probability = 0.1
 
-repetitions = 2000
-history_length = 1000
+repetitions = 100
+history_length = 100
 
 windowing_parameters = round.(Int, vcat(LinRange(1,51,51), history_length))
 SES_parameters = LinRange(0.0001,1.0,51)
 
 using IterTools
-ρ_ϵ_parameters = vec(collect(IterTools.product(LinRange(0.0,1.0,51), LinRange(0.0,1.0,51))))
+ρ_ϵ_parameters = vec(collect(IterTools.product(LinRange(0.0,0.1,11), LinRange(0.0,1.0,11))))
 
 function generate_demand_sequences(T)
     demand_sequences = [zeros(T+1) for _ in 1:repetitions]
