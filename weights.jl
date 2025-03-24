@@ -56,3 +56,22 @@ function optimal_weights(history_of_observations, ρ_ϵ)
     return [max(value(w[t]),0) for t in T:-1:1]
 
 end
+
+
+
+function triangular_weights(history_of_observations, θ_T)
+
+    #T = length(history_of_observations)
+
+    θ, T = θ_T
+
+    weights = zeros(length(history_of_observations))
+
+    for t in 1:T
+        weights[t] = max(1-θ*t,0)
+    end
+    weights .= weights/sum(weights)
+
+    return reverse(weights)
+
+end
