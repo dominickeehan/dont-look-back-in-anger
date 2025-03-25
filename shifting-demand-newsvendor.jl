@@ -13,9 +13,9 @@ history_length = 1000
 windowing_parameters = round.(Int, vcat(LinRange(1,51,51), history_length))
 SES_parameters = LinRange(0.0001,1.0,51)
 
-using IterTools
-ρ_ϵ_parameters = vec(collect(IterTools.product(LinRange(0.0,0.1,11), LinRange(0.0,1.0,11))))
-θ_T_parameters = vec(collect(IterTools.product(LinRange(0.0,0.2,101), 1:101)))
+#using IterTools
+#ρ_ϵ_parameters = vec(collect(IterTools.product(LinRange(0.0,0.1,11), LinRange(0.0,1.0,11))))
+#θ_T_parameters = vec(collect(IterTools.product(LinRange(0.0,0.2,101), 1:101)))
 
 function generate_demand_sequences(T)
     demand_sequences = [zeros(T+1) for _ in 1:repetitions]
@@ -132,14 +132,44 @@ display("Optimal SES cost: $SES_cost parameter: $SES_parameter")
 s = sem(SES_costs[SES_parameter_index,:] - windowing_costs[windowing_parameter_index,:])
 display("SES - windowing: $μ ± $s")
 
-#ρ_ϵ_costs = train(ρ_ϵ_parameters, optimal_weights)
-#ρ_ϵ_parameter_index = argmin(vec(mean(ρ_ϵ_costs, dims=2)))
-#ρ_ϵ_parameter = ρ_ϵ_parameters[ρ_ϵ_parameter_index]
-#ρ_ϵ_cost = minimum(vec(mean(ρ_ϵ_costs, dims=2)))
-#display("Optimal cost: $ρ_ϵ_cost parameter: $ρ_ϵ_parameter")
 
-θ_T_costs = train(θ_T_parameters, triangular_weights)
-θ_T_parameter_index = argmin(vec(mean(θ_T_costs, dims=2)))
-θ_T_parameter = θ_T_parameters[θ_T_parameter_index]
-θ_T_cost = minimum(vec(mean(θ_T_costs, dims=2)))
-display("Optimal cost: $θ_T_cost parameter: $θ_T_parameter")
+using JuMP, Ipopt
+using Plots
+
+T = history_length
+
+function solve_for_weights(ϵ, ρ)
+
+    Problem = Model(optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0, "tol" => 1e-36))
+
+    @variables(Problem, begin
+                            1>= w[t=1:T] >=0 
+                        end)
+
+    @constraint(Problem, sum(w[t] for t in 1:T) == 1)
+    for t in 1:T-1
+        @constraint(Problem, w[t] >= w[t+1])
+    end
+
+    @objective(Problem, Max, (1/(sum(w[t]^2 for t in 1:T)))*(max(ϵ-sum(w[t]*t for t in 1:T)*ρ,0))^2)
+
+    optimize!(Problem)
+
+    weights = [value(w[t]) for t in 1:T]
+
+    display(plot(1:T, weights))
+    #println(weights)
+
+    return reverse(weights)
+
+end
+
+
+optimal = solve_for_weights(0.1,0.1)
+optimal_weights_(a, b) = optimal
+
+SES_costs = train([1], optimal_weights_)
+SES_parameter_index = argmin(vec(mean(SES_costs, dims=2)))
+SES_parameter = SES_parameters[SES_parameter_index]
+SES_cost = minimum(vec(mean(SES_costs, dims=2)))
+display("Optimal SES cost: $SES_cost parameter: $SES_parameter")

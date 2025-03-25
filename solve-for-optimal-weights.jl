@@ -1,7 +1,7 @@
 using JuMP, Ipopt
 using Plots
 
-T = 100
+T = 1000
 
 function solve_for_weights(ϵ, ρ)
 
@@ -27,4 +27,8 @@ function solve_for_weights(ϵ, ρ)
 
 end
 
-solve_for_weights(0.1,0.001)
+solve_for_weights(0.1,0.1)
+
+include("weights.jl")
+
+display(plot(1:T, reverse(SES_weights(1:T, 0.5))))
