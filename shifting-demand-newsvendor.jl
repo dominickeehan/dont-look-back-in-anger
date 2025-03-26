@@ -7,31 +7,25 @@ shift_distribution = Uniform(-0.0005,0.0005)
 number_of_consumers = 10000
 initial_demand_probability = 0.1
 
-repetitions = 2000
-history_length = 1000
+repetitions = 300
+history_length = 200
+training_length = round(Int, 0.3*history_length)
 
-windowing_parameters = round.(Int, vcat(LinRange(1,51,51), history_length))
-SES_parameters = LinRange(0.0001,1.0,51)
+windowing_parameters = round.(Int, vcat(LinRange(1,51,11), history_length))
+SES_parameters = LinRange(0.0001,0.25,11)
 
-#using IterTools
-#ρ_ϵ_parameters = vec(collect(IterTools.product(LinRange(0.0,0.1,11), LinRange(0.0,1.0,11))))
-#θ_T_parameters = vec(collect(IterTools.product(LinRange(0.0,0.2,101), 1:101)))
+ambiguity_radii = LinRange(0.0,20,11)
 
-function generate_demand_sequences(T)
-    demand_sequences = [zeros(T+1) for _ in 1:repetitions]
 
-    for repetition in 1:repetitions
-        demand_probability = initial_demand_probability
-        for t in 1:T+1
-            demand_sequences[repetition][t] = rand(Binomial(number_of_consumers, demand_probability))
-            demand_probability = min(max(demand_probability + rand(shift_distribution), 0), 1.0)
-        end
+demand_sequences = [zeros(history_length+1) for _ in 1:repetitions]
+for repetition in 1:repetitions
+    demand_probability = initial_demand_probability
+    for t in 1:history_length+1
+        demand_sequences[repetition][t] = rand(Binomial(number_of_consumers, demand_probability))
+        demand_probability = min(max(demand_probability + rand(shift_distribution), 0), 1.0)
     end
-
-    return demand_sequences
 end
 
-demand_sequences = generate_demand_sequences(history_length)
 
 using Plots, Measures
 
@@ -79,97 +73,105 @@ plt = plot(1:history_length,
 
 display(plt)
 
-Co = 1 # Cost of overage.
-Cu = 1/3 # Cost of underage.
+Cu = 1 # Cost of underage.
+Co = 2/3 # Cost of overage.
 
-newsvendor_loss(x,d) = Co*max(x-d,0) + Cu*max(d-x,0)
-function newsvendor_order_quantity(demands; weights = nothing) 
-    if weights === nothing
-        return quantile(demands, Cu/(Co+Cu))
-    else
-        return quantile(demands, Weights(weights), Cu/(Co+Cu))
+newsvendor_loss(x,ξ) = Cu*max(ξ-x,0) + Co*max(x-ξ,0)
+
+using JuMP
+using Gurobi
+env = Gurobi.Env() 
+optimizer = optimizer_with_attributes(() -> Gurobi.Optimizer(env), "OutputFlag" => 0)#, "Method" => 1,)
+
+#using COPT
+#optimizer = optimizer_with_attributes(COPT.Optimizer, "Logging" => 0, "LogToConsole" => 0)  
+
+D = number_of_consumers
+
+function newsvendor_order(ε, ξ, weights) 
+
+    T = length(ξ)
+
+    Problem = Model(optimizer)
+
+    C = [-1; 1]
+    d = [0, D]
+    a = [Cu,-Co]
+    b(x) = [-Cu*x, Co*x]
+
+    @variables(Problem, begin
+                            D >= x >= 0
+                                 λ
+                                 s[t=1:T]
+                                 γ[t=1:T,i=1:2,j=1:2] >= 0
+                                 z[t=1:T,i=1:2] 
+                        end)
+
+    for t in 1:T
+        for i in 1:2
+            @constraints(Problem, begin
+                                        b(x)[i] + a[i]*ξ[t] + γ[t,i,:]'*(d-C*ξ[t]) <= s[t] #b(x)[i] + a[i]*ξ[t] + sum(γ[t,i,j]*(d[j]-((C*ξ[t])[j])) for j in 1:2) <= s[t]
+                                        z[t,i] <= λ
+                                        C'*γ[t,i,:] - a[i] <= z[t,i]
+                                       -C'*γ[t,i,:] + a[i] <= z[t,i]
+                                  end)
+        end
     end
-end
 
-function optimal_newsvendor_order_quantity(distribution) 
-    return quantile(distribution, Cu/(Co+Cu))
+    @objective(Problem, Min, ε*λ + weights'*s)
+
+    optimize!(Problem)
+
+    return value(x)
+
+end
+#display(newsvendor_order(0.0, [1, 2, 3], [1/3, 1/3, 1/3]))
+
+#newsvendor_order(ε, ξ, weights) = quantile(ξ, Weights(weights), Cu/(Co+Cu)) 
+#display(newsvendor_order([0.0], [1,2,3], [1/3,1/3,1/3]))
+
+using ProgressBars, IterTools
+function train_and_test(ambiguity_radii, compute_weights, weight_parameters)
+
+    repetition_costs = zeros(repetitions)
+    Threads.@threads for repetition in ProgressBar(1:repetitions)
+
+        training_costs = [zeros((length(ambiguity_radii), length(weight_parameters))) for t in 1:training_length]
+
+        for ambiguity_radius_index in eachindex(ambiguity_radii)
+            for weight_parameter_index in eachindex(weight_parameters)
+                for t in 1:training_length
+                    demand_samples = demand_sequences[repetition][1:history_length-1-training_length+t]
+                    weights = compute_weights(demand_samples, weight_parameters[weight_parameter_index])
+                    order = newsvendor_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights)
+                    training_costs[t][ambiguity_radius_index, weight_parameter_index] = newsvendor_loss(order, demand_sequences[repetition][history_length-1-training_length+t+1])
+                end
+            end
+        end
+
+        ambiguity_radius_index, weight_parameter_index = Tuple(argmin(mean(training_costs)))
+        demand_samples = demand_sequences[repetition][1:history_length]
+        weights = compute_weights(demand_samples, weight_parameters[weight_parameter_index])
+        order = newsvendor_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights)
+        repetition_costs[repetition] = newsvendor_loss(order, demand_sequences[repetition][history_length+1])
+    end
+
+    return repetition_costs
 end
 
 include("weights.jl")
 
-using ProgressBars, IterTools
-function train(parameters, solve_for_weights)
+SAA_costs = train_and_test(ambiguity_radii, windowing_weights, [history_length])
+μ = mean(SAA_costs)
+s = sem(SAA_costs)
+display("SAA cost: $μ ± $s")
 
-    parameter_costs_per_repetition = zeros((length(parameters), repetitions))
-    Threads.@threads for parameter_index in ProgressBar(1:length(parameters))
-        for repetition in 1:repetitions  
-            local samples = demand_sequences[repetition][1:history_length]
-            local sample_weights = solve_for_weights(samples, parameters[parameter_index])
-            local order_quantity = newsvendor_order_quantity(samples; weights = sample_weights)
-            parameter_costs_per_repetition[parameter_index, repetition] = newsvendor_loss(order_quantity, demand_sequences[repetition][history_length+1])
-        end
-    end
+windowing_costs = train_and_test(ambiguity_radii, windowing_weights, windowing_parameters)
+μ = mean(windowing_costs)
+s = sem(windowing_costs)
+display("Windowing cost: $μ ± $s")
 
-    return parameter_costs_per_repetition
-end
-
-windowing_costs = train(windowing_parameters, windowing_weights)
-windowing_parameter_index = argmin(vec(mean(windowing_costs, dims=2)))
-windowing_parameter = windowing_parameters[windowing_parameter_index]
-windowing_cost = minimum(vec(mean(windowing_costs, dims=2)))
-SAA_cost = mean(windowing_costs[end, :])
-display("SAA cost: $SAA_cost")
-
-display("Optimal windowing cost: $windowing_cost parameter: $windowing_parameter")
-
-SES_costs = train(SES_parameters, SES_weights)
-SES_parameter_index = argmin(vec(mean(SES_costs, dims=2)))
-SES_parameter = SES_parameters[SES_parameter_index]
-SES_cost = minimum(vec(mean(SES_costs, dims=2)))
-display("Optimal SES cost: $SES_cost parameter: $SES_parameter")
-
-μ = mean(SES_costs[SES_parameter_index,:] - windowing_costs[windowing_parameter_index,:])
-s = sem(SES_costs[SES_parameter_index,:] - windowing_costs[windowing_parameter_index,:])
-display("SES - windowing: $μ ± $s")
-
-
-using JuMP, Ipopt
-using Plots
-
-T = history_length
-
-function solve_for_weights(ϵ, ρ)
-
-    Problem = Model(optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0, "tol" => 1e-36))
-
-    @variables(Problem, begin
-                            1>= w[t=1:T] >=0 
-                        end)
-
-    @constraint(Problem, sum(w[t] for t in 1:T) == 1)
-    for t in 1:T-1
-        @constraint(Problem, w[t] >= w[t+1])
-    end
-
-    @objective(Problem, Max, (1/(sum(w[t]^2 for t in 1:T)))*(max(ϵ-sum(w[t]*t for t in 1:T)*ρ,0))^2)
-
-    optimize!(Problem)
-
-    weights = [value(w[t]) for t in 1:T]
-
-    display(plot(1:T, weights))
-    #println(weights)
-
-    return reverse(weights)
-
-end
-
-
-optimal = solve_for_weights(0.1,0.1)
-optimal_weights_(a, b) = optimal
-
-SES_costs = train([1], optimal_weights_)
-SES_parameter_index = argmin(vec(mean(SES_costs, dims=2)))
-SES_parameter = SES_parameters[SES_parameter_index]
-SES_cost = minimum(vec(mean(SES_costs, dims=2)))
-display("Optimal SES cost: $SES_cost parameter: $SES_parameter")
+SES_costs = train_and_test(ambiguity_radii, SES_weights, SES_parameters)
+μ = mean(SES_costs)
+s = sem(SES_costs)
+display("SES cost: $μ ± $s")
