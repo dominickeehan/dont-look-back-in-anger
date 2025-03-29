@@ -1,8 +1,6 @@
 # Dominic Keehan : 2025
 
-function SES_weights(history_of_observations, α)
-
-    T = length(history_of_observations)
+function smoothing_weights(T, ε, α)
 
     weights = [α*(1-α)^(t-1) for t in T:-1:1]
     weights .= weights/sum(weights)
@@ -10,9 +8,7 @@ function SES_weights(history_of_observations, α)
     return weights
 end
 
-function windowing_weights(history_of_observations, window_size)
-
-    T = length(history_of_observations)
+function windowing_weights(T, ε, window_size)
 
     weights = zeros(T)
 
@@ -30,47 +26,31 @@ function windowing_weights(history_of_observations, window_size)
 end
 
 using JuMP, Ipopt
-Ipoptimizer = optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0)#, "tol" => 1e-9)
 
-function optimal_weights(history_of_observations, ρ_ϵ)
+Ipoptimizer = optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0, "tol" => 1e-9)
 
-    T = length(history_of_observations)
+p = 2
 
-    ρ, ϵ = ρ_ϵ
+function optimal_weights(T, ε, ϱ)
+
+    if ϱ >= (1/1)*ε; ϱ = (1/1)*ε; end
 
     Problem = Model(Ipoptimizer)
 
-    @variables(Problem, begin
-                            1>= w[t=1:T] >=0 
-                        end)
+    @variable(Problem, 1>= w[t=1:T] >=0)
 
     @constraint(Problem, sum(w[t] for t in 1:T) == 1)
-    for t in 1:T-1
-        @constraint(Problem, w[t] >= w[t+1])
-    end
+    @constraint(Problem, (sum(w[t]*t^p for t in 1:T)*ϱ^p)^(1/p) <= (ε)^(1/p))
+    for t in 1:T-1; @constraint(Problem, w[t] >= w[t+1]); end
 
-    @objective(Problem, Max, (1/(sum(w[t]^2 for t in 1:T)))*(max(ϵ-sum(w[t]*t for t in 1:T)*ρ,0))^2)
+    @objective(Problem, Max, (1/(sum(w[t]^2 for t in 1:T)))*(((ε)^(1/p)-(sum(w[t]*t^p for t in 1:T)*ϱ^p)^(1/p))^(2*p)))
 
     optimize!(Problem)
 
-    return [max(value(w[t]),0) for t in T:-1:1]
+    weights = [max(value(w[t]),0) for t in 1:T]
 
-end
-
-
-
-function triangular_weights(history_of_observations, θ_T)
-
-    #T = length(history_of_observations)
-
-    θ, T = θ_T
-
-    weights = zeros(length(history_of_observations))
-
-    for t in 1:T
-        weights[t] = max(1-θ*t,0)
-    end
-    weights .= weights/sum(weights)
+    #display(plot(1:T, weights))
+    #display(objective_value(Problem))
 
     return reverse(weights)
 
