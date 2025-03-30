@@ -1,8 +1,8 @@
 using JuMP, Ipopt
 using Plots
 
-T = 100
-p = 1
+T = 60
+p = 2
 
 function solve_for_weights(ϵ, ρ)
 
@@ -24,9 +24,8 @@ function solve_for_weights(ϵ, ρ)
 
     display(plot(1:T, weights))
 
+    return reverse(weights)
+
 end
 
-ϵ = 3.0
-ρ = 1.0
-
-solve_for_weights(ϵ,ρ)
+weights = solve_for_weights(10.0,0.05)

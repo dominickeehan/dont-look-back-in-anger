@@ -27,7 +27,7 @@ end
 
 using JuMP, Ipopt
 
-Ipoptimizer = optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0, "tol" => 1e-9)
+Ipoptimizer = optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0)#, "tol" => 1e-9)
 
 p = 2
 
@@ -54,4 +54,24 @@ function optimal_weights(T, ε, ϱ)
 
     return reverse(weights)
 
+end
+
+
+
+function triangular_weights(T, ε, window_size)
+    weights = zeros(T)
+
+    if window_size >= T
+        for t in 1:T
+            weights[t] = t  # Triangular decay
+        end
+    else
+        for t in max(1, T-window_size+1):T
+            weights[t] = t - (T - window_size)  # Linearly increasing from 1
+        end
+    end
+
+    weights .= weights / sum(weights)  # Normalize
+
+    return weights
 end

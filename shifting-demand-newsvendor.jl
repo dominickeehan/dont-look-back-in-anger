@@ -8,15 +8,15 @@ shift_distribution = Uniform(-0.001,0.001)
 number_of_consumers = 10000
 initial_demand_probability = 0.1
 
-repetitions = 10
-history_length = 10
-training_length = round(Int, 0.5*history_length)
+repetitions = 1000
+history_length = 60
+training_length = round(Int, 0.3*history_length)
 
-windowing_parameters = round.(Int, LinRange(1,history_length,11))
-smoothing_parameters = LinRange(0.0001,0.2,11)
+windowing_parameters = round.(Int, LinRange(1,history_length,6))
+#smoothing_parameters = LinRange(0.0001,0.3,51)
 
-ambiguity_radii = [0,1,10] #[0,1e0,1e1,1e2,1e3,1e4,1e5,1e6]
-shift_bound_parameters = LinRange(0.0,1.0,11) #[0,1e0,1e1,1e2,1e3,1e4]
+ambiguity_radii = [10.0]#[0,1e0,1e1,1e2,1e3,1e4,1e5]
+shift_bound_parameters = [0.075, 0.1, 0.125]#LinRange(0.01,0.2,6) #[0.1] #[0,1e-3,1e-2,1e-1,1e0,1e1,1e2,1e3]
 
 demand_sequences = [zeros(history_length+1) for _ in 1:repetitions]
 for repetition in 1:repetitions
@@ -136,6 +136,10 @@ display(newsvendor_order(0.0, demand_sequences[1][1:end-1], windowing_weights(hi
 
 function W2_newsvendor_order(ε, ξ, weights) 
 
+    ξ = ξ[weights .>= 1e-3]
+    weights = weights[weights .>= 1e-3]
+    weights .= weights/sum(weights)
+
     T = length(ξ)
 
     Problem = Model(optimizer)
@@ -160,7 +164,7 @@ function W2_newsvendor_order(ε, ξ, weights)
                                         #b(x)[i] + w[t,i]*ξ[t] + (1/4)*(1/λ)*w[t,i]^2 + z[t,i,:]'*d <= γ[t] #<==>
                                         # w[t,i]^2 <= 2*(2*λ)*(γ[t] - b(x)[i] - w[t,i]*ξ[t] - z[t,i,:]'*d) #<==>
                                         [2*λ; γ[t] - b(x)[i] - w[t,i]*ξ[t] - z[t,i,:]'*d; w[t,i]] in MathOptInterface.RotatedSecondOrderCone(3)
-                                        a[i] - C'*z[t,i,:] <= w[t,i]
+                                        a[i] - C'*z[t,i,:] == w[t,i]
                                   end)
         end
     end
@@ -191,7 +195,7 @@ function train_and_test(ambiguity_radii, compute_weights, weight_parameters)
 
     training_costs = [[zeros((length(ambiguity_radii), length(weight_parameters))) for _ in 1:training_length] for _ in 1:repetitions]
 
-    for (ambiguity_radius_index, weight_parameter_index, repetition) in ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters), 1:repetitions)))
+    Threads.@threads for (ambiguity_radius_index, weight_parameter_index, repetition) in ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters), 1:repetitions)))
         sequences_of_weights = 
             [compute_weights(history_length-1-training_length+t, ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index]) for t in 1:training_length]
         
@@ -213,7 +217,7 @@ function train_and_test(ambiguity_radii, compute_weights, weight_parameters)
 
         demand_samples = demand_sequences[repetition][1:history_length]
         weights = compute_weights(history_length, ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index])
-        order = newsvendor_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights)
+        order = W2_newsvendor_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights)
         repetition_costs[repetition] = newsvendor_loss(order, demand_sequences[repetition][history_length+1])
     end
 
@@ -221,7 +225,7 @@ function train_and_test(ambiguity_radii, compute_weights, weight_parameters)
 end
 
 
-SAA_costs = train_and_test([0.0], windowing_weights, [history_length])
+SAA_costs = train_and_test(ambiguity_radii, windowing_weights, [history_length])
 μ = mean(SAA_costs)
 s = sem(SAA_costs)
 display("SAA cost: $μ ± $s")
@@ -232,24 +236,45 @@ windowing_costs = train_and_test(ambiguity_radii, windowing_weights, windowing_p
 s = sem(windowing_costs)
 display("Windowing cost: $μ ± $s")
 
+#=
 smoothing_costs = train_and_test(ambiguity_radii, smoothing_weights, smoothing_parameters)
 μ = mean(smoothing_costs)
 s = sem(smoothing_costs)
 display("smoothing cost: $μ ± $s")
+=#
 
-
+#=
+triangular_costs = train_and_test(ambiguity_radii, triangular_weights, windowing_parameters)
+μ = mean(triangular_costs)
+s = sem(triangular_costs)
+display("triangular cost: $μ ± $s")
+=#
 
 optimal_costs = train_and_test(ambiguity_radii, optimal_weights, shift_bound_parameters)
 μ = mean(optimal_costs)
 s = sem(optimal_costs)
 display("optimal cost: $μ ± $s")
 
+#=
+display(mean(optimal_costs - windowing_costs))
+display(sem(optimal_costs - windowing_costs))
+=#
+
+#=
+
 
 
 for ε in [0,1e1,1e3,1e5,1e7]
     for ϱ in [0,1e2,1e4]
         for repetition in [1]
-            #display(W2_newsvendor_order(ε, demand_sequences[repetition][1:end-1], optimal_weights(history_length, ε, ϱ)))
+            #
         end
     end
 end
+=#
+
+
+
+
+
+#for ε in [0,1e2,1e3,1e4,1e5,1e6]; display(W2_newsvendor_order(ε, demand_sequences[1][1:end-1], windowing_weights(history_length, 0, history_length))); end
