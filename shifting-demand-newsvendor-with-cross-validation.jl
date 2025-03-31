@@ -3,20 +3,20 @@ include("weights.jl")
 
 Random.seed!(42)
 
-shift_distribution = Uniform(-0.002,0.002)
+shift_distribution = Uniform(-0.001,0.001)
 
 number_of_consumers = 10000
 initial_demand_probability = 0.1
 
 repetitions = 1000
-history_length = 30
-#training_length = round(Int, 0.3*history_length)
+history_length = 60
+training_length = round(Int, 0.3*history_length)
 
-windowing_parameters = round.(Int, LinRange(3,history_length,21))
-smoothing_parameters = LinRange(0.0001,0.4,21)
+windowing_parameters = round.(Int, LinRange(1,history_length,6))
+#smoothing_parameters = LinRange(0.0001,0.3,51)
 
-ambiguity_radii = LinRange(5e1,1.5e2,21)
-shift_bound_parameters = LinRange(0.1,1.0,21)#[0.05,0.1,0.15,0.2] #LinRange(1e-1,1e-0,11) #[0.1] #[0,1e-3,1e-2,1e-1,1e0,1e1,1e2,1e3]
+ambiguity_radii = [10.0]#[0,1e0,1e1,1e2,1e3,1e4,1e5]
+shift_bound_parameters = [0.075, 0.1, 0.125]#LinRange(0.01,0.2,6) #[0.1] #[0,1e-3,1e-2,1e-1,1e0,1e1,1e2,1e3]
 
 demand_sequences = [zeros(history_length+1) for _ in 1:repetitions]
 for repetition in 1:repetitions
@@ -56,20 +56,16 @@ default(framestyle = :box,
         legendfont = legend_font)
 
 plt = plot(1:history_length, 
-        stack(demand_sequences[1:5])[1:end-1,:], 
-        xlabel = "Time", 
-        ylabel = "Demand",
+        demand_sequences[1][1:end-1], 
+        xlabel = "Time (units)", 
+        ylabel = "Demand (units)",
         labels = nothing, 
-        #linecolor = [palette(:tab10)[1] palette(:tab10)[2] palette(:tab10)[3] palette(:tab10)[4] palette(:tab10)[5]],
-        #markercolor = [palette(:tab10)[1] palette(:tab10)[2] palette(:tab10)[3] palette(:tab10)[4] palette(:tab10)[5]],
-        #markershape = :auto,
-        color = [palette(:tab10)[1] palette(:tab10)[2] palette(:tab10)[3] palette(:tab10)[4] palette(:tab10)[5]], #palette(:tab10)[1],
-        linewidth = 1,
-        #alpha = 1,
-        #linestyle = :auto,
-        #markersize = 4, 
-        #markerstrokewidth = 1,
-        #markerstrokecolor = :black,
+        color = palette(:tab10)[1],
+        markershape = :circle,
+        linewidth = 0,
+        markersize = 3.5, 
+        markerstrokewidth = 0.875,
+        markerstrokecolor = :black,
         topmargin = 0pt, 
         rightmargin = 0pt,
         bottommargin = 5pt, 
@@ -77,8 +73,6 @@ plt = plot(1:history_length,
         )
 
 display(plt)
-
-#savefig(plt, "figures/demand_sequences.pdf")
 
 Cu = 1 # Cost of underage.
 Co = 2/3 # Cost of overage.
@@ -97,7 +91,7 @@ optimizer = optimizer_with_attributes(() -> Gurobi.Optimizer(env))
 
 D = number_of_consumers
 
-function W1_newsvendor_order(ε, ξ, weights) 
+function newsvendor_order(ε, ξ, weights) 
 
     T = length(ξ)
 
@@ -195,45 +189,68 @@ function W2_newsvendor_order(ε, ξ, weights)
 end
 
 using ProgressBars, IterTools
-function train(ambiguity_radii, compute_weights, weight_parameters)
+function train_and_test(ambiguity_radii, compute_weights, weight_parameters)
 
-    costs = [zeros((length(ambiguity_radii),length(weight_parameters))) for _ in 1:repetitions]
+    repetition_costs = zeros(repetitions)
 
-    Threads.@threads for (ambiguity_radius_index, weight_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters))))
-        weights = compute_weights(history_length, ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index])
+    training_costs = [[zeros((length(ambiguity_radii), length(weight_parameters))) for _ in 1:training_length] for _ in 1:repetitions]
 
-        for repetition in 1:repetitions
-            demand_samples = demand_sequences[repetition][1:history_length]
+    Threads.@threads for (ambiguity_radius_index, weight_parameter_index, repetition) in ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters), 1:repetitions)))
+        sequences_of_weights = 
+            [compute_weights(history_length-1-training_length+t, ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index]) for t in 1:training_length]
+        
+        for t in 1:training_length
+
+            #display((ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index]))
+
+            demand_samples = demand_sequences[repetition][1:history_length-1-training_length+t]
+            weights = sequences_of_weights[t]
             order = W2_newsvendor_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights)
-            costs[repetition][ambiguity_radius_index, weight_parameter_index] = newsvendor_loss(order, demand_sequences[repetition][history_length+1])
-
+            training_costs[repetition][t][ambiguity_radius_index, weight_parameter_index] = newsvendor_loss(order, demand_sequences[repetition][history_length-1-training_length+t+1])
         end
     end
 
-    ambiguity_radius_index, weight_parameter_index = Tuple(argmin(mean(costs)))
-    minimal_costs = [costs[repetition][ambiguity_radius_index, weight_parameter_index] for repetition in 1:repetitions]
-    display((ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index]))
+    for repetition in 1:repetitions
+        ambiguity_radius_index, weight_parameter_index = Tuple(argmin(mean(training_costs[repetition])))
 
-    return minimal_costs
+        #display((ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index]))
+
+        demand_samples = demand_sequences[repetition][1:history_length]
+        weights = compute_weights(history_length, ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index])
+        order = W2_newsvendor_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights)
+        repetition_costs[repetition] = newsvendor_loss(order, demand_sequences[repetition][history_length+1])
+    end
+
+    return repetition_costs
 end
 
 
-SAA_costs = train(ambiguity_radii, windowing_weights, [history_length])
+SAA_costs = train_and_test(ambiguity_radii, windowing_weights, [history_length])
 μ = mean(SAA_costs)
 s = sem(SAA_costs)
 display("SAA cost: $μ ± $s")
 
-windowing_costs = train(ambiguity_radii, windowing_weights, windowing_parameters)
+
+windowing_costs = train_and_test(ambiguity_radii, windowing_weights, windowing_parameters)
 μ = mean(windowing_costs)
 s = sem(windowing_costs)
 display("Windowing cost: $μ ± $s")
 
-smoothing_costs = train(ambiguity_radii, smoothing_weights, smoothing_parameters)
+#=
+smoothing_costs = train_and_test(ambiguity_radii, smoothing_weights, smoothing_parameters)
 μ = mean(smoothing_costs)
 s = sem(smoothing_costs)
 display("smoothing cost: $μ ± $s")
+=#
 
-optimal_costs = train(ambiguity_radii, optimal_weights, shift_bound_parameters)
+#=
+triangular_costs = train_and_test(ambiguity_radii, triangular_weights, windowing_parameters)
+μ = mean(triangular_costs)
+s = sem(triangular_costs)
+display("triangular cost: $μ ± $s")
+=#
+
+optimal_costs = train_and_test(ambiguity_radii, optimal_weights, shift_bound_parameters)
 μ = mean(optimal_costs)
 s = sem(optimal_costs)
 display("optimal cost: $μ ± $s")

@@ -1,7 +1,7 @@
 using JuMP, Ipopt
 using Plots
 
-T = 60
+T = 30
 p = 2
 
 function solve_for_weights(ϵ, ρ)
@@ -22,10 +22,54 @@ function solve_for_weights(ϵ, ρ)
 
     weights = [value(w[t]) for t in 1:T]
 
-    display(plot(1:T, weights))
+    default() # Reset plot defaults.
 
-    return reverse(weights)
+    gr(size = (600,400))
+    
+    font_family = "Computer Modern"
+    primary_font = Plots.font(font_family, pointsize = 18)
+    secondary_font = Plots.font(font_family, pointsize = 11)
+    legend_font = Plots.font(font_family, pointsize = 16)
+    
+    default(framestyle = :box,
+            grid = true,
+            #gridlinewidth = 1.0,
+            gridalpha = 0.075,
+            #minorgrid = true,
+            #minorgridlinewidth = 1.0, 
+            #minorgridalpha = 0.075,
+            #minorgridlinestyle = :dash,
+            tick_direction = :in,
+            xminorticks = 0, 
+            yminorticks = 0,
+            fontfamily = font_family,
+            guidefont = primary_font,
+            tickfont = secondary_font,
+            legendfont = legend_font)
+    
+    plt = plot(1:T, weights, 
+            xlabel = "\$t\$", 
+            ylabel = "\$w_t\$",
+            legend = nothing,
+            color = palette(:tab10)[1],
+            alpha = 1,
+            linewidth = 1,
+            fillalpha = .1,
+            topmargin = 0pt, 
+            rightmargin = 0pt,
+            bottommargin = 3pt, 
+            leftmargin = 3pt)
+    
+    display(plt);
+
+    #return reverse(weights)
+
+    #savefig(plt, "figures/W1-weights.pdf")
+    #savefig(plt, "figures/W2-weights.pdf")
 
 end
 
-weights = solve_for_weights(10.0,0.05)
+#solve_for_weights(10.0,0.5)
+#solve_for_weights(10.0,0.1)
+
+solve_for_weights(22.0,0.3)
