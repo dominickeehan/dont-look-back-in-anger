@@ -268,6 +268,13 @@ end
 
 function intersection_based_W2_newsvendor_order(ball_radii, ξ, ball_weights) 
 
+    indices_to_keep = [maximum(stack(ball_weights)'[:,i]) for i in 1:length(ξ)] .>= 1e-3
+    ξ = ξ[indices_to_keep]
+    for ball_weight_index in eachindex(ball_weights)
+        ball_weights[ball_weight_index] = ball_weights[ball_weight_index][indices_to_keep]
+        ball_weights[ball_weight_index] .= ball_weights[ball_weight_index]/sum(ball_weights[ball_weight_index])
+    end
+
     K = length(ball_radii)
     T = length(ξ)
 
@@ -318,19 +325,32 @@ function intersection_based_W2_newsvendor_order(ball_radii, ξ, ball_weights)
         return value(x)
     catch
         #display("catch")
-        return newsvendor_order(0, all_ξ, [1/length(all_ξ) for _ in eachindex(all_ξ)])
+        return newsvendor_order(0, ξ, [1/T for t in 1:T])
     end
 end
 
-ball_radii = vec(collect(IterTools.product(LinRange(1e3,1e4,11), LinRange(1e2,1e4,11), LinRange(1e1,1e4,11))))
+#ball_radii = vec(collect(IterTools.product(LinRange(1e3,1e4,11), LinRange(1e2,1e4,11), LinRange(1e1,1e4,11))))
+ball_radii = [LinRange(1e3,1e4,11), LinRange(1e2,1e4,11), LinRange(1e1,1e4,11)]
 shift_bound_parameters = LinRange(1.0,20.0,6)
 
 function train(ball_radii, compute_weights, weight_parameters)
 
-    costs = [zeros((length(ball_radii),length(weight_parameters))) for _ in 1:repetitions]
+    precomputed_weights = [zeros(history_length) for ball_radii_index in eachindex(ball_radii) for ball_radius_index in eachindex(ball_radii[ball_radii_index]) for weight_parameter_index in eachindex(weight_parameters)]
 
-    Threads.@threads for (ball_radii_index, weight_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(ball_radii), eachindex(weight_parameters))))
-        weights = [compute_weights(history_length, ball_radius, weight_parameters[weight_parameter_index]) for ball_radius in ball_radii[ball_radii_index]]
+    for ball_radii_index in eachindex(ball_radii)
+        for ball_radius_index in eachindex(ball_radii[ball_radii_index])
+            for weight_parameter_index in eachindex(weight_parameters)
+                precomputed_weights[ball_radii_index][ball_radius_index][weight_parameter_index] = compute_weights(history_length, ball_radius, weight_parameters[weight_parameter_index])
+            end
+        end
+    end
+
+    ball_radii_indices = vec(collect(IterTools.product(Tuple(eachindex(ball_radii[ball_radii_index] for ball_radii_index in eachindex(ball_radii))))))
+
+    costs = [zeros((length(ball_radii_indices),length(weight_parameters))) for _ in 1:repetitions]
+
+    Threads.@threads for (ball_radii_index, weight_parameter_index) in ProgressBar(collect(IterTools.product(ball_radii_indices, eachindex(weight_parameters))))
+        weights = [precomputed_weights[k, ball_radii_index[k], weight_parameter_index] for k in 1:length(ball_radii)]
 
         for repetition in 1:repetitions
             demand_samples = demand_sequences[repetition][1:history_length]
@@ -342,7 +362,7 @@ function train(ball_radii, compute_weights, weight_parameters)
 
     ball_radii_index, weight_parameter_index = Tuple(argmin(mean(costs)))
     minimal_costs = [costs[repetition][ball_radii_index, weight_parameter_index] for repetition in 1:repetitions]
-    display((ball_radii[ball_radii_index], weight_parameters[weight_parameter_index]))
+    display((ball_radii_indices[ball_radii_index], weight_parameters[weight_parameter_index]))
 
     return minimal_costs
 end

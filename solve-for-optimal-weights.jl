@@ -1,8 +1,12 @@
 using JuMP, Ipopt
-using Plots
+using Plots, Measures
 
 T = 30
-p = 2
+p = 10
+
+d = [t for t in 1:T]
+#d = [t-2 for t in 1:T]
+#d[1] = 1
 
 function solve_for_weights(ϵ, ρ)
 
@@ -14,13 +18,15 @@ function solve_for_weights(ϵ, ρ)
     @constraint(Problem, (sum(w[t]*t^p for t in 1:T)*ρ^p)^(1/p) <= ϵ)
     for t in 1:T-1; @constraint(Problem, w[t] >= w[t+1]); end
 
-    @objective(Problem, Max, (1/(sum(w[t]^2 for t in 1:T)))*((ϵ-(sum(w[t]*t^p for t in 1:T)*ρ^p)^(1/p))^(2*p)))
+    @objective(Problem, Max, (1/(sum(w[t]^2 for t in 1:T)))*((ϵ-(sum(w[t]*d[t]^p for t in 1:T)*ρ^p)^(1/p))^(2*p)))
 
     optimize!(Problem)
 
     display(objective_value(Problem))
 
     weights = [value(w[t]) for t in 1:T]
+
+    display(weights)
 
     default() # Reset plot defaults.
 
