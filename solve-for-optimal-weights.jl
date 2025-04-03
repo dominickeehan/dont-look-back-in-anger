@@ -11,10 +11,10 @@ function solve_for_weights(ϵ, ρ)
     @variable(Problem, 1>= w[t=1:T] >=0)
 
     @constraint(Problem, sum(w[t] for t in 1:T) == 1)
-    @constraint(Problem, (sum(w[t]*t^p for t in 1:T)*ρ^p)^(1/p) <= (ϵ)^(1/p))
+    @constraint(Problem, (sum(w[t]*t^p for t in 1:T)*ρ^p)^(1/p) <= ϵ)
     for t in 1:T-1; @constraint(Problem, w[t] >= w[t+1]); end
 
-    @objective(Problem, Max, (1/(sum(w[t]^2 for t in 1:T)))*(((ϵ)^(1/p)-(sum(w[t]*t^p for t in 1:T)*ρ^p)^(1/p))^(2*p)))
+    @objective(Problem, Max, (1/(sum(w[t]^2 for t in 1:T)))*((ϵ-(sum(w[t]*t^p for t in 1:T)*ρ^p)^(1/p))^(2*p)))
 
     optimize!(Problem)
 
@@ -72,4 +72,4 @@ end
 #solve_for_weights(10.0,0.5)
 #solve_for_weights(10.0,0.1)
 
-solve_for_weights(22.0,0.3)
+solve_for_weights(200,12)
