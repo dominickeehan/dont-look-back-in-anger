@@ -123,18 +123,21 @@ include("weights.jl")
 
 Random.seed!(42)
 
-shift_distribution = Uniform(-0.002,0.002)
+shift_distribution = Uniform(-0.001,0.001)
+#shift_distribution = Dirac(0.0)
+
 
 initial_demand_probability = 0.1
 
-repetitions = 1000
+repetitions = 3000
 history_length = 30
 
-windowing_parameters = round.(Int, LinRange(3,history_length,6))
-smoothing_parameters = LinRange(0.0001,0.4,6)
-ambiguity_radii = LinRange(1e1,1e3,6) #LinRange(1e1,1e2,21) #LinRange(1e1,1.5e2,21)
-shift_bound_parameters = LinRange(1.0,20.0,6) #[0.05,0.1,0.15,0.2] #LinRange(1e-1,1e-0,11) #[0.1] #[0,1e-3,1e-2,1e-1,1e0,1e1,1e2,1e3]
+windowing_parameters = round.(Int, LinRange(3,history_length,11))
+smoothing_parameters = LinRange(0.0001,0.2,11)
 
+ambiguity_radii = LinRange(1e0,2e2,11) #LinRange(1e1,1e2,21) #LinRange(1e1,1.5e2,21)
+#ambiguity_radii = LinRange(1e0,1e1,11) #LinRange(1e1,1e2,21) #LinRange(1e1,1.5e2,21)
+shift_bound_parameters = LinRange(1.0,10.0,11) #[0.05,0.1,0.15,0.2] #LinRange(1e-1,1e-0,11) #[0.1] #[0,1e-3,1e-2,1e-1,1e0,1e1,1e2,1e3]
 
 demand_sequences = [zeros(history_length+1) for _ in 1:repetitions]
 for repetition in 1:repetitions
@@ -222,31 +225,33 @@ function train(ambiguity_radii, compute_weights, weight_parameters)
     return minimal_costs
 end
 
-#=
+
 naive_costs = train(ambiguity_radii, windowing_weights, [history_length])
 μ = mean(naive_costs)
 s = sem(naive_costs)
 display("SAA cost: $μ ± $s")
 
+
+
 windowing_costs = train(ambiguity_radii, windowing_weights, windowing_parameters)
 μ = mean(windowing_costs)
 s = sem(windowing_costs)
 display("Windowing cost: $μ ± $s")
-=#
 
-#=
+
+
 smoothing_costs = train(ambiguity_radii, smoothing_weights, smoothing_parameters)
 μ = mean(smoothing_costs)
 s = sem(smoothing_costs)
 display("smoothing cost: $μ ± $s")
-=#
 
-#=
+
+
 optimal_costs = train(ambiguity_radii, optimal_weights, shift_bound_parameters)
 μ = mean(optimal_costs)
 s = sem(optimal_costs)
 display("optimal cost: $μ ± $s")
-=#
+
 
 #=
 display(mean(optimal_costs - windowing_costs))
@@ -264,6 +269,10 @@ end
 =#
 
 #for ε in [0,1e2,1e3,1e4,1e5,1e6]; display(W2_newsvendor_order(ε, demand_sequences[1][1:end-1], windowing_weights(history_length, 0, history_length))); end
+
+
+
+
 
 
 function intersection_based_W2_newsvendor_order(ball_radii, ξ, ball_weights) 
@@ -333,14 +342,14 @@ function intersection_based_W2_newsvendor_order(ball_radii, ξ, ball_weights)
     try
         return value(x)
     catch
-        display("catch")
-        return newsvendor_order(0, ξ, [1/T for t in 1:T])
+        #display("catch")
+        return intersection_based_W2_newsvendor_order(1.1*ball_radii, ξ, ball_weights)
     end
 end
 
 
-ball_radii = [LinRange(1e3,2e3,2).+1e1, 2e2] #[LinRange(1e2,1e4,2), LinRange(1e1,1e4,2)]
-shift_bound_parameters = [1e1] #LinRange(1.0,20.0,2)
+ball_radii = [80+5, 80] #[LinRange(1e2,1e4,2), LinRange(1e1,1e4,2)]
+shift_bound_parameters = [5] #LinRange(1.0,20.0,2)
 
 function train(ball_radii, compute_weights, weight_parameters)
 
@@ -460,37 +469,48 @@ function windowing_intersection_based_W2_newsvendor_order(ball_radii, ξ)
     try
         return value(x)
     catch
-        display("catch")
+        #display("catch")
         #return newsvendor_order(0, ξ, [1/K for k in 1:K])
-        return windowing_intersection_based_W2_newsvendor_order(2*ball_radii,ξ)
+        return windowing_intersection_based_W2_newsvendor_order(1.1*ball_radii,ξ)
     end
 end
 
 
-initial_ball_radii_parameters = 1000*[1e2, 9e1, 8e1, 7e1, 6e1, 5e1, 4e1, 3e1, 2e1, 1e1] #LinRange(1e5,3e5,3), LinRange(1e4,3e4,3), LinRange(1e3,3e3,3), LinRange(5e1,2e2,3), LinRange(1e1,3e1,3)]
-shift_bound_parameters = 
+#initial_ball_radii_parameters = LinRange(0.75e4,2e4,10)
+#shift_bound_parameters = LinRange(0.75e3,2e3,10)
+#initial_ball_radii_parameters = LinRange(2e3,4e3,11)
+#shift_bound_parameters = LinRange(0.5e3,2e3,11)
+initial_ball_radii_parameters = LinRange(1e3,3e3,6)
+shift_bound_parameters = LinRange(1e2,3e2,6)
 
+K = 30
 function train(initial_ball_radii_parameters, shift_bound_parameters)
 
-    ball_radii_indices = vec(collect(IterTools.product([eachindex(ball_radii[ball_radii_index]) for ball_radii_index in eachindex(ball_radii)]...)))
-    costs = [zeros((length(ball_radii_indices))) for repetition in 1:repetitions]
+    costs = [zeros((length(initial_ball_radii_parameters),length(shift_bound_parameters))) for repetition in 1:repetitions]
 
-    Threads.@threads for (ball_radii_indices_index, repetition) in ProgressBar(collect(IterTools.product(eachindex(ball_radii_indices), 1:repetitions)))
-        demand_samples = demand_sequences[repetition][1:history_length]
-        order = windowing_intersection_based_W2_newsvendor_order([ball_radii[k][ball_radii_indices[ball_radii_indices_index][k]] for k in eachindex(ball_radii)], demand_samples)
-        costs[repetition][ball_radii_indices_index] = newsvendor_loss(order, demand_sequences[repetition][history_length+1])
+    Threads.@threads for (initial_ball_radius_index, shift_bound_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(initial_ball_radii_parameters), eachindex(shift_bound_parameters))))
 
+        ball_radii = reverse([initial_ball_radii_parameters[initial_ball_radius_index]+(k-1)*shift_bound_parameters[shift_bound_parameter_index] for k in 1:K])
+
+        for repetition in 1:repetitions
+            demand_samples = demand_sequences[repetition][1:history_length]
+            order = windowing_intersection_based_W2_newsvendor_order(ball_radii, demand_samples)
+            costs[repetition][initial_ball_radius_index, shift_bound_parameter_index] = newsvendor_loss(order, demand_sequences[repetition][history_length+1])
+        end
     end
 
-    ball_radii_index = argmin(mean(costs))
-    minimal_costs = [costs[repetition][ball_radii_index] for repetition in 1:repetitions]
-    display(ball_radii_indices[ball_radii_index])
+    initial_ball_radius_index, shift_bound_parameter_index = Tuple(argmin(mean(costs)))
+    minimal_costs = [costs[repetition][initial_ball_radius_index, shift_bound_parameter_index] for repetition in 1:repetitions]
+    display((initial_ball_radii_parameters[initial_ball_radius_index], shift_bound_parameters[shift_bound_parameter_index]))
 
     return minimal_costs
 end
 
-intersection_based_costs = train(ball_radii)
-#intersection_based_costs = train(ball_radii, windowing_weights, [1])
+#=
+intersection_based_costs = train(initial_ball_radii_parameters, shift_bound_parameters)
 μ = mean(intersection_based_costs)
 s = sem(intersection_based_costs)
 display("intersection based cost: $μ ± $s")
+=#
+
+
