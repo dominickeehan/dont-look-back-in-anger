@@ -29,9 +29,9 @@ using JuMP, Ipopt
 
 Ipoptimizer = optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0)#, "tol" => 1e-9)
 
-p = 2
+function W1_optimal_weights(T, ε, ϱ)
 
-function optimal_weights(T, ε, ϱ)
+    p = 1
 
     if ϱ >= (1/1)*ε; ϱ = (1/1)*ε; end
 
@@ -41,7 +41,7 @@ function optimal_weights(T, ε, ϱ)
 
     @constraint(Problem, sum(w[t] for t in 1:T) == 1)
     @constraint(Problem, (sum(w[t]*t^p for t in 1:T)*ϱ^p)^(1/p) <= ε)
-    for t in 1:T-1; @constraint(Problem, w[t] >= w[t+1]); end
+    #for t in 1:T-1; @constraint(Problem, w[t] >= w[t+1]); end
 
     @objective(Problem, Max, (1/(sum(w[t]^2 for t in 1:T)))*((ε-(sum(w[t]*t^p for t in 1:T)*ϱ^p)^(1/p))^(2*p)))
 
@@ -49,29 +49,30 @@ function optimal_weights(T, ε, ϱ)
 
     weights = [max(value(w[t]),0) for t in 1:T]
 
-    #display(plot(1:T, weights))
-    #display(objective_value(Problem))
-
     return reverse(weights)
 
 end
 
+function W2_optimal_weights(T, ε, ϱ)
 
+    p = 2
 
-function triangular_weights(T, ε, window_size)
-    weights = zeros(T)
+    if ϱ >= (1/1)*ε; ϱ = (1/1)*ε; end
 
-    if window_size >= T
-        for t in 1:T
-            weights[t] = t  # Triangular decay
-        end
-    else
-        for t in max(1, T-window_size+1):T
-            weights[t] = t - (T - window_size)  # Linearly increasing from 1
-        end
-    end
+    Problem = Model(Ipoptimizer)
 
-    weights .= weights / sum(weights)  # Normalize
+    @variable(Problem, 1>= w[t=1:T] >=0)
 
-    return weights
+    @constraint(Problem, sum(w[t] for t in 1:T) == 1)
+    @constraint(Problem, (sum(w[t]*t^p for t in 1:T)*ϱ^p)^(1/p) <= ε)
+    #for t in 1:T-1; @constraint(Problem, w[t] >= w[t+1]); end
+
+    @objective(Problem, Max, (1/(sum(w[t]^2 for t in 1:T)))*((ε-(sum(w[t]*t^p for t in 1:T)*ϱ^p)^(1/p))^(2*p)))
+
+    optimize!(Problem)
+
+    weights = [max(value(w[t]),0) for t in 1:T]
+
+    return reverse(weights)
+
 end
