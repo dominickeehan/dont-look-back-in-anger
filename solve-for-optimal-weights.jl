@@ -33,7 +33,7 @@ function solve_for_weights(ϵ, ρ)
     gr(size = (600,400))
     
     font_family = "Computer Modern"
-    primary_font = Plots.font(font_family, pointsize = 18)
+    primary_font = Plots.font(font_family, pointsize = 17)
     secondary_font = Plots.font(font_family, pointsize = 11)
     legend_font = Plots.font(font_family, pointsize = 16)
     

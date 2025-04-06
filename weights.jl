@@ -29,7 +29,7 @@ using JuMP, Ipopt
 
 Ipoptimizer = optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0)#, "tol" => 1e-9)
 
-function W1_optimal_weights(T, ε, ϱ)
+function W₁_optimal_weights(T, ε, ϱ)
 
     p = 1
 
@@ -53,7 +53,7 @@ function W1_optimal_weights(T, ε, ϱ)
 
 end
 
-function W2_optimal_weights(T, ε, ϱ)
+function W₂_optimal_weights(T, ε, ϱ)
 
     p = 2
 
