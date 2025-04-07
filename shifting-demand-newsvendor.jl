@@ -167,22 +167,24 @@ function train(ambiguity_radii, compute_weights, weight_parameters)
     return round(mean(minimal_costs), digits=2), round(sem(minimal_costs), digits=2), round(ambiguity_radii[ambiguity_radius_index], digits=2), round(weight_parameters[weight_parameter_index], digits=2)
 end
 
-windowing_parameters = round.(Int, LinRange(3,history_length,11))
-smoothing_parameters = LinRange(0.0001,0.4,11)
-ambiguity_radii = LinRange(60,200,11) # Only matters for optimal costs.
-shift_bound_parameters = LinRange(2,20,11)
+windowing_parameters = round.(Int, LinRange(3,history_length,21))
+smoothing_parameters = LinRange(0.0001,0.4,21)
+ambiguity_radii = LinRange(60,200,21) # Only matters for optimal costs.
+shift_bound_parameters = LinRange(2,20,21)
 
 W₁_naive_cost, W₁_naive_sem, _, _ = train([0], windowing_weights, [history_length])
 display("W₁ naive: $W₁_naive_cost ± $W₁_naive_sem")
 
 W₁_windowing_cost, W₁_windowing_sem, W₁_windowing_ε, W₁_windowing_t = train([0], windowing_weights, windowing_parameters)
 display("W₁ windowing: $W₁_windowing_t, $W₁_windowing_cost ± $W₁_windowing_sem")
+W₁_windowing_t = round(Int, W₁_windowing_t)
 
 W₁_smoothing_cost, W₁_smoothing_sem, W₁_smoothing_ε, W₁_smoothing_α = train([0], smoothing_weights, smoothing_parameters)
 display("W₁ smoothing: $W₁_smoothing_α, $W₁_smoothing_cost ± $W₁_smoothing_sem")
 
 W₁_optimal_cost, W₁_optimal_sem, W₁_optimal_ε, W₁_optimal_ϱ = train(ambiguity_radii, W₁_optimal_weights, shift_bound_parameters)
 display("W₁ optimal: $W₁_optimal_ε, $W₁_optimal_ϱ, $W₁_optimal_cost ± $W₁_optimal_sem")
+W₁_optimal_ε = round(Int, W₁_optimal_ε)
 
 println("Parameters &  & \$t=$W₁_windowing_t\$ & \$\\alpha=$W₁_smoothing_α\$ & \$\\varepsilon=$W₁_optimal_ε\$, \$\\varrho=$W₁_optimal_ϱ\$ \\\\")
 println("Expected cost & \$$W₁_naive_cost \\pm $W₁_naive_sem\$ & \$$W₁_windowing_cost \\pm $W₁_windowing_sem\$ & \$$W₁_smoothing_cost \\pm $W₁_smoothing_sem\$ & \$$W₁_optimal_cost \\pm $W₁_optimal_sem\$\\\\")
@@ -267,10 +269,10 @@ function train(ambiguity_radii, compute_weights, weight_parameters)
     return round(mean(minimal_costs), digits=2), round(sem(minimal_costs), digits=2), round(ambiguity_radii[ambiguity_radius_index], digits=2), round(weight_parameters[weight_parameter_index], digits=2)
 end
 
-ambiguity_radii = LinRange(60,600,11)
-windowing_parameters = round.(Int, LinRange(3,history_length,11))
-smoothing_parameters = LinRange(0.0001,0.4,11)
-shift_bound_parameters = LinRange(1,20,11)
+ambiguity_radii = LinRange(60,600,21)
+windowing_parameters = round.(Int, LinRange(3,history_length,21))
+smoothing_parameters = LinRange(0.0001,0.4,21)
+shift_bound_parameters = LinRange(2,20,21)
 
 
 W₂_naive_cost, W₂_naive_sem, W₂_naive_ε, _ = train(ambiguity_radii, windowing_weights, history_length)
@@ -280,6 +282,7 @@ W₂_naive_ε = round(Int, W₂_naive_ε)
 W₂_windowing_cost, W₂_windowing_sem, W₂_windowing_ε, W₂_windowing_t = train(ambiguity_radii, windowing_weights, windowing_parameters)
 display("W₂ windowing: $W₂_windowing_ε, $W₂_windowing_t, $W₂_windowing_cost ± $W₂_windowing_sem")
 W₂_windowing_ε = round(Int, W₂_windowing_ε)
+W₂_windowing_t = round(Int, W₂_windowing_t)
 
 W₂_smoothing_cost, W₂_smoothing_sem, W₂_smoothing_ε, W₂_smoothing_α = train(ambiguity_radii, smoothing_weights, smoothing_parameters)
 display("W₂ smoothing: $W₂_smoothing_ε, $W₂_smoothing_α, $W₂_smoothing_cost ± $W₂_smoothing_sem")
@@ -289,8 +292,8 @@ W₂_optimal_cost, W₂_optimal_sem, W₂_optimal_ε, W₂_optimal_ϱ = train(am
 display("W₂ optimal: $W₂_optimal_ε, $W₂_optimal_ϱ, $W₂_optimal_cost ± $W₂_optimal_sem")
 W₂_optimal_ε = round(Int, W₂_optimal_ε)
 
-println("Parameters & \$\\varepsilon=$W₂_naive_ε\$ & \$\\varepsilon=$W₂_windowing_ε\$, \$t=$W₂_windowing_t\$ & \$\\varepsilon=$W₂_smoothing_ε\$, \$\\alpha=$W₂_smoothing_α\$ & \$\\varepsilon=$W₂_optimal_ε\$, \$\\varrho=$W₂_optimal_ϱ\$ \\\\")
-println("Expected cost & \$$W₂_naive_cost \\pm $W₂_naive_sem\$ & \$$W₂_windowing_cost \\pm $W₂_windowing_sem\$ & \$$W₂_smoothing_cost \\pm $W₂_smoothing_sem\$ & \$$W₂_optimal_cost \\pm $W₂_optimal_sem\$\\\\")
+println("Parameters & \$\\varepsilon=$W₂_naive_ε\$ & \$\\varepsilon=$W₂_windowing_ε\$, \$t=$W₂_windowing_t\$ & \$\\varepsilon=$W₂_smoothing_ε\$, \$\\alpha=$W₂_smoothing_α\$ & \$\\varepsilon=$W₂_optimal_ε\$, \$\\varrho=$W₂_optimal_ϱ\$ & \$ \$ \\\\")
+println("Expected cost & \$$W₂_naive_cost \\pm $W₂_naive_sem\$ & \$$W₂_windowing_cost \\pm $W₂_windowing_sem\$ & \$$W₂_smoothing_cost \\pm $W₂_smoothing_sem\$ & \$$W₂_optimal_cost \\pm $W₂_optimal_sem\$ & \$ \$ \\\\")
 
 
 
@@ -437,8 +440,8 @@ function train(initial_ball_radii_parameters, shift_bound_parameters)
     return round(mean(minimal_costs), digits=2), round(sem(minimal_costs), digits=2), round(initial_ball_radii_parameters[initial_ball_radius_index], digits=2), round(shift_bound_parameters[shift_bound_parameter_index], digits=2)
 end
 
-initial_ball_radii_parameters = LinRange(20,200,11)
-shift_bound_parameters = LinRange(1,40,11)
+initial_ball_radii_parameters = LinRange(20,200,21)
+shift_bound_parameters = LinRange(1,40,21)
 
 intersection_based_cost, intersection_based_sem, intersection_based_ε, intersection_based_ϱ  = train(initial_ball_radii_parameters, shift_bound_parameters)
 #intersection_based_cost, intersection_based_sem, intersection_based_ε, intersection_based_ϱ = train([2600], [400])
