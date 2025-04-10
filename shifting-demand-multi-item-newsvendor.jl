@@ -3,13 +3,10 @@ using  Random, Statistics, StatsBase, Distributions
 number_of_consumers = 10000
 D = number_of_consumers
 
-Cu = 1 # Cost of underage.
-Co = 2/3 # Cost of overage.
+Cu = [1, 2] # Cost of underage.
+Co = [2/3, 1/3] # Cost of overage.
 
-newsvendor_loss(x,ξ) = Cu*max(ξ-x,0) + Co*max(x-ξ,0)
-
-newsvendor_order(ε, ξ, weights) = quantile(ξ, Weights(weights), Cu/(Co+Cu))
-W₁_newsvendor_order(ε, ξ, weights) = newsvendor_order(ε, ξ, weights)
+newsvendor_loss(x,ξ) = Cu'*max(ξ-x,[0, 0]) + Co'*max(x-ξ,[0, 0])
 
 using JuMP, MathOptInterface
 using Gurobi
@@ -31,7 +28,7 @@ function W₂_newsvendor_order(ε, ξ, weights)
     C = [-1; 1]
     d = [0, D]
     a = [Cu,-Co]
-    b(x) = [-Cu*x, Co*x]
+    b(x) = [-Cu'*x, Co'*x]
 
     @variables(Problem, begin
                             D >= x >= 0
@@ -74,12 +71,12 @@ include("weights.jl")
 
 Random.seed!(41)
 
-shift_distribution = Uniform(-0.001,0.001)
+shift_distribution = Uniform(-0.002,0.002)
 
 initial_demand_probability = 0.1
 
 repetitions = 1000
-history_length = 100
+history_length = 30
 
 demand_sequences = [zeros(history_length+1) for _ in 1:repetitions]
 for repetition in 1:repetitions
@@ -178,11 +175,10 @@ shift_bound_parameters = LinRange(0.01,0.1,10) #[LinRange(0.001,0.01,10) LinRang
 W₁_naive_cost, W₁_naive_sem, _, _ = train([0], windowing_weights, [history_length])
 display("W₁ naive: $W₁_naive_cost ± $W₁_naive_sem")
 
-#=
+
 W₁_windowing_cost, W₁_windowing_sem, W₁_windowing_ε, W₁_windowing_t = train([0], windowing_weights, windowing_parameters)
 display("W₁ windowing: $W₁_windowing_t, $W₁_windowing_cost ± $W₁_windowing_sem")
 W₁_windowing_t = round(Int, W₁_windowing_t)
-=#
 
 #=
 W₁_smoothing_cost, W₁_smoothing_sem, W₁_smoothing_ε, W₁_smoothing_α = train([0], smoothing_weights, smoothing_parameters)
@@ -282,8 +278,8 @@ end
 
 windowing_parameters = round.(Int, LinRange(3,history_length,21))
 smoothing_parameters = LinRange(0.0001,0.4,21)
-ambiguity_radii = [LinRange(1,10,3) LinRange(10,100,3)]
-shift_bound_parameters = [LinRange(0.1,1,3) LinRange(1,10,3)]
+ambiguity_radii = LinRange(10,100,6)
+shift_bound_parameters = LinRange(0.1,1,6)
 
 #=
 W₂_naive_cost, W₂_naive_sem, W₂_naive_ε, _ = train(ambiguity_radii, windowing_weights, history_length)
@@ -300,11 +296,11 @@ display("W₂ smoothing: $W₂_smoothing_ε, $W₂_smoothing_α, $W₂_smoothing
 W₂_smoothing_ε = round(Int, W₂_smoothing_ε)
 =#
 
-#=
+
 W₂_optimal_cost, W₂_optimal_sem, W₂_optimal_ε, W₂_optimal_ϱ = train(ambiguity_radii, W₂_optimal_weights, shift_bound_parameters)
 display("W₂ optimal: $W₂_optimal_ε, $W₂_optimal_ϱ, $W₂_optimal_cost ± $W₂_optimal_sem")
 W₂_optimal_ε = round(Int, W₂_optimal_ε)
-=#
+
 
 #println("Parameters & \$\\varepsilon=$W₂_naive_ε\$ & \$\\varepsilon=$W₂_windowing_ε\$, \$t=$W₂_windowing_t\$ & \$\\varepsilon=$W₂_smoothing_ε\$, \$\\alpha=$W₂_smoothing_α\$ & \$\\varepsilon=$W₂_optimal_ε\$, \$\\varrho=$W₂_optimal_ϱ\$ & \$ \$ \\\\")
 #println("Expected cost & \$$W₂_naive_cost \\pm $W₂_naive_sem\$ & \$$W₂_windowing_cost \\pm $W₂_windowing_sem\$ & \$$W₂_smoothing_cost \\pm $W₂_smoothing_sem\$ & \$$W₂_optimal_cost \\pm $W₂_optimal_sem\$ & \$ \$ \\\\")
@@ -464,7 +460,7 @@ initial_ball_radii_parameters = [LinRange(100,1000,3) LinRange(1000,10000,3)]
 shift_bound_parameters = [LinRange(100,1000,3) LinRange(1000,10000,3)] #LinRange(100,1000,5) #[LinRange(10,100,5) LinRange(100,1000,5)]
 
 intersection_based_cost, intersection_based_sem, intersection_based_ε, intersection_based_ϱ, empty_frequency = train(initial_ball_radii_parameters, shift_bound_parameters)
-#intersection_based_cost, intersection_based_sem, intersection_based_ε, intersection_based_ϱ, empty_frequency = train([5000], [500])
+#intersection_based_cost, intersection_based_sem, intersection_based_ε, intersection_based_ϱ, empty_frequency = train([4000], [400])
 display("W₂ intersection: $intersection_based_ε, $intersection_based_ϱ, $intersection_based_cost ± $intersection_based_sem, $empty_frequency")
 
 

@@ -3,13 +3,11 @@ using  Random, Statistics, StatsBase, Distributions
 number_of_consumers = 10000
 D = number_of_consumers
 
-Cu = 1 # Cost of underage.
-Co = 2/3 # Cost of overage.
+Cu = 3 # Cost of underage.
+Co = 1 # Cost of overage.
 
 newsvendor_loss(x,ξ) = Cu*max(ξ-x,0) + Co*max(x-ξ,0)
 
-newsvendor_order(ε, ξ, weights) = quantile(ξ, Weights(weights), Cu/(Co+Cu))
-W₁_newsvendor_order(ε, ξ, weights) = newsvendor_order(ε, ξ, weights)
 
 using JuMP, MathOptInterface
 using Gurobi
@@ -17,6 +15,60 @@ env = Gurobi.Env()
 GRBsetintparam(env, "OutputFlag", 0)
 GRBsetintparam(env, "BarHomogeneous", 1)
 optimizer = optimizer_with_attributes(() -> Gurobi.Optimizer(env))
+
+ρ = 3
+α = 0.1
+
+newsvendor_order(ε, ξ, weights) = quantile(ξ, Weights(weights), Cu/(Co+Cu))
+W₁_newsvendor_order(ε, ξ, weights) = newsvendor_order(ε, ξ, weights)
+
+function W₁_newsvendor_order(ε, ξ, weights) 
+
+    ξ = ξ[weights .>= 1e-3]
+    weights = weights[weights .>= 1e-3]
+    weights .= weights/sum(weights)
+
+    T = length(ξ)
+
+    Problem = Model(optimizer)
+
+    C = [-1; 1]
+    d = [0, D]
+    a = [Cu+ρ*(1/α)*Cu, -Co-ρ*(1/α)*Co, Cu, -Co]
+    b(x,τ) = [-Cu*x-ρ*(1/α)*Cu*x-τ+ρ*τ, Co*x+ρ*(1/α)*Co*x-τ+ρ*τ, -Cu*x+ρ*τ, Co*x+ρ*τ]
+
+    @variables(Problem, begin
+                            D >= x >= 0
+                                 τ
+                                 z[t=1:T]
+                        end)
+
+    for t in 1:T
+        for i in 1:4
+            @constraints(Problem, begin
+                                        a[i]*ξ[t] + b(x,τ)[i] <= z[t]  
+                                  end)
+        end
+    end
+
+    @objective(Problem, Min, weights'*z)
+
+    optimize!(Problem)
+
+    #termination_status(Problem)
+    #primal_status(Problem)
+    #primal_feasibility_report(Problem)
+    #is_solved_and_feasible(Problem)
+
+    #print(Problem)
+
+    try
+        return value(x)
+    catch
+        #display("catch")
+        return newsvendor_order(ε, ξ, weights)
+    end
+end
 
 function W₂_newsvendor_order(ε, ξ, weights) 
 
@@ -30,22 +82,23 @@ function W₂_newsvendor_order(ε, ξ, weights)
 
     C = [-1; 1]
     d = [0, D]
-    a = [Cu,-Co]
-    b(x) = [-Cu*x, Co*x]
+    a = [Cu+ρ*(1/α)*Cu, -Co-ρ*(1/α)*Co, Cu, -Co]
+    b(x,τ) = [-Cu*x-ρ*(1/α)*Cu*x-τ+ρ*τ, Co*x+ρ*(1/α)*Co*x-τ+ρ*τ, -Cu*x+ρ*τ, Co*x+ρ*τ]
 
     @variables(Problem, begin
                             D >= x >= 0
+                                 τ
                                  λ >= 0
                                  γ[t=1:T]
-                                 z[t=1:T,i=1:2,j=1:2] >= 0
-                                 w[t=1:T,i=1:2]
+                                 z[t=1:T,i=1:4,j=1:2] >= 0
+                                 w[t=1:T,i=1:4]
                         end)
 
     for t in 1:T
-        for i in 1:2
+        for i in 1:4
             @constraints(Problem, begin
                                         # b(x)[i] + w[t,i]*ξ[t] + (1/4)*(1/λ)*w[t,i]^2 + z[t,i,:]'*d <= γ[t] <==> w[t,i]^2 <= 2*(2*λ)*(γ[t] - b(x)[i] - w[t,i]*ξ[t] - z[t,i,:]'*d) <==>
-                                        [2*λ; γ[t] - b(x)[i] - w[t,i]*ξ[t] - z[t,i,:]'*d; w[t,i]] in MathOptInterface.RotatedSecondOrderCone(3)
+                                        [2*λ; γ[t] - b(x,τ)[i] - w[t,i]*ξ[t] - z[t,i,:]'*d; w[t,i]] in MathOptInterface.RotatedSecondOrderCone(3)
                                         a[i] - C'*z[t,i,:] == w[t,i]
                                   end)
         end
@@ -70,15 +123,46 @@ function W₂_newsvendor_order(ε, ξ, weights)
     end
 end
 
+function cvar(costs)
+
+    N = length(costs)
+
+    # Create the model
+    model = Model(optimizer)  
+
+    # Decision variables
+    @variables(model, begin  
+                            τ             # CVaR threshold
+                            z[i=1:N] >= 0 # Slack variables for CVaR
+                      end)
+
+    # Objective function
+    @objective(model, Min,
+        τ + sum((1/N)*(1/α)*z[i] for i in 1:N)
+    )
+
+    # CVaR constraints
+    for i in 1:N
+        @constraint(model, z[i] >= costs[i] - τ)
+    end
+
+    # Solve the model
+    optimize!(model)
+
+    return objective_value(model)
+end
+
+
+
 include("weights.jl")
 
 Random.seed!(41)
 
-shift_distribution = Uniform(-0.001,0.001)
+shift_distribution = Uniform(-0.0001,0.0001)
 
 initial_demand_probability = 0.1
 
-repetitions = 1000
+repetitions = 300
 history_length = 100
 
 demand_sequences = [zeros(history_length+1) for _ in 1:repetitions]
@@ -161,12 +245,18 @@ function train(ambiguity_radii, compute_weights, weight_parameters)
         end
     end
 
-    ambiguity_radius_index, weight_parameter_index = Tuple(argmin(mean(costs)))
+    cvars = zeros((length(ambiguity_radii),length(weight_parameters)))
+    for ambiguity_radius_index in eachindex(ambiguity_radii)
+        for weight_parameter_index in eachindex(weight_parameters)
+            cvars[ambiguity_radius_index, weight_parameter_index] = cvar([costs[repetition][ambiguity_radius_index, weight_parameter_index] for repetition in 1:repetitions])
+        end
+    end
+    ambiguity_radius_index, weight_parameter_index = Tuple(argmin(mean(costs)+ρ*cvars))
     minimal_costs = [costs[repetition][ambiguity_radius_index, weight_parameter_index] for repetition in 1:repetitions]
 
     digits = 4
 
-    return round(mean(minimal_costs), digits=digits), round(sem(minimal_costs), digits=digits), round(ambiguity_radii[ambiguity_radius_index], digits=digits), round(weight_parameters[weight_parameter_index], digits=digits)
+    return round(mean(minimal_costs)+ρ*cvar(minimal_costs),digits=digits), round(sem(minimal_costs),digits=digits), round(ambiguity_radii[ambiguity_radius_index],digits=digits), round(weight_parameters[weight_parameter_index],digits=digits)
 end
 
 windowing_parameters = round.(Int, LinRange(3,history_length,history_length))
@@ -178,11 +268,10 @@ shift_bound_parameters = LinRange(0.01,0.1,10) #[LinRange(0.001,0.01,10) LinRang
 W₁_naive_cost, W₁_naive_sem, _, _ = train([0], windowing_weights, [history_length])
 display("W₁ naive: $W₁_naive_cost ± $W₁_naive_sem")
 
-#=
-W₁_windowing_cost, W₁_windowing_sem, W₁_windowing_ε, W₁_windowing_t = train([0], windowing_weights, windowing_parameters)
-display("W₁ windowing: $W₁_windowing_t, $W₁_windowing_cost ± $W₁_windowing_sem")
-W₁_windowing_t = round(Int, W₁_windowing_t)
-=#
+
+#W₁_windowing_cost, W₁_windowing_sem, W₁_windowing_ε, W₁_windowing_t = train([0], windowing_weights, windowing_parameters)
+#display("W₁ windowing: $W₁_windowing_t, $W₁_windowing_cost ± $W₁_windowing_sem")
+#W₁_windowing_t = round(Int, W₁_windowing_t)
 
 #=
 W₁_smoothing_cost, W₁_smoothing_sem, W₁_smoothing_ε, W₁_smoothing_α = train([0], smoothing_weights, smoothing_parameters)
@@ -191,7 +280,7 @@ display("W₁ smoothing: $W₁_smoothing_α, $W₁_smoothing_cost ± $W₁_smoot
 
 W₁_optimal_cost, W₁_optimal_sem, W₁_optimal_ε, W₁_optimal_ϱ = train(ambiguity_radii, W₁_optimal_weights, shift_bound_parameters)
 display("W₁ optimal: $W₁_optimal_ε, $W₁_optimal_ϱ, $W₁_optimal_cost ± $W₁_optimal_sem")
-#W₁_optimal_ε = round(Int, W₁_optimal_ε)
+W₁_optimal_ε = round(Int, W₁_optimal_ε)
 
 #=
 println("Parameters &  & \$t=$W₁_windowing_t\$ & \$\\alpha=$W₁_smoothing_α\$ & \$\\varepsilon=$W₁_optimal_ε\$, \$\\varrho=$W₁_optimal_ϱ\$ \\\\")
@@ -272,18 +361,25 @@ function train(ambiguity_radii, compute_weights, weight_parameters)
         end
     end
 
-    ambiguity_radius_index, weight_parameter_index = Tuple(argmin(mean(costs)))
+    cvars = zeros((length(ambiguity_radii),length(weight_parameters)))
+    for ambiguity_radius_index in eachindex(ambiguity_radii)
+        for weight_parameter_index in eachindex(weight_parameters)
+            cvars[ambiguity_radius_index, weight_parameter_index] = cvar([costs[repetition][ambiguity_radius_index, weight_parameter_index] for repetition in 1:repetitions])
+        end
+    end
+    ambiguity_radius_index, weight_parameter_index = Tuple(argmin(mean(costs)+ρ*cvars))
     minimal_costs = [costs[repetition][ambiguity_radius_index, weight_parameter_index] for repetition in 1:repetitions]
 
     digits = 4
 
-    return round(mean(minimal_costs),digits=digits), round(sem(minimal_costs),digits=digits), round(ambiguity_radii[ambiguity_radius_index],digits=digits), round(weight_parameters[weight_parameter_index],digits=digits)
+    return round(mean(minimal_costs)+ρ*cvar(minimal_costs),digits=digits), round(sem(minimal_costs),digits=digits), round(ambiguity_radii[ambiguity_radius_index],digits=digits), round(weight_parameters[weight_parameter_index],digits=digits)
 end
 
 windowing_parameters = round.(Int, LinRange(3,history_length,21))
 smoothing_parameters = LinRange(0.0001,0.4,21)
-ambiguity_radii = [LinRange(1,10,3) LinRange(10,100,3)]
-shift_bound_parameters = [LinRange(0.1,1,3) LinRange(1,10,3)]
+
+ambiguity_radii = [LinRange(10,100,3) LinRange(100,1000,3)]
+shift_bound_parameters = [LinRange(1,10,3) LinRange(10,100,3)]
 
 #=
 W₂_naive_cost, W₂_naive_sem, W₂_naive_ε, _ = train(ambiguity_radii, windowing_weights, history_length)
@@ -300,11 +396,11 @@ display("W₂ smoothing: $W₂_smoothing_ε, $W₂_smoothing_α, $W₂_smoothing
 W₂_smoothing_ε = round(Int, W₂_smoothing_ε)
 =#
 
-#=
+
 W₂_optimal_cost, W₂_optimal_sem, W₂_optimal_ε, W₂_optimal_ϱ = train(ambiguity_radii, W₂_optimal_weights, shift_bound_parameters)
 display("W₂ optimal: $W₂_optimal_ε, $W₂_optimal_ϱ, $W₂_optimal_cost ± $W₂_optimal_sem")
 W₂_optimal_ε = round(Int, W₂_optimal_ε)
-=#
+
 
 #println("Parameters & \$\\varepsilon=$W₂_naive_ε\$ & \$\\varepsilon=$W₂_windowing_ε\$, \$t=$W₂_windowing_t\$ & \$\\varepsilon=$W₂_smoothing_ε\$, \$\\alpha=$W₂_smoothing_α\$ & \$\\varepsilon=$W₂_optimal_ε\$, \$\\varrho=$W₂_optimal_ϱ\$ & \$ \$ \\\\")
 #println("Expected cost & \$$W₂_naive_cost \\pm $W₂_naive_sem\$ & \$$W₂_windowing_cost \\pm $W₂_windowing_sem\$ & \$$W₂_smoothing_cost \\pm $W₂_smoothing_sem\$ & \$$W₂_optimal_cost \\pm $W₂_optimal_sem\$ & \$ \$ \\\\")
@@ -381,29 +477,30 @@ function REMK_intersection_based_W₂_newsvendor_order(ball_radii, ξ, empty_cou
 
     C = [-1; 1]
     d = [0, D]
-    a = [Cu,-Co]
-    b(x) = [-Cu*x, Co*x]
+    a = [Cu+ρ*(1/α)*Cu, -Co-ρ*(1/α)*Co, Cu, -Co]
+    b(x,τ) = [-Cu*x-ρ*(1/α)*Cu*x-τ+ρ*τ, Co*x+ρ*(1/α)*Co*x-τ+ρ*τ, -Cu*x+ρ*τ, Co*x+ρ*τ]
 
     @variables(Problem, begin
                             D >= x >= 0
+                                 τ
                                  λ[k=1:K] >= 0
                                  γ[k=1:K]
-                                 z[i=1:2,j=1:2] >= 0
-                                 w[i=1:2,k=1:K]
-                                 s[i=1:2,k=1:K]
+                                 z[i=1:4,j=1:2] >= 0
+                                 w[i=1:4,k=1:K]
+                                 s[i=1:4,k=1:K]
                         end)
 
-    for i in 1:2
+    for i in 1:4
         @constraints(Problem, begin
                                     # b(x)[i] + sum(w[i,k]*ξ[k] + (1/4)*(1/λ[k])*w[i,k]^2 for k in 1:K) + z[i,:]'*d <= sum(γ[k] for k in 1:K)
                                     # ⟺ b(x)[i] + sum(w[i,k]*ξ[k] + s[i,k] for k in 1:K) + z[i,:]'*d <= sum(γ[k] for k in 1:K),      (1/4)*(1/λ[K])*w[i,k]^2 <= s[i,k]
                                     # ⟺ b(x)[i] + sum(w[i,k]*ξ[k] + s[i,k] for k in 1:K) + z[i,:]'*d <= sum(γ[k] for k in 1:K),      [2*λ[k]; s[i,k]; w[i,k]] in MathOptInterface.RotatedSecondOrderCone(3) ∀i,k
-                                    b(x)[i] + sum(w[i,k]*ξ[k] + s[i,k] for k in 1:K) + z[i,:]'*d <= sum(γ[k] for k in 1:K)
+                                    b(x,τ)[i] + sum(w[i,k]*ξ[k] + s[i,k] for k in 1:K) + z[i,:]'*d <= sum(γ[k] for k in 1:K)
                                     a[i] - C'*z[i,:] == sum(w[i,k] for k in 1:K)
                                 end)
     end
 
-    for i in 1:2
+    for i in 1:4
         for k in 1:K
             @constraints(Problem, begin
                                         [2*λ[k]; s[i,k]; w[i,k]] in MathOptInterface.RotatedSecondOrderCone(3) 
@@ -451,21 +548,28 @@ function train(initial_ball_radii_parameters, shift_bound_parameters)
         end
     end
 
-    initial_ball_radius_index, shift_bound_parameter_index = Tuple(argmin(mean(costs)))
+    cvars = zeros((length(initial_ball_radii_parameters),length(shift_bound_parameters)))
+    for ambiguity_radius_index in eachindex(initial_ball_radii_parameters)
+        for weight_parameter_index in eachindex(shift_bound_parameters)
+            cvars[ambiguity_radius_index, weight_parameter_index] = cvar([costs[repetition][ambiguity_radius_index, weight_parameter_index] for repetition in 1:repetitions])
+        end
+    end
+
+    initial_ball_radius_index, shift_bound_parameter_index = Tuple(argmin(mean(costs)+ρ*cvars))
     minimal_costs = [costs[repetition][initial_ball_radius_index, shift_bound_parameter_index] for repetition in 1:repetitions]
     empty_frequency = mean([empty_counters[repetition][initial_ball_radius_index, shift_bound_parameter_index] for repetition in 1:repetitions])
 
     digits = 4
 
-    return round(mean(minimal_costs), digits=digits), round(sem(minimal_costs), digits=digits), round(initial_ball_radii_parameters[initial_ball_radius_index], digits=digits), round(shift_bound_parameters[shift_bound_parameter_index], digits=digits), empty_frequency
+    return round(mean(minimal_costs)+ρ*cvar(minimal_costs),digits=digits), round(sem(minimal_costs), digits=digits), round(initial_ball_radii_parameters[initial_ball_radius_index], digits=digits), round(shift_bound_parameters[shift_bound_parameter_index], digits=digits), empty_frequency
 end
 
 initial_ball_radii_parameters = [LinRange(100,1000,3) LinRange(1000,10000,3)]
-shift_bound_parameters = [LinRange(100,1000,3) LinRange(1000,10000,3)] #LinRange(100,1000,5) #[LinRange(10,100,5) LinRange(100,1000,5)]
+shift_bound_parameters = [LinRange(10,100,3) LinRange(100,1000,3)] #LinRange(100,1000,5) #[LinRange(10,100,5) LinRange(100,1000,5)]
 
-intersection_based_cost, intersection_based_sem, intersection_based_ε, intersection_based_ϱ, empty_frequency = train(initial_ball_radii_parameters, shift_bound_parameters)
-#intersection_based_cost, intersection_based_sem, intersection_based_ε, intersection_based_ϱ, empty_frequency = train([5000], [500])
-display("W₂ intersection: $intersection_based_ε, $intersection_based_ϱ, $intersection_based_cost ± $intersection_based_sem, $empty_frequency")
+#intersection_based_cost, intersection_based_sem, intersection_based_ε, intersection_based_ϱ, empty_frequency = train(initial_ball_radii_parameters, shift_bound_parameters)
+#intersection_based_cost, intersection_based_sem, intersection_based_ε, intersection_based_ϱ, empty_frequency = train([4000], [400])
+#display("W₂ intersection: $intersection_based_ε, $intersection_based_ϱ, $intersection_based_cost ± $intersection_based_sem, $empty_frequency")
 
 
 
