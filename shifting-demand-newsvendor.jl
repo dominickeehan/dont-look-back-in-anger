@@ -3,8 +3,8 @@ using  Random, Statistics, StatsBase, Distributions
 number_of_consumers = 10000
 D = number_of_consumers
 
-Cu = 1 # Cost of underage.
-Co = 2/3 # Cost of overage.
+Cu = 3 # Cost of underage.
+Co = 1 # Cost of overage.
 
 newsvendor_loss(x,ξ) = Cu*max(ξ-x,0) + Co*max(x-ξ,0)
 
@@ -74,11 +74,11 @@ include("weights.jl")
 
 Random.seed!(41)
 
-shift_distribution = Uniform(-0.001,0.001)
+shift_distribution = Uniform(-0.0005,0.0005)
 
 initial_demand_probability = 0.1
 
-repetitions = 1000
+repetitions = 3000
 history_length = 100
 
 demand_sequences = [zeros(history_length+1) for _ in 1:repetitions]
@@ -171,7 +171,7 @@ end
 
 windowing_parameters = round.(Int, LinRange(3,history_length,history_length))
 smoothing_parameters = LinRange(0.0001,0.4,21)
-ambiguity_radii = LinRange(0.1,1,10) #[LinRange(0.01,0.1,10) LinRange(0.1,1,10)] # Only matters for optimal costs.
+ambiguity_radii = LinRange(0.1,1,10) #[LinRange(0.01,0.1,10) LinRange(0.1,1,10)] # Only matters for concentration costs.
 shift_bound_parameters = LinRange(0.01,0.1,10) #[LinRange(0.001,0.01,10) LinRange(0.01,0.1,10)]
 
 
@@ -189,13 +189,13 @@ W₁_smoothing_cost, W₁_smoothing_sem, W₁_smoothing_ε, W₁_smoothing_α = 
 display("W₁ smoothing: $W₁_smoothing_α, $W₁_smoothing_cost ± $W₁_smoothing_sem")
 =#
 
-W₁_optimal_cost, W₁_optimal_sem, W₁_optimal_ε, W₁_optimal_ϱ = train(ambiguity_radii, W₁_optimal_weights, shift_bound_parameters)
-display("W₁ optimal: $W₁_optimal_ε, $W₁_optimal_ϱ, $W₁_optimal_cost ± $W₁_optimal_sem")
-#W₁_optimal_ε = round(Int, W₁_optimal_ε)
+W₁_concentration_cost, W₁_concentration_sem, W₁_concentration_ε, W₁_concentration_ϱ = train(ambiguity_radii, W₁_concentration_weights, shift_bound_parameters)
+display("W₁ concentration: $W₁_concentration_ε, $W₁_concentration_ϱ, $W₁_concentration_cost ± $W₁_concentration_sem")
+#W₁_concentration_ε = round(Int, W₁_concentration_ε)
 
 #=
-println("Parameters &  & \$t=$W₁_windowing_t\$ & \$\\alpha=$W₁_smoothing_α\$ & \$\\varepsilon=$W₁_optimal_ε\$, \$\\varrho=$W₁_optimal_ϱ\$ \\\\")
-println("Expected cost & \$$W₁_naive_cost \\pm $W₁_naive_sem\$ & \$$W₁_windowing_cost \\pm $W₁_windowing_sem\$ & \$$W₁_smoothing_cost \\pm $W₁_smoothing_sem\$ & \$$W₁_optimal_cost \\pm $W₁_optimal_sem\$\\\\")
+println("Parameters &  & \$t=$W₁_windowing_t\$ & \$\\alpha=$W₁_smoothing_α\$ & \$\\varepsilon=$W₁_concentration_ε\$, \$\\varrho=$W₁_concentration_ϱ\$ \\\\")
+println("Expected cost & \$$W₁_naive_cost \\pm $W₁_naive_sem\$ & \$$W₁_windowing_cost \\pm $W₁_windowing_sem\$ & \$$W₁_smoothing_cost \\pm $W₁_smoothing_sem\$ & \$$W₁_concentration_cost \\pm $W₁_concentration_sem\$\\\\")
 =#
 
 #=
@@ -226,7 +226,7 @@ default(framestyle = :box,
 
 W₁_windowing_weights = reverse(windowing_weights(history_length, [0], round(Int, W₁_windowing_t)))
 W₁_smoothing_weights = reverse(smoothing_weights(history_length, [0], W₁_smoothing_α))
-W₁_weights = reverse(W₁_optimal_weights(history_length, W₁_optimal_ε, W₁_optimal_ϱ))
+W₁_weights = reverse(W₁_concentration_weights(history_length, W₁_concentration_ε, W₁_concentration_ϱ))
 
 W₁_windowing_t = round(Int, W₁_windowing_t)
 
@@ -235,7 +235,7 @@ plt = plot(1:history_length, stack([W₁_windowing_weights, W₁_smoothing_weigh
         ylabel = "Probability",
         xlims = (0,history_length+1),
         #legend = nothing,
-        labels = ["\$t=$W₁_windowing_t\$" "\$α=$W₁_smoothing_α\$" "\$ε=$W₁_optimal_ε\$, \$ϱ=$W₁_optimal_ϱ\$"],
+        labels = ["\$t=$W₁_windowing_t\$" "\$α=$W₁_smoothing_α\$" "\$ε=$W₁_concentration_ε\$, \$ϱ=$W₁_concentration_ϱ\$"],
         colors = [palette(:tab10)[1] palette(:tab10)[2] palette(:tab10)[3]],
         #markershapes = [:circle :diamond :hexagon],
         seriestypes = [:steppre :line :line],
@@ -301,13 +301,13 @@ W₂_smoothing_ε = round(Int, W₂_smoothing_ε)
 =#
 
 #=
-W₂_optimal_cost, W₂_optimal_sem, W₂_optimal_ε, W₂_optimal_ϱ = train(ambiguity_radii, W₂_optimal_weights, shift_bound_parameters)
-display("W₂ optimal: $W₂_optimal_ε, $W₂_optimal_ϱ, $W₂_optimal_cost ± $W₂_optimal_sem")
-W₂_optimal_ε = round(Int, W₂_optimal_ε)
+W₂_concentration_cost, W₂_concentration_sem, W₂_concentration_ε, W₂_concentration_ϱ = train(ambiguity_radii, W₂_concentration_weights, shift_bound_parameters)
+display("W₂ concentration: $W₂_concentration_ε, $W₂_concentration_ϱ, $W₂_concentration_cost ± $W₂_concentration_sem")
+W₂_concentration_ε = round(Int, W₂_concentration_ε)
 =#
 
-#println("Parameters & \$\\varepsilon=$W₂_naive_ε\$ & \$\\varepsilon=$W₂_windowing_ε\$, \$t=$W₂_windowing_t\$ & \$\\varepsilon=$W₂_smoothing_ε\$, \$\\alpha=$W₂_smoothing_α\$ & \$\\varepsilon=$W₂_optimal_ε\$, \$\\varrho=$W₂_optimal_ϱ\$ & \$ \$ \\\\")
-#println("Expected cost & \$$W₂_naive_cost \\pm $W₂_naive_sem\$ & \$$W₂_windowing_cost \\pm $W₂_windowing_sem\$ & \$$W₂_smoothing_cost \\pm $W₂_smoothing_sem\$ & \$$W₂_optimal_cost \\pm $W₂_optimal_sem\$ & \$ \$ \\\\")
+#println("Parameters & \$\\varepsilon=$W₂_naive_ε\$ & \$\\varepsilon=$W₂_windowing_ε\$, \$t=$W₂_windowing_t\$ & \$\\varepsilon=$W₂_smoothing_ε\$, \$\\alpha=$W₂_smoothing_α\$ & \$\\varepsilon=$W₂_concentration_ε\$, \$\\varrho=$W₂_concentration_ϱ\$ & \$ \$ \\\\")
+#println("Expected cost & \$$W₂_naive_cost \\pm $W₂_naive_sem\$ & \$$W₂_windowing_cost \\pm $W₂_windowing_sem\$ & \$$W₂_smoothing_cost \\pm $W₂_smoothing_sem\$ & \$$W₂_concentration_cost \\pm $W₂_concentration_sem\$ & \$ \$ \\\\")
 
 #=
 
@@ -338,7 +338,7 @@ default(framestyle = :box,
 
 W₂_windowing_weights = reverse(windowing_weights(history_length, [0], round(Int, W₂_windowing_t)))
 W₂_smoothing_weights = reverse(smoothing_weights(history_length, [0], W₂_smoothing_α))
-W₂_weights = reverse(W₂_optimal_weights(history_length, W₂_optimal_ε, W₂_optimal_ϱ))
+W₂_weights = reverse(W₂_concentration_weights(history_length, W₂_concentration_ε, W₂_concentration_ϱ))
 
 W₂_windowing_t = round(Int, W₂_windowing_t)
 
@@ -347,7 +347,7 @@ plt = plot(1:history_length, stack([W₂_windowing_weights, W₂_smoothing_weigh
         ylabel = "Probability",
         xlims = (0,history_length+1),
         #legend = nothing,
-        labels = ["\$ε=$W₂_windowing_ε\$, \$t=$W₂_windowing_t\$" "\$ε=$W₂_smoothing_ε\$, \$α=$W₂_smoothing_α\$" "\$ε=$W₂_optimal_ε\$, \$ϱ=$W₂_optimal_ϱ\$"],
+        labels = ["\$ε=$W₂_windowing_ε\$, \$t=$W₂_windowing_t\$" "\$ε=$W₂_smoothing_ε\$, \$α=$W₂_smoothing_α\$" "\$ε=$W₂_concentration_ε\$, \$ϱ=$W₂_concentration_ϱ\$"],
         colors = [palette(:tab10)[1] palette(:tab10)[2] palette(:tab10)[3]],
         #markershapes = [:circle :diamond :hexagon],
         seriestypes = [:steppre :line :line],
@@ -460,11 +460,11 @@ function train(initial_ball_radii_parameters, shift_bound_parameters)
     return round(mean(minimal_costs), digits=digits), round(sem(minimal_costs), digits=digits), round(initial_ball_radii_parameters[initial_ball_radius_index], digits=digits), round(shift_bound_parameters[shift_bound_parameter_index], digits=digits), empty_frequency
 end
 
-initial_ball_radii_parameters = [LinRange(100,1000,3) LinRange(1000,10000,3)]
-shift_bound_parameters = [LinRange(100,1000,3) LinRange(1000,10000,3)] #LinRange(100,1000,5) #[LinRange(10,100,5) LinRange(100,1000,5)]
+initial_ball_radii_parameters = [LinRange(100,1000,3) LinRange(2000,10000,3)]
+shift_bound_parameters = [LinRange(10,100,3) LinRange(200,1000,3)] #LinRange(100,1000,5) #[LinRange(10,100,5) LinRange(100,1000,5)]
 
 intersection_based_cost, intersection_based_sem, intersection_based_ε, intersection_based_ϱ, empty_frequency = train(initial_ball_radii_parameters, shift_bound_parameters)
-#intersection_based_cost, intersection_based_sem, intersection_based_ε, intersection_based_ϱ, empty_frequency = train([5000], [500])
+#intersection_based_cost, intersection_based_sem, intersection_based_ε, intersection_based_ϱ, empty_frequency = train([8000], [0])
 display("W₂ intersection: $intersection_based_ε, $intersection_based_ϱ, $intersection_based_cost ± $intersection_based_sem, $empty_frequency")
 
 
@@ -640,7 +640,7 @@ function train(ambiguity_radii, compute_weights, weight_parameters)
     return minimal_costs
 end
 
-ambiguity_radii = LinRange(10,100,11) # Only matters for optimal costs.
+ambiguity_radii = LinRange(10,100,11) # Only matters for concentration costs.
 shift_bound_parameters = LinRange(1,10,11)
 
 
@@ -649,11 +649,11 @@ W₁_naive_costs = train([0], windowing_weights, [history_length])
 s = sem(W₁_naive_costs)
 display("W₁ naive cost: $μ ± $s")
 
-W₁_optimal_costs = train(ambiguity_radii, W₁_optimal_weights, shift_bound_parameters)
-μ = mean(W₁_optimal_costs)
-s = sem(W₁_optimal_costs)
-display("W₁ optimal cost: $μ ± $s")
-display(plot(1:history_length, reverse(W₁_optimal_weights(history_length, 21.1, 2.6))))
+W₁_concentration_costs = train(ambiguity_radii, W₁_concentration_weights, shift_bound_parameters)
+μ = mean(W₁_concentration_costs)
+s = sem(W₁_concentration_costs)
+display("W₁ concentration cost: $μ ± $s")
+display(plot(1:history_length, reverse(W₁_concentration_weights(history_length, 21.1, 2.6))))
 
 
 
@@ -684,11 +684,11 @@ ambiguity_radii = LinRange(100,500,11)
 shift_bound_parameters = LinRange(1,10,11)
 
 #=
-W₂_optimal_costs = train(ambiguity_radii, W₂_optimal_weights, shift_bound_parameters)
-μ = mean(W₂_optimal_costs)
-s = sem(W₂_optimal_costs)
-display("W₂ optimal cost: $μ ± $s")
-display(plot(1:history_length, reverse(W₂_optimal_weights(history_length, 40, 1))))
+W₂_concentration_costs = train(ambiguity_radii, W₂_concentration_weights, shift_bound_parameters)
+μ = mean(W₂_concentration_costs)
+s = sem(W₂_concentration_costs)
+display("W₂ concentration cost: $μ ± $s")
+display(plot(1:history_length, reverse(W₂_concentration_weights(history_length, 40, 1))))
 =#
 
 
