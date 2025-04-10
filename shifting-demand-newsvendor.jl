@@ -72,13 +72,13 @@ end
 
 include("weights.jl")
 
-Random.seed!(41)
+Random.seed!(42)
 
 shift_distribution = Uniform(-0.0005,0.0005)
 
 initial_demand_probability = 0.1
 
-repetitions = 3000
+repetitions = 10000
 history_length = 100
 
 demand_sequences = [zeros(history_length+1) for _ in 1:repetitions]
@@ -438,11 +438,11 @@ function train(initial_ball_radii_parameters, shift_bound_parameters)
     costs = [zeros((length(initial_ball_radii_parameters),length(shift_bound_parameters))) for repetition in 1:repetitions]
     empty_counters = [zeros((length(initial_ball_radii_parameters),length(shift_bound_parameters))) for repetition in 1:repetitions]
 
-    Threads.@threads for (initial_ball_radius_index, shift_bound_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(initial_ball_radii_parameters), eachindex(shift_bound_parameters))))
+    for (initial_ball_radius_index, shift_bound_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(initial_ball_radii_parameters), eachindex(shift_bound_parameters))))
 
         ball_radii = reverse([initial_ball_radii_parameters[initial_ball_radius_index]+(k-1)*shift_bound_parameters[shift_bound_parameter_index] for k in 1:K])
 
-        for repetition in 1:repetitions
+        Threads.@threads for repetition in 1:repetitions
             demand_samples = demand_sequences[repetition][1:history_length]
             order, empty_counter = REMK_intersection_based_W₂_newsvendor_order(ball_radii, demand_samples, 0)
             costs[repetition][initial_ball_radius_index, shift_bound_parameter_index] = newsvendor_loss(order, demand_sequences[repetition][history_length+1])
@@ -460,11 +460,11 @@ function train(initial_ball_radii_parameters, shift_bound_parameters)
     return round(mean(minimal_costs), digits=digits), round(sem(minimal_costs), digits=digits), round(initial_ball_radii_parameters[initial_ball_radius_index], digits=digits), round(shift_bound_parameters[shift_bound_parameter_index], digits=digits), empty_frequency
 end
 
-initial_ball_radii_parameters = [LinRange(100,1000,3) LinRange(2000,10000,3)]
-shift_bound_parameters = [LinRange(10,100,3) LinRange(200,1000,3)] #LinRange(100,1000,5) #[LinRange(10,100,5) LinRange(100,1000,5)]
+initial_ball_radii_parameters = [LinRange(100,1000,10); LinRange(2000,10000,9)]
+shift_bound_parameters = [LinRange(10,100,10); LinRange(200,1000,9)] #LinRange(100,1000,5) #[LinRange(10,100,5) LinRange(100,1000,5)]
 
 intersection_based_cost, intersection_based_sem, intersection_based_ε, intersection_based_ϱ, empty_frequency = train(initial_ball_radii_parameters, shift_bound_parameters)
-#intersection_based_cost, intersection_based_sem, intersection_based_ε, intersection_based_ϱ, empty_frequency = train([8000], [0])
+#intersection_based_cost, intersection_based_sem, intersection_based_ε, intersection_based_ϱ, empty_frequency = train([3000], [200])
 display("W₂ intersection: $intersection_based_ε, $intersection_based_ϱ, $intersection_based_cost ± $intersection_based_sem, $empty_frequency")
 
 
