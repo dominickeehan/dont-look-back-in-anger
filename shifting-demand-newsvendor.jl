@@ -171,6 +171,7 @@ end
 
 windowing_parameters = round.(Int, LinRange(3,history_length,history_length))
 smoothing_parameters = LinRange(0.0001,0.4,21)
+
 ambiguity_radii = LinRange(0.1,1,10) #[LinRange(0.01,0.1,10) LinRange(0.1,1,10)] # Only matters for concentration costs.
 shift_bound_parameters = LinRange(0.01,0.1,10) #[LinRange(0.001,0.01,10) LinRange(0.01,0.1,10)]
 
@@ -460,8 +461,8 @@ function train(initial_ball_radii_parameters, shift_bound_parameters)
     return round(mean(minimal_costs), digits=digits), round(sem(minimal_costs), digits=digits), round(initial_ball_radii_parameters[initial_ball_radius_index], digits=digits), round(shift_bound_parameters[shift_bound_parameter_index], digits=digits), empty_frequency
 end
 
-initial_ball_radii_parameters = [LinRange(100,1000,10); LinRange(2000,10000,9)]
-shift_bound_parameters = [LinRange(10,100,10); LinRange(200,1000,9)] #LinRange(100,1000,5) #[LinRange(10,100,5) LinRange(100,1000,5)]
+initial_ball_radii_parameters = LinRange(1000,10000,10)
+shift_bound_parameters = LinRange(100,1000,10) #LinRange(100,1000,5) #[LinRange(10,100,5) LinRange(100,1000,5)]
 
 intersection_based_cost, intersection_based_sem, intersection_based_ε, intersection_based_ϱ, empty_frequency = train(initial_ball_radii_parameters, shift_bound_parameters)
 #intersection_based_cost, intersection_based_sem, intersection_based_ε, intersection_based_ϱ, empty_frequency = train([3000], [200])
