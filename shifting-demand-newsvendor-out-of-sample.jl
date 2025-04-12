@@ -3,11 +3,12 @@ using  Random, Statistics, StatsBase, Distributions
 number_of_consumers = 10000
 D = number_of_consumers
 
-Cu = 1 # Cost of underage.
-Co = 2/3 # Cost of overage.
+Cu = 3 # Cost of underage.
+Co = 1 # Cost of overage.
 
 newsvendor_loss(x,ξ) = Cu*max(ξ-x,0) + Co*max(x-ξ,0)
 newsvendor_order(ε, ξ, weights) = quantile(ξ, Weights(weights), Cu/(Co+Cu))
+W₁_newsvendor_order(ε, ξ, weights) = newsvendor_order(ε, ξ, weights)
 
 using JuMP, MathOptInterface
 using Gurobi
@@ -65,11 +66,11 @@ include("weights.jl")
 
 Random.seed!(42)
 
-shift_distribution = Uniform(-0.001,0.001)
+shift_distribution = Uniform(-0.0005,0.0005)
 
 initial_demand_probability = 0.1
 
-repetitions = 300
+repetitions = 100
 history_length = 100
 training_length = 70
 
@@ -88,17 +89,24 @@ function test(ambiguity_radii, compute_weights, weight_parameters)
 
     costs = zeros(repetitions)
 
+    precomputed_weights = stack([[zeros(100) for ambiguity_radius_index in eachindex(ambiguity_radii)] for weight_parameter_index in eachindex(weight_parameters)])
+    for ambiguity_radius_index in eachindex(ambiguity_radii)
+        for weight_parameter_index in eachindex(weight_parameters)
+            precomputed_weights[ambiguity_radius_index, weight_parameter_index] = compute_weights(100, ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index])
+        end
+    end
+
     Threads.@threads for repetition in ProgressBar(1:repetitions)
         
         training_costs = [zeros((length(ambiguity_radii),length(weight_parameters))) for _ in 71:100]
         for ambiguity_radius_index in eachindex(ambiguity_radii)
             for weight_parameter_index in eachindex(weight_parameters)
                 
-                weights = compute_weights(100, ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index])
+                weights = precomputed_weights[ambiguity_radius_index, weight_parameter_index]
                 for t in 71:100
-                 
+                
                     demand_samples = demand_sequences[repetition][1:t-1]
-                    order = W₂_newsvendor_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights[100-(t-1)+1:end]./sum(weights[100-(t-1)+1:end]))
+                    order = W₁_newsvendor_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights[100-(t-1)+1:end]./sum(weights[100-(t-1)+1:end]))
                     training_costs[t-70][ambiguity_radius_index, weight_parameter_index] = newsvendor_loss(order, demand_sequences[repetition][t])
                 end
             end
@@ -107,7 +115,7 @@ function test(ambiguity_radii, compute_weights, weight_parameters)
         ambiguity_radius_index, weight_parameter_index = Tuple(argmin(mean(training_costs)))
         weights = compute_weights(100, ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index])
         demand_samples = demand_sequences[repetition][1:100]
-        order = W₂_newsvendor_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights)
+        order = W₁_newsvendor_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights)
         costs[repetition] = newsvendor_loss(order, demand_sequences[repetition][101])
 
     end
@@ -116,10 +124,10 @@ function test(ambiguity_radii, compute_weights, weight_parameters)
 end
 
 
-ambiguity_radii = [LinRange(1,10,3) LinRange(20,100,3) LinRange(200,1000,3) LinRange(2000,10000,3)]
-shift_bound_parameters = [LinRange(0.1,1,3) LinRange(2,10,3) LinRange(20,100,3) LinRange(200,1000,3)]
+ambiguity_radii = LinRange(10,100,10)
+shift_bound_parameters = LinRange(1,10,10)
 
-display([test(ambiguity_radii, W₂_concentration_weights, shift_bound_parameters)])
+display([test(ambiguity_radii, W₁_concentration_weights, shift_bound_parameters)])
 
 
 function REMK_intersection_based_W₂_newsvendor_order(ball_radii, ξ) 
@@ -207,8 +215,7 @@ function test(initial_ball_radii_parameters, shift_bound_parameters)
     return mean(costs), sem(costs)
 end
 
-
-initial_ball_radii_parameters = [LinRange(10,100,3) LinRange(200,1000,3) LinRange(2000,10000,3)]
-shift_bound_parameters = [LinRange(10,100,3) LinRange(200,1000,3) LinRange(2000,10000,3)]
+initial_ball_radii_parameters = LinRange(1000,10000,10)
+shift_bound_parameters = LinRange(100,1000,10) #LinRange(100,1000,5) #[LinRange(10,100,5) LinRange(100,1000,5)]
 
 display([test(initial_ball_radii_parameters,shift_bound_parameters)])
