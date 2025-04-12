@@ -70,7 +70,7 @@ shift_distribution = Uniform(-0.0005,0.0005)
 
 initial_demand_probability = 0.1
 
-repetitions = 100
+repetitions = 10000
 history_length = 100
 training_length = 70
 
@@ -218,4 +218,4 @@ end
 initial_ball_radii_parameters = LinRange(1000,10000,10)
 shift_bound_parameters = LinRange(100,1000,10) #LinRange(100,1000,5) #[LinRange(10,100,5) LinRange(100,1000,5)]
 
-display([test(initial_ball_radii_parameters,shift_bound_parameters)])
+#display([test(initial_ball_radii_parameters,shift_bound_parameters)])

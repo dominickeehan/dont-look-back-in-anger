@@ -116,7 +116,7 @@ smoothing_parameters = LinRange(0.02,0.2,10)
 ambiguity_radii = LinRange(10,100,10)
 shift_bound_parameters = LinRange(1,10,10)
 
-
+#=
 W₁_naive_cost, W₁_naive_sem, _, _ = parameter_fit([0], windowing_weights, [history_length])
 display("W₁ naive: $W₁_naive_cost ± $W₁_naive_sem")
 
@@ -133,7 +133,7 @@ display("W₁ smoothing: $W₁_smoothing_α, $W₁_smoothing_cost ± $W₁_smoot
 W₁_concentration_cost, W₁_concentration_sem, W₁_concentration_ε, W₁_concentration_ϱ = parameter_fit(ambiguity_radii, W₁_concentration_weights, shift_bound_parameters)
 display("W₁ concentration: $W₁_concentration_ε, $W₁_concentration_ϱ, $W₁_concentration_cost ± $W₁_concentration_sem")
 W₁_concentration_ε = round(Int, W₁_concentration_ε)
-
+=#
 
 try
     println("Parameters &  & \$t=$W₁_windowing_t\$ & \$\\alpha=$W₁_smoothing_α\$ \\\\")
@@ -283,8 +283,8 @@ end
 initial_ball_radii_parameters = LinRange(1000,10000,10)
 shift_bound_parameters = LinRange(100,1000,10)
 
-intersection_based_cost, intersection_based_sem, intersection_based_ε, intersection_based_ϱ, empty_frequency = parameter_fit(initial_ball_radii_parameters, shift_bound_parameters)
-display("W₂ intersection: $intersection_based_ε, $intersection_based_ϱ, $intersection_based_cost ± $intersection_based_sem, $empty_frequency")
+#intersection_based_cost, intersection_based_sem, intersection_based_ε, intersection_based_ϱ, empty_frequency = parameter_fit(initial_ball_radii_parameters, shift_bound_parameters)
+#display("W₂ intersection: $intersection_based_ε, $intersection_based_ϱ, $intersection_based_cost ± $intersection_based_sem, $empty_frequency")
 
 
 
@@ -380,29 +380,43 @@ default(framestyle = :box,
         legendfont = legend_font)
 
 plt = plot(1:history_length, 
-        stack(demand_sequences[1])[1:end-1,:], 
+        stack(demand_sequences[2:10])[1:end-1,:], 
         xlims = (0,history_length+1),
         xlabel = "Time", 
         ylabel = "Demand",
         labels = nothing, 
         #linecolor = [palette(:tab10)[1] palette(:tab10)[2] palette(:tab10)[3] palette(:tab10)[4] palette(:tab10)[5]],
-        markercolor = palette(:tab10)[1],
-        markershape = :circle,
+        #markercolor = palette(:tab10)[1],
+        #markershape = :circle,
         color = palette(:tab10)[1],
-        alpha = 1,
+        alpha = 0.5,
         #linestyle = :auto,
-        markersize = 4, 
-        markerstrokewidth = 1,
-        markerstrokecolor = :black,
+        #markersize = 4, 
+        #markerstrokewidth = 1,
+        #markerstrokecolor = :black,
         topmargin = 0pt, 
         rightmargin = 0pt,
         bottommargin = 3pt, 
         leftmargin = 3pt,
         )
 
+plot!(1:history_length, 
+        stack(demand_sequences[1])[1:end-1,:], 
+        labels = nothing, 
+        #linecolor = [palette(:tab10)[1] palette(:tab10)[2] palette(:tab10)[3] palette(:tab10)[4] palette(:tab10)[5]],
+        markercolor = palette(:tab10)[1],
+        markershape = :circle,
+        color = palette(:tab10)[1],
+        alpha = 1.0,
+        #linestyle = :auto,
+        markersize = 4, 
+        markerstrokewidth = 1,
+        markerstrokecolor = :black,
+        )
+
 display(plt)
 
-savefig(plt, "figures/demand_sequence.pdf")
+savefig(plt, "figures/demand_sequences.pdf")
 
 
 
