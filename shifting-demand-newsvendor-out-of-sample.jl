@@ -70,7 +70,7 @@ shift_distribution = Uniform(-0.0005,0.0005)
 
 initial_demand_probability = 0.1
 
-repetitions = 10000
+repetitions = 10
 history_length = 100
 training_length = 70
 
@@ -96,17 +96,20 @@ function test(ambiguity_radii, compute_weights, weight_parameters)
         end
     end
 
-    Threads.@threads for repetition in ProgressBar(1:repetitions)
+    for repetition in ProgressBar(1:repetitions)
         
         training_costs = [zeros((length(ambiguity_radii),length(weight_parameters))) for _ in 71:100]
         for ambiguity_radius_index in eachindex(ambiguity_radii)
             for weight_parameter_index in eachindex(weight_parameters)
                 
                 weights = precomputed_weights[ambiguity_radius_index, weight_parameter_index]
+                
                 for t in 71:100
                 
+                    #weights = compute_weights(t-1, ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index])
+
                     demand_samples = demand_sequences[repetition][1:t-1]
-                    order = W₁_newsvendor_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights[100-(t-1)+1:end]./sum(weights[100-(t-1)+1:end]))
+                    order = W₂_newsvendor_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights[100-(t-1)+1:end]./sum(weights[100-(t-1)+1:end]))
                     training_costs[t-70][ambiguity_radius_index, weight_parameter_index] = newsvendor_loss(order, demand_sequences[repetition][t])
                 end
             end
@@ -115,7 +118,7 @@ function test(ambiguity_radii, compute_weights, weight_parameters)
         ambiguity_radius_index, weight_parameter_index = Tuple(argmin(mean(training_costs)))
         weights = compute_weights(100, ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index])
         demand_samples = demand_sequences[repetition][1:100]
-        order = W₁_newsvendor_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights)
+        order = W₂_newsvendor_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights)
         costs[repetition] = newsvendor_loss(order, demand_sequences[repetition][101])
 
     end
@@ -124,10 +127,10 @@ function test(ambiguity_radii, compute_weights, weight_parameters)
 end
 
 
-ambiguity_radii = LinRange(10,100,10)
-shift_bound_parameters = LinRange(1,10,10)
+ambiguity_radii = LinRange(10,100,5)
+shift_bound_parameters = LinRange(1,10,5)
 
-display([test(ambiguity_radii, W₁_concentration_weights, shift_bound_parameters)])
+display([test(ambiguity_radii, W₂_concentration_weights, shift_bound_parameters)])
 
 
 function REMK_intersection_based_W₂_newsvendor_order(ball_radii, ξ) 
@@ -186,7 +189,7 @@ function test(initial_ball_radii_parameters, shift_bound_parameters)
 
     costs = zeros(repetitions)
 
-    Threads.@threads for repetition in ProgressBar(1:repetitions)
+    for repetition in ProgressBar(1:repetitions)
         
         training_costs = [zeros((length(initial_ball_radii_parameters),length(shift_bound_parameters))) for _ in 71:100]
         for initial_ball_radius_index in eachindex(initial_ball_radii_parameters)

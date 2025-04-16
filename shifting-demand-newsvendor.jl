@@ -73,7 +73,7 @@ shift_distribution = Uniform(-0.0005,0.0005)
 
 initial_demand_probability = 0.1
 
-repetitions = 1000
+repetitions = 10000
 history_length = 100
 
 demand_sequences = [zeros(history_length+1) for _ in 1:repetitions]
@@ -111,16 +111,16 @@ function parameter_fit(ambiguity_radii, compute_weights, weight_parameters)
     return round(mean(minimal_costs), digits=digits), round(sem(minimal_costs), digits=digits), round(ambiguity_radii[ambiguity_radius_index], digits=digits), round(weight_parameters[weight_parameter_index], digits=digits)
 end
 
-windowing_parameters = round.(Int, LinRange(10,history_length,10))
-smoothing_parameters = LinRange(0.02,0.2,10)
-ambiguity_radii = LinRange(10,100,10)
-shift_bound_parameters = LinRange(1,10,10)
+windowing_parameters = round.(Int, LinRange(10,history_length,5))
+smoothing_parameters = LinRange(0.02,0.2,5)
+ambiguity_radii = LinRange(10,100,5)
+shift_bound_parameters = LinRange(1,10,5)
+
+
+#W₁_naive_cost, W₁_naive_sem, _, _ = parameter_fit([0], windowing_weights, [history_length])
+#display("W₁ naive: $W₁_naive_cost ± $W₁_naive_sem")
 
 #=
-W₁_naive_cost, W₁_naive_sem, _, _ = parameter_fit([0], windowing_weights, [history_length])
-display("W₁ naive: $W₁_naive_cost ± $W₁_naive_sem")
-
-
 W₁_windowing_cost, W₁_windowing_sem, W₁_windowing_ε, W₁_windowing_t = parameter_fit([0], windowing_weights, windowing_parameters)
 display("W₁ windowing: $W₁_windowing_t, $W₁_windowing_cost ± $W₁_windowing_sem")
 W₁_windowing_t = round(Int, W₁_windowing_t)
@@ -128,12 +128,12 @@ W₁_windowing_t = round(Int, W₁_windowing_t)
 
 W₁_smoothing_cost, W₁_smoothing_sem, W₁_smoothing_ε, W₁_smoothing_α = parameter_fit([0], smoothing_weights, smoothing_parameters)
 display("W₁ smoothing: $W₁_smoothing_α, $W₁_smoothing_cost ± $W₁_smoothing_sem")
-
-
-W₁_concentration_cost, W₁_concentration_sem, W₁_concentration_ε, W₁_concentration_ϱ = parameter_fit(ambiguity_radii, W₁_concentration_weights, shift_bound_parameters)
-display("W₁ concentration: $W₁_concentration_ε, $W₁_concentration_ϱ, $W₁_concentration_cost ± $W₁_concentration_sem")
-W₁_concentration_ε = round(Int, W₁_concentration_ε)
 =#
+
+#W₁_concentration_cost, W₁_concentration_sem, W₁_concentration_ε, W₁_concentration_ϱ = parameter_fit(ambiguity_radii, W₁_concentration_weights, shift_bound_parameters)
+#display("W₁ concentration: $W₁_concentration_ε, $W₁_concentration_ϱ, $W₁_concentration_cost ± $W₁_concentration_sem")
+#W₁_concentration_ε = round(Int, W₁_concentration_ε)
+
 
 try
     println("Parameters &  & \$t=$W₁_windowing_t\$ & \$\\alpha=$W₁_smoothing_α\$ \\\\")
@@ -166,17 +166,19 @@ function parameter_fit(ambiguity_radii, compute_weights, weight_parameters)
     return round(mean(minimal_costs),digits=digits), round(sem(minimal_costs),digits=digits), round(ambiguity_radii[ambiguity_radius_index],digits=digits), round(weight_parameters[weight_parameter_index],digits=digits)
 end
 
-windowing_parameters = round.(Int, LinRange(10,history_length,10))
-smoothing_parameters = LinRange(0.02,0.2,10)
+windowing_parameters = round.(Int, LinRange(10,history_length,5))
+smoothing_parameters = LinRange(0.02,0.2,5)
 
-ambiguity_radii = LinRange(10,100,10)
-shift_bound_parameters = LinRange(0.1,1,10)
+ambiguity_radii = [40] #LinRange(10,100,5)
+shift_bound_parameters = [0.5] #LinRange(0.1,1,5)
 
 #=
 W₂_naive_cost, W₂_naive_sem, W₂_naive_ε, _ = parameter_fit(ambiguity_radii, windowing_weights, history_length)
 display("W₂ naive: $W₂_naive_ε, $W₂_naive_cost ± $W₂_naive_sem")
 W₂_naive_ε = round(Int, W₂_naive_ε)
+=#
 
+#=
 W₂_windowing_cost, W₂_windowing_sem, W₂_windowing_ε, W₂_windowing_t = parameter_fit(ambiguity_radii, windowing_weights, windowing_parameters)
 display("W₂ windowing: $W₂_windowing_ε, $W₂_windowing_t, $W₂_windowing_cost ± $W₂_windowing_sem")
 W₂_windowing_ε = round(Int, W₂_windowing_ε)
@@ -185,12 +187,12 @@ W₂_windowing_t = round(Int, W₂_windowing_t)
 W₂_smoothing_cost, W₂_smoothing_sem, W₂_smoothing_ε, W₂_smoothing_α = parameter_fit(ambiguity_radii, smoothing_weights, smoothing_parameters)
 display("W₂ smoothing: $W₂_smoothing_ε, $W₂_smoothing_α, $W₂_smoothing_cost ± $W₂_smoothing_sem")
 W₂_smoothing_ε = round(Int, W₂_smoothing_ε)
-
+=#
 
 W₂_concentration_cost, W₂_concentration_sem, W₂_concentration_ε, W₂_concentration_ϱ = parameter_fit(ambiguity_radii, W₂_concentration_weights, shift_bound_parameters)
 display("W₂ concentration: $W₂_concentration_ε, $W₂_concentration_ϱ, $W₂_concentration_cost ± $W₂_concentration_sem")
 W₂_concentration_ε = round(Int, W₂_concentration_ε)
-=#
+
 
 try
     println("Parameters & \$\\varepsilon=$W₂_naive_ε\$ & \$\\varepsilon=$W₂_windowing_ε\$, \$t=$W₂_windowing_t\$ & \$\\varepsilon=$W₂_smoothing_ε\$, \$\\alpha=$W₂_smoothing_α\$ & \$\\varepsilon=$W₂_concentration_ε\$, \$\\varrho=$W₂_concentration_ϱ\$ & \$ \$ \\\\")
@@ -280,8 +282,8 @@ function parameter_fit(initial_ball_radii_parameters, shift_bound_parameters)
     return round(mean(minimal_costs), digits=digits), round(sem(minimal_costs), digits=digits), round(initial_ball_radii_parameters[initial_ball_radius_index], digits=digits), round(shift_bound_parameters[shift_bound_parameter_index], digits=digits), empty_frequency
 end
 
-initial_ball_radii_parameters = LinRange(1000,10000,10)
-shift_bound_parameters = LinRange(100,1000,10)
+initial_ball_radii_parameters = LinRange(1000,10000,5)
+shift_bound_parameters = LinRange(100,1000,5)
 
 #intersection_based_cost, intersection_based_sem, intersection_based_ε, intersection_based_ϱ, empty_frequency = parameter_fit(initial_ball_radii_parameters, shift_bound_parameters)
 #display("W₂ intersection: $intersection_based_ε, $intersection_based_ϱ, $intersection_based_cost ± $intersection_based_sem, $empty_frequency")
@@ -347,184 +349,183 @@ shift_bound_parameters = LinRange(100,1000,10)
 
 
 
+if false
+
+    using Plots, Measures
+
+    default() # Reset plot defaults.
+
+    gr(size = (600,400))
+
+    font_family = "Computer Modern"
+    primary_font = Plots.font(font_family, pointsize = 17)
+    secondary_font = Plots.font(font_family, pointsize = 11)
+    legend_font = Plots.font(font_family, pointsize = 16)
+
+    default(framestyle = :box,
+            grid = true,
+            #gridlinewidth = 1.0,
+            gridalpha = 0.075,
+            #minorgrid = true,
+            #minorgridlinewidth = 1.0, 
+            #minorgridalpha = 0.075,
+            #minorgridlinestyle = :dash,
+            tick_direction = :in,
+            xminorticks = 0, 
+            yminorticks = 0,
+            fontfamily = font_family,
+            guidefont = primary_font,
+            tickfont = secondary_font,
+            legendfont = legend_font)
+
+    plt = plot(1:history_length, 
+            stack(demand_sequences[2:100])[1:end-1,:], 
+            xlims = (0,history_length+1),
+            xlabel = "Time", 
+            ylabel = "Demand",
+            labels = nothing, 
+            #linecolor = [palette(:tab10)[1] palette(:tab10)[2] palette(:tab10)[3] palette(:tab10)[4] palette(:tab10)[5]],
+            #markercolor = palette(:tab10)[1],
+            #markershape = :circle,
+            color = palette(:tab10)[1],
+            alpha = 0.03,
+            #linestyle = :auto,
+            #markersize = 4, 
+            #markerstrokewidth = 1,
+            #markerstrokecolor = :black,
+            topmargin = 0pt, 
+            rightmargin = 0pt,
+            bottommargin = 3pt, 
+            leftmargin = 3pt,
+            )
+
+    plot!(1:history_length, 
+            stack(demand_sequences[1])[1:end-1,:], 
+            labels = nothing, 
+            #linecolor = [palette(:tab10)[1] palette(:tab10)[2] palette(:tab10)[3] palette(:tab10)[4] palette(:tab10)[5]],
+            markercolor = palette(:tab10)[1],
+            markershape = :circle,
+            color = palette(:tab10)[1],
+            alpha = 1.0,
+            #linestyle = :auto,
+            markersize = 4, 
+            markerstrokewidth = 1,
+            markerstrokecolor = :black,
+            )
+
+    display(plt)
+
+    #savefig(plt, "figures/demand_sequences.pdf")
+
+
+
+    default() # Reset plot defaults.
+
+    gr(size = (600,400))
+
+    font_family = "Computer Modern"
+    primary_font = Plots.font(font_family, pointsize = 17)
+    secondary_font = Plots.font(font_family, pointsize = 11)
+    legend_font = Plots.font(font_family, pointsize = 15)
+
+    default(framestyle = :box,
+            grid = true,
+            #gridlinewidth = 1.0,
+            gridalpha = 0.075,
+            #minorgrid = true,
+            #minorgridlinewidth = 1.0, 
+            #minorgridalpha = 0.075,
+            #minorgridlinestyle = :dash,
+            tick_direction = :in,
+            xminorticks = 0, 
+            yminorticks = 0,
+            fontfamily = font_family,
+            guidefont = primary_font,
+            tickfont = secondary_font,
+            legendfont = legend_font)
+
+    W₁_windowing_weights = reverse(windowing_weights(history_length, [0], round(Int, W₁_windowing_t)))
+    W₁_smoothing_weights = reverse(smoothing_weights(history_length, [0], W₁_smoothing_α))
+    W₁_weights = reverse(W₁_concentration_weights(history_length, W₁_concentration_ε, W₁_concentration_ϱ))
+
+    W₁_windowing_t = round(Int, W₁_windowing_t)
+
+    plt = plot(1:history_length, stack([W₁_windowing_weights, W₁_smoothing_weights, W₁_weights]), 
+            xlabel = "Time", 
+            ylabel = "Probability",
+            xlims = (0,history_length+1),
+            #legend = nothing,
+            labels = ["\$t=$W₁_windowing_t\$" "\$α=$W₁_smoothing_α\$" "\$ε=$W₁_concentration_ε\$, \$ϱ=$W₁_concentration_ϱ\$"],
+            colors = [palette(:tab10)[1] palette(:tab10)[2] palette(:tab10)[3]],
+            #markershapes = [:circle :diamond :hexagon],
+            seriestypes = [:steppre :line :line],
+            alpha = 1,
+            #markersize = 2,
+            #linestyles = :auto,
+            linewidth = 1,
+            topmargin = 0pt, 
+            rightmargin = 0pt,
+            bottommargin = 3pt, 
+            leftmargin = 3pt)
+
+    display(plt);
+
+    #savefig(plt, "figures/W1-weights.pdf")
 
 
 
 
+    default() # Reset plot defaults.
 
-using Plots, Measures
+    gr(size = (600,400))
 
-default() # Reset plot defaults.
+    font_family = "Computer Modern"
+    primary_font = Plots.font(font_family, pointsize = 17)
+    secondary_font = Plots.font(font_family, pointsize = 11)
+    legend_font = Plots.font(font_family, pointsize = 15)
 
-gr(size = (600,400))
+    default(framestyle = :box,
+            grid = true,
+            #gridlinewidth = 1.0,
+            gridalpha = 0.075,
+            #minorgrid = true,
+            #minorgridlinewidth = 1.0, 
+            #minorgridalpha = 0.075,
+            #minorgridlinestyle = :dash,
+            tick_direction = :in,
+            xminorticks = 0, 
+            yminorticks = 0,
+            fontfamily = font_family,
+            guidefont = primary_font,
+            tickfont = secondary_font,
+            legendfont = legend_font)
 
-font_family = "Computer Modern"
-primary_font = Plots.font(font_family, pointsize = 17)
-secondary_font = Plots.font(font_family, pointsize = 11)
-legend_font = Plots.font(font_family, pointsize = 16)
+    W₂_windowing_weights = reverse(windowing_weights(history_length, [0], round(Int, W₂_windowing_t)))
+    W₂_smoothing_weights = reverse(smoothing_weights(history_length, [0], W₂_smoothing_α))
+    W₂_weights = reverse(W₂_concentration_weights(history_length, W₂_concentration_ε, W₂_concentration_ϱ))
 
-default(framestyle = :box,
-        grid = true,
-        #gridlinewidth = 1.0,
-        gridalpha = 0.075,
-        #minorgrid = true,
-        #minorgridlinewidth = 1.0, 
-        #minorgridalpha = 0.075,
-        #minorgridlinestyle = :dash,
-        tick_direction = :in,
-        xminorticks = 0, 
-        yminorticks = 0,
-        fontfamily = font_family,
-        guidefont = primary_font,
-        tickfont = secondary_font,
-        legendfont = legend_font)
+    W₂_windowing_t = round(Int, W₂_windowing_t)
 
-plt = plot(1:history_length, 
-        stack(demand_sequences[2:100])[1:end-1,:], 
-        xlims = (0,history_length+1),
-        xlabel = "Time", 
-        ylabel = "Demand",
-        labels = nothing, 
-        #linecolor = [palette(:tab10)[1] palette(:tab10)[2] palette(:tab10)[3] palette(:tab10)[4] palette(:tab10)[5]],
-        #markercolor = palette(:tab10)[1],
-        #markershape = :circle,
-        color = palette(:tab10)[1],
-        alpha = 0.03,
-        #linestyle = :auto,
-        #markersize = 4, 
-        #markerstrokewidth = 1,
-        #markerstrokecolor = :black,
-        topmargin = 0pt, 
-        rightmargin = 0pt,
-        bottommargin = 3pt, 
-        leftmargin = 3pt,
-        )
+    plt = plot(1:history_length, stack([W₂_windowing_weights, W₂_smoothing_weights, W₂_weights]), 
+            xlabel = "Time", 
+            ylabel = "Probability",
+            xlims = (0,history_length+1),
+            #legend = nothing,
+            labels = ["\$ε=$W₂_windowing_ε\$, \$t=$W₂_windowing_t\$" "\$ε=$W₂_smoothing_ε\$, \$α=$W₂_smoothing_α\$" "\$ε=$W₂_concentration_ε\$, \$ϱ=$W₂_concentration_ϱ\$"],
+            colors = [palette(:tab10)[1] palette(:tab10)[2] palette(:tab10)[3]],
+            #markershapes = [:circle :diamond :hexagon],
+            seriestypes = [:steppre :line :line],
+            alpha = 1,
+            #markersize = 2,
+            #linestyles = :auto,
+            linewidth = 1,
+            topmargin = 0pt, 
+            rightmargin = 0pt,
+            bottommargin = 3pt, 
+            leftmargin = 3pt)
 
-plot!(1:history_length, 
-        stack(demand_sequences[1])[1:end-1,:], 
-        labels = nothing, 
-        #linecolor = [palette(:tab10)[1] palette(:tab10)[2] palette(:tab10)[3] palette(:tab10)[4] palette(:tab10)[5]],
-        markercolor = palette(:tab10)[1],
-        markershape = :circle,
-        color = palette(:tab10)[1],
-        alpha = 1.0,
-        #linestyle = :auto,
-        markersize = 4, 
-        markerstrokewidth = 1,
-        markerstrokecolor = :black,
-        )
+    display(plt);
 
-display(plt)
+    #savefig(plt, "figures/W2-weights.pdf")
 
-savefig(plt, "figures/demand_sequences.pdf")
-
-
-
-default() # Reset plot defaults.
-
-gr(size = (600,400))
-
-font_family = "Computer Modern"
-primary_font = Plots.font(font_family, pointsize = 17)
-secondary_font = Plots.font(font_family, pointsize = 11)
-legend_font = Plots.font(font_family, pointsize = 15)
-
-default(framestyle = :box,
-        grid = true,
-        #gridlinewidth = 1.0,
-        gridalpha = 0.075,
-        #minorgrid = true,
-        #minorgridlinewidth = 1.0, 
-        #minorgridalpha = 0.075,
-        #minorgridlinestyle = :dash,
-        tick_direction = :in,
-        xminorticks = 0, 
-        yminorticks = 0,
-        fontfamily = font_family,
-        guidefont = primary_font,
-        tickfont = secondary_font,
-        legendfont = legend_font)
-
-W₁_windowing_weights = reverse(windowing_weights(history_length, [0], round(Int, W₁_windowing_t)))
-W₁_smoothing_weights = reverse(smoothing_weights(history_length, [0], W₁_smoothing_α))
-W₁_weights = reverse(W₁_concentration_weights(history_length, W₁_concentration_ε, W₁_concentration_ϱ))
-
-W₁_windowing_t = round(Int, W₁_windowing_t)
-
-plt = plot(1:history_length, stack([W₁_windowing_weights, W₁_smoothing_weights, W₁_weights]), 
-        xlabel = "Time", 
-        ylabel = "Probability",
-        xlims = (0,history_length+1),
-        #legend = nothing,
-        labels = ["\$t=$W₁_windowing_t\$" "\$α=$W₁_smoothing_α\$" "\$ε=$W₁_concentration_ε\$, \$ϱ=$W₁_concentration_ϱ\$"],
-        colors = [palette(:tab10)[1] palette(:tab10)[2] palette(:tab10)[3]],
-        #markershapes = [:circle :diamond :hexagon],
-        seriestypes = [:steppre :line :line],
-        alpha = 1,
-        #markersize = 2,
-        #linestyles = :auto,
-        linewidth = 1,
-        topmargin = 0pt, 
-        rightmargin = 0pt,
-        bottommargin = 3pt, 
-        leftmargin = 3pt)
-
-display(plt);
-
-savefig(plt, "figures/W1-weights.pdf")
-
-
-
-
-default() # Reset plot defaults.
-
-gr(size = (600,400))
-
-font_family = "Computer Modern"
-primary_font = Plots.font(font_family, pointsize = 17)
-secondary_font = Plots.font(font_family, pointsize = 11)
-legend_font = Plots.font(font_family, pointsize = 15)
-
-default(framestyle = :box,
-        grid = true,
-        #gridlinewidth = 1.0,
-        gridalpha = 0.075,
-        #minorgrid = true,
-        #minorgridlinewidth = 1.0, 
-        #minorgridalpha = 0.075,
-        #minorgridlinestyle = :dash,
-        tick_direction = :in,
-        xminorticks = 0, 
-        yminorticks = 0,
-        fontfamily = font_family,
-        guidefont = primary_font,
-        tickfont = secondary_font,
-        legendfont = legend_font)
-
-W₂_windowing_weights = reverse(windowing_weights(history_length, [0], round(Int, W₂_windowing_t)))
-W₂_smoothing_weights = reverse(smoothing_weights(history_length, [0], W₂_smoothing_α))
-W₂_weights = reverse(W₂_concentration_weights(history_length, W₂_concentration_ε, W₂_concentration_ϱ))
-
-W₂_windowing_t = round(Int, W₂_windowing_t)
-
-plt = plot(1:history_length, stack([W₂_windowing_weights, W₂_smoothing_weights, W₂_weights]), 
-        xlabel = "Time", 
-        ylabel = "Probability",
-        xlims = (0,history_length+1),
-        #legend = nothing,
-        labels = ["\$ε=$W₂_windowing_ε\$, \$t=$W₂_windowing_t\$" "\$ε=$W₂_smoothing_ε\$, \$α=$W₂_smoothing_α\$" "\$ε=$W₂_concentration_ε\$, \$ϱ=$W₂_concentration_ϱ\$"],
-        colors = [palette(:tab10)[1] palette(:tab10)[2] palette(:tab10)[3]],
-        #markershapes = [:circle :diamond :hexagon],
-        seriestypes = [:steppre :line :line],
-        alpha = 1,
-        #markersize = 2,
-        #linestyles = :auto,
-        linewidth = 1,
-        topmargin = 0pt, 
-        rightmargin = 0pt,
-        bottommargin = 3pt, 
-        leftmargin = 3pt)
-
-display(plt);
-
-savefig(plt, "figures/W2-weights.pdf")
+end

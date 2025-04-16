@@ -1,8 +1,8 @@
 using JuMP, Ipopt
 using Plots, Measures
 
-T = 30
-p = 1
+T = 100
+p = 2
 
 d = [t for t in 1:T]
 #d = [t-2 for t in 1:T]
@@ -78,4 +78,4 @@ end
 #solve_for_weights(10.0,0.5)
 #solve_for_weights(10.0,0.1)
 
-solve_for_weights(10,1)
+solve_for_weights(100,0.1)
