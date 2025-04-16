@@ -1,24 +1,19 @@
 using JuMP, Ipopt
 using Plots, Measures
 
-T = 100
+T = 200
 p = 2
-
-d = [t for t in 1:T]
-#d = [t-2 for t in 1:T]
-#d[1] = 1
 
 function solve_for_weights(ϵ, ρ)
 
-    Problem = Model(optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0, "tol" => 1e-9))
+    Problem = Model(optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0))
 
     @variable(Problem, 1>= w[t=1:T] >=0)
 
     @constraint(Problem, sum(w[t] for t in 1:T) == 1)
-    @constraint(Problem, (sum(w[t]*t^p for t in 1:T)*ρ^p)^(1/p) <= ϵ)
-    for t in 1:T-1; @constraint(Problem, w[t] >= w[t+1]); end
+    @constraint(Problem, sum(w[t]*t^p*ρ^p for t in 1:T) <= ϵ^p)
 
-    @objective(Problem, Max, (1/(sum(w[t]^2 for t in 1:T)))*((ϵ-(sum(w[t]*d[t]^p for t in 1:T)*ρ^p)^(1/p))^(2*p)))
+    @objective(Problem, Max, (1/(sum(w[t]^2 for t in 1:T)))*((ϵ-(sum(w[t]*t^p*ρ^p for t in 1:T))^(1/p))^(2*p)))
 
     optimize!(Problem)
 
@@ -78,4 +73,4 @@ end
 #solve_for_weights(10.0,0.5)
 #solve_for_weights(10.0,0.1)
 
-solve_for_weights(100,0.1)
+solve_for_weights(100,0.5)

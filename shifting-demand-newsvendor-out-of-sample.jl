@@ -1,3 +1,9 @@
+# Change seed with job number.
+# Output files get saved in same directory. 
+# Save in different files for each job number. 
+# Want each job to be under 9 hours. 
+# Write the chosen parameters to the file as well.
+
 using  Random, Statistics, StatsBase, Distributions
 
 number_of_consumers = 10000
@@ -8,7 +14,6 @@ Co = 1 # Cost of overage.
 
 newsvendor_loss(x,ξ) = Cu*max(ξ-x,0) + Co*max(x-ξ,0)
 newsvendor_order(ε, ξ, weights) = quantile(ξ, Weights(weights), Cu/(Co+Cu))
-W₁_newsvendor_order(ε, ξ, weights) = newsvendor_order(ε, ξ, weights)
 
 using JuMP, MathOptInterface
 using Gurobi
@@ -64,7 +69,9 @@ end
 
 include("weights.jl")
 
-Random.seed!(42)
+job_number = 42 #parse(Int64, ENV["PBS_ARRAY_INDEX"])
+
+Random.seed!(job_number)
 
 shift_distribution = Uniform(-0.0005,0.0005)
 
@@ -73,7 +80,6 @@ initial_demand_probability = 0.1
 repetitions = 10
 history_length = 100
 training_length = 70
-
 
 demand_sequences = [zeros(history_length+1) for _ in 1:repetitions]
 for repetition in 1:repetitions
@@ -84,15 +90,19 @@ for repetition in 1:repetitions
     end
 end
 
-using ProgressBars
+using ProgressBars, IterTools
 function test(ambiguity_radii, compute_weights, weight_parameters)
 
     costs = zeros(repetitions)
 
-    precomputed_weights = stack([[zeros(100) for ambiguity_radius_index in eachindex(ambiguity_radii)] for weight_parameter_index in eachindex(weight_parameters)])
-    for ambiguity_radius_index in eachindex(ambiguity_radii)
-        for weight_parameter_index in eachindex(weight_parameters)
-            precomputed_weights[ambiguity_radius_index, weight_parameter_index] = compute_weights(100, ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index])
+    ambiguity_radii_to_test = zeros(repetitions)
+    weight_parameters_to_test = zeros(repetitions)
+
+    precomputed_weights = stack([[[zeros(t-1) for t in 71:100] for ambiguity_radius_index in eachindex(ambiguity_radii)] for weight_parameter_index in eachindex(weight_parameters)])
+
+    for (ambiguity_radius_index, weight_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters))))
+        for t in 71:100
+            precomputed_weights[ambiguity_radius_index, weight_parameter_index][t-70] = compute_weights(t-1, ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index])
         end
     end
 
@@ -102,14 +112,12 @@ function test(ambiguity_radii, compute_weights, weight_parameters)
         for ambiguity_radius_index in eachindex(ambiguity_radii)
             for weight_parameter_index in eachindex(weight_parameters)
                 
-                weights = precomputed_weights[ambiguity_radius_index, weight_parameter_index]
-                
                 for t in 71:100
                 
-                    #weights = compute_weights(t-1, ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index])
+                    weights = precomputed_weights[ambiguity_radius_index, weight_parameter_index][t-70]
 
                     demand_samples = demand_sequences[repetition][1:t-1]
-                    order = W₂_newsvendor_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights[100-(t-1)+1:end]./sum(weights[100-(t-1)+1:end]))
+                    order = W₂_newsvendor_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights)
                     training_costs[t-70][ambiguity_radius_index, weight_parameter_index] = newsvendor_loss(order, demand_sequences[repetition][t])
                 end
             end
@@ -119,16 +127,18 @@ function test(ambiguity_radii, compute_weights, weight_parameters)
         weights = compute_weights(100, ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index])
         demand_samples = demand_sequences[repetition][1:100]
         order = W₂_newsvendor_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights)
+
         costs[repetition] = newsvendor_loss(order, demand_sequences[repetition][101])
+        ambiguity_radii_to_test[repetition] = ambiguity_radii[ambiguity_radius_index]
+        weight_parameters_to_test[repetition] = weight_parameters[weight_parameter_index]
 
     end
 
-    return mean(costs), sem(costs)
+    return costs, ambiguity_radii_to_test, weight_parameters_to_test
 end
 
-
-ambiguity_radii = LinRange(10,100,5)
-shift_bound_parameters = LinRange(1,10,5)
+ambiguity_radii = [LinRange(2,10,5); LinRange(20,100,5)]
+shift_bound_parameters = [LinRange(0.2,1,5); LinRange(2,10,5)]
 
 display([test(ambiguity_radii, W₂_concentration_weights, shift_bound_parameters)])
 

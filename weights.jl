@@ -40,10 +40,9 @@ function W₁_concentration_weights(T, ε, ϱ)
     @variable(Problem, 1>= w[t=1:T] >=0)
 
     @constraint(Problem, sum(w[t] for t in 1:T) == 1)
-    @constraint(Problem, (sum(w[t]*t^p for t in 1:T)*ϱ^p)^(1/p) <= ε)
-    #for t in 1:T-1; @constraint(Problem, w[t] >= w[t+1]); end
+    @constraint(Problem, sum(w[t]*t^p*ϱ^p for t in 1:T) <= ε^p)
 
-    @objective(Problem, Max, (1/(sum(w[t]^2 for t in 1:T)))*((ε-(sum(w[t]*t^p for t in 1:T)*ϱ^p)^(1/p))^(2*p)))
+    @objective(Problem, Max, (1/(sum(w[t]^2 for t in 1:T)))*((ε-(sum(w[t]*t^p*ϱ^p for t in 1:T))^(1/p))^(2*p)))
 
     optimize!(Problem)
 
@@ -64,10 +63,9 @@ function W₂_concentration_weights(T, ε, ϱ)
     @variable(Problem, 1>= w[t=1:T] >=0)
 
     @constraint(Problem, sum(w[t] for t in 1:T) == 1)
-    @constraint(Problem, (sum(w[t]*t^p for t in 1:T)*ϱ^p)^(1/p) <= ε)
-    #for t in 1:T-1; @constraint(Problem, w[t] >= w[t+1]); end
+    @constraint(Problem, sum(w[t]*t^p*ϱ^p for t in 1:T) <= ε^p)
 
-    @objective(Problem, Max, (1/(sum(w[t]^2 for t in 1:T)))*((ε-(sum(w[t]*t^p for t in 1:T)*ϱ^p)^(1/p))^(2*p)))
+    @objective(Problem, Max, (1/(sum(w[t]^2 for t in 1:T)))*((ε-(sum(w[t]*t^p*ϱ^p for t in 1:T))^(1/p))^(2*p)))
 
     optimize!(Problem)
 

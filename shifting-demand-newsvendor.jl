@@ -73,7 +73,7 @@ shift_distribution = Uniform(-0.0005,0.0005)
 
 initial_demand_probability = 0.1
 
-repetitions = 10000
+repetitions = 30
 history_length = 100
 
 demand_sequences = [zeros(history_length+1) for _ in 1:repetitions]
@@ -150,7 +150,7 @@ function parameter_fit(ambiguity_radii, compute_weights, weight_parameters)
     for (ambiguity_radius_index, weight_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters))))
         weights = compute_weights(history_length, ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index])
 
-        Threads.@threads for repetition in 1:repetitions
+        for repetition in 1:repetitions
             demand_samples = demand_sequences[repetition][1:history_length]
             order = W₂_newsvendor_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights)
             costs[repetition][ambiguity_radius_index, weight_parameter_index] = newsvendor_loss(order, demand_sequences[repetition][history_length+1])
@@ -169,8 +169,8 @@ end
 windowing_parameters = round.(Int, LinRange(10,history_length,5))
 smoothing_parameters = LinRange(0.02,0.2,5)
 
-ambiguity_radii = [40] #LinRange(10,100,5)
-shift_bound_parameters = [0.5] #LinRange(0.1,1,5)
+ambiguity_radii = [LinRange(2,10,5); LinRange(20,100,5); LinRange(200,1000,5)]
+shift_bound_parameters = [LinRange(0.02,0.1,5); LinRange(0.2,1,5); LinRange(2,10,5)]
 
 #=
 W₂_naive_cost, W₂_naive_sem, W₂_naive_ε, _ = parameter_fit(ambiguity_radii, windowing_weights, history_length)
@@ -282,8 +282,8 @@ function parameter_fit(initial_ball_radii_parameters, shift_bound_parameters)
     return round(mean(minimal_costs), digits=digits), round(sem(minimal_costs), digits=digits), round(initial_ball_radii_parameters[initial_ball_radius_index], digits=digits), round(shift_bound_parameters[shift_bound_parameter_index], digits=digits), empty_frequency
 end
 
-initial_ball_radii_parameters = LinRange(1000,10000,5)
-shift_bound_parameters = LinRange(100,1000,5)
+initial_ball_radii_parameters = [LinRange(200,1000,5); LinRange(2000,10000,5)]
+shift_bound_parameters = [LinRange(20,100,5); LinRange(200,1000,5)]
 
 #intersection_based_cost, intersection_based_sem, intersection_based_ε, intersection_based_ϱ, empty_frequency = parameter_fit(initial_ball_radii_parameters, shift_bound_parameters)
 #display("W₂ intersection: $intersection_based_ε, $intersection_based_ϱ, $intersection_based_cost ± $intersection_based_sem, $empty_frequency")
