@@ -73,7 +73,7 @@ shift_distribution = Uniform(-0.0005,0.0005)
 
 initial_demand_probability = 0.1
 
-repetitions = 30
+repetitions = 30*1
 history_length = 100
 
 demand_sequences = [zeros(history_length+1) for _ in 1:repetitions]
@@ -147,7 +147,7 @@ function parameter_fit(ambiguity_radii, compute_weights, weight_parameters)
 
     costs = [zeros((length(ambiguity_radii),length(weight_parameters))) for _ in 1:repetitions]
 
-    for (ambiguity_radius_index, weight_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters))))
+    Threads.@threads for (ambiguity_radius_index, weight_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters))))
         weights = compute_weights(history_length, ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index])
 
         for repetition in 1:repetitions
@@ -166,11 +166,11 @@ function parameter_fit(ambiguity_radii, compute_weights, weight_parameters)
     return round(mean(minimal_costs),digits=digits), round(sem(minimal_costs),digits=digits), round(ambiguity_radii[ambiguity_radius_index],digits=digits), round(weight_parameters[weight_parameter_index],digits=digits)
 end
 
-windowing_parameters = round.(Int, LinRange(10,history_length,5))
-smoothing_parameters = LinRange(0.02,0.2,5)
+windowing_parameters = round.(Int, LinRange(10,history_length,10))
+smoothing_parameters = LinRange(0.02,0.2,10)
 
-ambiguity_radii = [LinRange(2,10,5); LinRange(20,100,5); LinRange(200,1000,5)]
-shift_bound_parameters = [LinRange(0.02,0.1,5); LinRange(0.2,1,5); LinRange(2,10,5)]
+ambiguity_radii = [LinRange(1,10,4); LinRange(40,100,3); LinRange(400,1000,3)]
+shift_bound_parameters = [LinRange(0.01,0.1,4); LinRange(0.4,1,3); LinRange(4,10,3)]
 
 #=
 W₂_naive_cost, W₂_naive_sem, W₂_naive_ε, _ = parameter_fit(ambiguity_radii, windowing_weights, history_length)
@@ -282,11 +282,11 @@ function parameter_fit(initial_ball_radii_parameters, shift_bound_parameters)
     return round(mean(minimal_costs), digits=digits), round(sem(minimal_costs), digits=digits), round(initial_ball_radii_parameters[initial_ball_radius_index], digits=digits), round(shift_bound_parameters[shift_bound_parameter_index], digits=digits), empty_frequency
 end
 
-initial_ball_radii_parameters = [LinRange(200,1000,5); LinRange(2000,10000,5)]
-shift_bound_parameters = [LinRange(20,100,5); LinRange(200,1000,5)]
+initial_ball_radii_parameters = [LinRange(100,1000,3); LinRange(4000,10000,3); LinRange(40000,100000,3)]
+shift_bound_parameters = [LinRange(10,100,3); LinRange(400,1000,3); LinRange(4000,10000,3)]
 
-#intersection_based_cost, intersection_based_sem, intersection_based_ε, intersection_based_ϱ, empty_frequency = parameter_fit(initial_ball_radii_parameters, shift_bound_parameters)
-#display("W₂ intersection: $intersection_based_ε, $intersection_based_ϱ, $intersection_based_cost ± $intersection_based_sem, $empty_frequency")
+intersection_based_cost, intersection_based_sem, intersection_based_ε, intersection_based_ϱ, empty_frequency = parameter_fit(initial_ball_radii_parameters, shift_bound_parameters)
+display("W₂ intersection: $intersection_based_ε, $intersection_based_ϱ, $intersection_based_cost ± $intersection_based_sem, $empty_frequency")
 
 
 

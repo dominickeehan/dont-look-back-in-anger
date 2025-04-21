@@ -4,7 +4,8 @@
 # Want each job to be under 9 hours. 
 # Write the chosen parameters to the file as well.
 
-using  Random, Statistics, StatsBase, Distributions
+using Random, Statistics, StatsBase, Distributions
+using CSV
 
 number_of_consumers = 10000
 D = number_of_consumers
@@ -90,8 +91,23 @@ for repetition in 1:repetitions
     end
 end
 
+open("$job_number.csv", "w") do file; end
+
+open("$job_number.csv", "a") do file
+    println(file, "42, 10")
+end
+
+file = CSV.File("$job_number.csv", header = false)
+results_matrix = stack([[row.Column1, row.Column2] for row in Iterators.take(file, size(file)[1])])'
+
+
+
+results_file = open("$job_number.csv", "a")
+
+
+
 using ProgressBars, IterTools
-function test(ambiguity_radii, compute_weights, weight_parameters)
+function train_and_test(ambiguity_radii, compute_weights, weight_parameters)
 
     costs = zeros(repetitions)
 
@@ -128,9 +144,11 @@ function test(ambiguity_radii, compute_weights, weight_parameters)
         demand_samples = demand_sequences[repetition][1:100]
         order = W₂_newsvendor_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights)
 
-        costs[repetition] = newsvendor_loss(order, demand_sequences[repetition][101])
-        ambiguity_radii_to_test[repetition] = ambiguity_radii[ambiguity_radius_index]
-        weight_parameters_to_test[repetition] = weight_parameters[weight_parameter_index]
+        cost = newsvendor_loss(order, demand_sequences[repetition][101])
+        ambiguity_radius_to_test = ambiguity_radii[ambiguity_radius_index]
+        weight_parameter_to_test = weight_parameters[weight_parameter_index]
+
+        println(results_file, "$cost, $ambiguity_radius_to_test, $weight_parameter_to_test")
 
     end
 
@@ -140,7 +158,7 @@ end
 ambiguity_radii = [LinRange(2,10,5); LinRange(20,100,5)]
 shift_bound_parameters = [LinRange(0.2,1,5); LinRange(2,10,5)]
 
-display([test(ambiguity_radii, W₂_concentration_weights, shift_bound_parameters)])
+display([train_and_test(ambiguity_radii, W₂_concentration_weights, shift_bound_parameters)])
 
 
 function REMK_intersection_based_W₂_newsvendor_order(ball_radii, ξ) 
@@ -195,7 +213,7 @@ function REMK_intersection_based_W₂_newsvendor_order(ball_radii, ξ)
 end
 
 
-function test(initial_ball_radii_parameters, shift_bound_parameters)
+function train_and_test(initial_ball_radii_parameters, shift_bound_parameters)
 
     costs = zeros(repetitions)
 
@@ -231,4 +249,4 @@ end
 initial_ball_radii_parameters = LinRange(1000,10000,10)
 shift_bound_parameters = LinRange(100,1000,10) #LinRange(100,1000,5) #[LinRange(10,100,5) LinRange(100,1000,5)]
 
-#display([test(initial_ball_radii_parameters,shift_bound_parameters)])
+#display([train_and_test(initial_ball_radii_parameters,shift_bound_parameters)])

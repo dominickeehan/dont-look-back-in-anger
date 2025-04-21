@@ -1,10 +1,12 @@
 using JuMP, Ipopt
 using Plots, Measures
 
-T = 200
+T = 100
 p = 2
 
 function solve_for_weights(ϵ, ρ)
+
+        if ρ >= (1/1)*ϵ; ρ = (1/1)*ϵ; end
 
     Problem = Model(optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0))
 
@@ -73,4 +75,4 @@ end
 #solve_for_weights(10.0,0.5)
 #solve_for_weights(10.0,0.1)
 
-solve_for_weights(100,0.5)
+solve_for_weights(0,1)
