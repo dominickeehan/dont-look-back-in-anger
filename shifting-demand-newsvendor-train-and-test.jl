@@ -5,6 +5,8 @@
 # Write the chosen parameters to the file as well.
 
 using Random, Statistics, StatsBase, Distributions
+using JuMP, MathOptInterface, Gurobi
+using ProgressBars, IterTools
 using CSV
 
 number_of_consumers = 10000
@@ -16,8 +18,6 @@ Co = 1 # Cost of overage.
 newsvendor_loss(x,ξ) = Cu*max(ξ-x,0) + Co*max(x-ξ,0)
 newsvendor_order(ε, ξ, weights) = quantile(ξ, Weights(weights), Cu/(Co+Cu))
 
-using JuMP, MathOptInterface
-using Gurobi
 env = Gurobi.Env() 
 GRBsetintparam(env, "OutputFlag", 0)
 GRBsetintparam(env, "BarHomogeneous", 1)
@@ -70,7 +70,7 @@ end
 
 include("weights.jl")
 
-job_number = 1 #parse(Int64, ENV["PBS_ARRAY_INDEX"])
+job_number = parse(Int64, ENV["PBS_ARRAY_INDEX"])
 
 Random.seed!(job_number)
 
@@ -83,7 +83,7 @@ shift_distribution = Uniform(-0.0005,0.0005)
 
 initial_demand_probability = 0.1
 
-repetitions = 10
+repetitions = 100
 history_length = 100
 training_length = 70
 
@@ -97,7 +97,7 @@ for repetition in 1:repetitions
 end
 
 
-using ProgressBars, IterTools
+
 function train_and_test(ambiguity_radii, compute_weights, weight_parameters)
 
     costs = zeros(repetitions)
@@ -109,7 +109,8 @@ function train_and_test(ambiguity_radii, compute_weights, weight_parameters)
 
     println("precomputing_weights...")
 
-    Threads.@threads for (ambiguity_radius_index, weight_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters))))
+    for (ambiguity_radius_index, weight_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters))))
+    #Threads.@threads for (ambiguity_radius_index, weight_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters))))
         for t in 71:100
             precomputed_weights[ambiguity_radius_index, weight_parameter_index][t-70] = compute_weights(t-1, ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index])
         end
@@ -148,14 +149,15 @@ function train_and_test(ambiguity_radii, compute_weights, weight_parameters)
     end
 end
 
-ambiguity_radii = [LinRange(1,10,4); LinRange(40,100,3); LinRange(400,1000,3)]
-shift_bound_parameters = [LinRange(0.01,0.1,4); LinRange(0.4,1,3); LinRange(4,10,3)]
-windowing_parameters = round.(Int, LinRange(10,history_length,10))
-smoothing_parameters = LinRange(0.02,0.2,10)
-
+ambiguity_radii = [LinRange(1,10,4); LinRange(40,100,3)]
+shift_bound_parameters = [LinRange(0.1,1,4); LinRange(4,10,3)]
 train_and_test(ambiguity_radii, W₂_concentration_weights, shift_bound_parameters)
-#train_and_test(ambiguity_radii, windowing_weights, windowing_parameters)
-#train_and_test(ambiguity_radii, smoothing_weights, smoothing_parameters)
+
+windowing_parameters = round.(Int, LinRange(10,history_length,7))
+train_and_test(ambiguity_radii, windowing_weights, windowing_parameters)
+
+smoothing_parameters = LinRange(0.02,0.2,7)
+train_and_test(ambiguity_radii, smoothing_weights, smoothing_parameters)
 
 
 
@@ -249,8 +251,8 @@ function train_and_test(initial_ball_radii_parameters, shift_bound_parameters)
     end
 end
 
-initial_ball_radii_parameters = [LinRange(100,1000,4); LinRange(4000,10000,3); LinRange(40000,100000,3)]
-shift_bound_parameters = [LinRange(10,100,4); LinRange(400,1000,3); LinRange(4000,10000,3)]
+initial_ball_radii_parameters = [LinRange(100,1000,4); LinRange(4000,10000,3)]
+shift_bound_parameters = [LinRange(10,100,4); LinRange(400,1000,3)]
 
 train_and_test(initial_ball_radii_parameters, shift_bound_parameters)
 
