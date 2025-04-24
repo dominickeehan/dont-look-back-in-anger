@@ -70,7 +70,7 @@ end
 
 include("weights.jl")
 
-job_number = parse(Int64, ENV["PBS_ARRAY_INDEX"])
+job_number = 1 #parse(Int64, ENV["PBS_ARRAY_INDEX"])
 
 Random.seed!(job_number)
 
@@ -83,7 +83,7 @@ shift_distribution = Uniform(-0.0005,0.0005)
 
 initial_demand_probability = 0.1
 
-repetitions = 100
+repetitions = 10
 history_length = 100
 training_length = 70
 
@@ -105,12 +105,13 @@ function train_and_test(ambiguity_radii, compute_weights, weight_parameters)
     ambiguity_radii_to_test = zeros(repetitions)
     weight_parameters_to_test = zeros(repetitions)
 
-    precomputed_weights = stack([[[zeros(t-1) for t in 71:100] for ambiguity_radius_index in eachindex(ambiguity_radii)] for weight_parameter_index in eachindex(weight_parameters)])
+    #precomputed_weights = stack([[[zeros(t-1) for t in 71:100] for ambiguity_radius_index in eachindex(ambiguity_radii)] for weight_parameter_index in eachindex(weight_parameters)])
+    precomputed_weights = hcat([[[zeros(t-1) for t in 71:100] for ambiguity_radius_index in eachindex(ambiguity_radii)] for weight_parameter_index in eachindex(weight_parameters)]...)
 
     println("precomputing_weights...")
 
-    for (ambiguity_radius_index, weight_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters))))
-    #Threads.@threads for (ambiguity_radius_index, weight_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters))))
+    Threads.@threads for (ambiguity_radius_index, weight_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters))))
+    #for (ambiguity_radius_index, weight_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters))))
         for t in 71:100
             precomputed_weights[ambiguity_radius_index, weight_parameter_index][t-70] = compute_weights(t-1, ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index])
         end
@@ -153,12 +154,13 @@ ambiguity_radii = [LinRange(1,10,4); LinRange(40,100,3)]
 shift_bound_parameters = [LinRange(0.1,1,4); LinRange(4,10,3)]
 train_and_test(ambiguity_radii, W₂_concentration_weights, shift_bound_parameters)
 
-windowing_parameters = round.(Int, LinRange(10,history_length,7))
-train_and_test(ambiguity_radii, windowing_weights, windowing_parameters)
-
 smoothing_parameters = LinRange(0.02,0.2,7)
 train_and_test(ambiguity_radii, smoothing_weights, smoothing_parameters)
 
+windowing_parameters = round.(Int, LinRange(10,history_length,7))
+train_and_test(ambiguity_radii, windowing_weights, windowing_parameters)
+
+train_and_test(ambiguity_radii, windowing_weights, [history_length])
 
 
 function REMK_intersection_based_W₂_newsvendor_order(ball_radii, ξ) 
