@@ -105,8 +105,8 @@ function train_and_test(ambiguity_radii, compute_weights, weight_parameters)
     ambiguity_radii_to_test = zeros(repetitions)
     weight_parameters_to_test = zeros(repetitions)
 
-    #precomputed_weights = stack([[[zeros(t-1) for t in 71:100] for ambiguity_radius_index in eachindex(ambiguity_radii)] for weight_parameter_index in eachindex(weight_parameters)])
-    precomputed_weights = hcat([[[zeros(t-1) for t in 71:100] for ambiguity_radius_index in eachindex(ambiguity_radii)] for weight_parameter_index in eachindex(weight_parameters)]...)
+    precomputed_weights = stack([[[zeros(t-1) for t in 71:100] for ambiguity_radius_index in eachindex(ambiguity_radii)] for weight_parameter_index in eachindex(weight_parameters)])
+    #precomputed_weights = hcat([[[zeros(t-1) for t in 71:100] for ambiguity_radius_index in eachindex(ambiguity_radii)] for weight_parameter_index in eachindex(weight_parameters)]...)
 
     println("precomputing_weights...")
 
@@ -150,14 +150,16 @@ function train_and_test(ambiguity_radii, compute_weights, weight_parameters)
     end
 end
 
-ambiguity_radii = [LinRange(1,10,4); LinRange(40,100,3)]
-shift_bound_parameters = [LinRange(0.1,1,4); LinRange(4,10,3)]
+windowing_parameters = round.(Int, LinRange(10,history_length,10))
+smoothing_parameters = LinRange(0.003,0.3,10)
+
+ambiguity_radii = [LinRange(1,10,4); LinRange(40,100,3); LinRange(400,1000,3)]
+shift_bound_parameters = [LinRange(0.01,0.1,4); LinRange(0.4,1,3); LinRange(4,10,3)]
+
 train_and_test(ambiguity_radii, W₂_concentration_weights, shift_bound_parameters)
 
-smoothing_parameters = LinRange(0.02,0.2,7)
 train_and_test(ambiguity_radii, smoothing_weights, smoothing_parameters)
 
-windowing_parameters = round.(Int, LinRange(10,history_length,7))
 train_and_test(ambiguity_radii, windowing_weights, windowing_parameters)
 
 train_and_test(ambiguity_radii, windowing_weights, [history_length])
@@ -253,8 +255,8 @@ function train_and_test(initial_ball_radii_parameters, shift_bound_parameters)
     end
 end
 
-initial_ball_radii_parameters = [LinRange(100,1000,4); LinRange(4000,10000,3)]
-shift_bound_parameters = [LinRange(10,100,4); LinRange(400,1000,3)]
+initial_ball_radii_parameters = [LinRange(100,1000,4); LinRange(4000,10000,3); LinRange(40000,100000,3)]
+shift_bound_parameters = [LinRange(1,10,4); LinRange(40,100,3); LinRange(400,1000,3)]
 
 train_and_test(initial_ball_radii_parameters, shift_bound_parameters)
 
