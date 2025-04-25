@@ -75,4 +75,4 @@ end
 #solve_for_weights(10.0,0.5)
 #solve_for_weights(10.0,0.1)
 
-solve_for_weights(0,1)
+solve_for_weights(4,0.1)
