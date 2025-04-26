@@ -70,7 +70,7 @@ end
 
 include("weights.jl")
 
-job_number = 1 #parse(Int64, ENV["PBS_ARRAY_INDEX"])
+job_number = parse(Int64, ENV["PBS_ARRAY_INDEX"])
 
 Random.seed!(job_number)
 
@@ -78,12 +78,11 @@ open("$job_number.csv", "w") do file; end
 
 results_file = open("$job_number.csv", "a")
 
-
 shift_distribution = Uniform(-0.0005,0.0005)
 
 initial_demand_probability = 0.1
 
-repetitions = 10
+repetitions = 1
 history_length = 100
 training_length = 70
 
@@ -105,19 +104,81 @@ function train_and_test(ambiguity_radii, compute_weights, weight_parameters)
     ambiguity_radii_to_test = zeros(repetitions)
     weight_parameters_to_test = zeros(repetitions)
 
-    precomputed_weights = stack([[[zeros(t-1) for t in 71:100] for ambiguity_radius_index in eachindex(ambiguity_radii)] for weight_parameter_index in eachindex(weight_parameters)])
-    #precomputed_weights = hcat([[[zeros(t-1) for t in 71:100] for ambiguity_radius_index in eachindex(ambiguity_radii)] for weight_parameter_index in eachindex(weight_parameters)]...)
+    #precomputed_weights = stack([[[zeros(t-1) for t in 71:100] for ambiguity_radius_index in eachindex(ambiguity_radii)] for weight_parameter_index in eachindex(weight_parameters)])
+    precomputed_weights = hcat([[[zeros(t-1) for t in 71:100] for ambiguity_radius_index in eachindex(ambiguity_radii)] for weight_parameter_index in eachindex(weight_parameters)]...)
 
     println("precomputing_weights...")
 
-    Threads.@threads for (ambiguity_radius_index, weight_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters))))
-    #for (ambiguity_radius_index, weight_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters))))
+    #Threads.@threads for (ambiguity_radius_index, weight_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters))))
+    for (ambiguity_radius_index, weight_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters))))
+        for t in 71:100
+            precomputed_weights[ambiguity_radius_index, weight_parameter_index][t-70] = compute_weights(t-1, ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index])
+        end
+    end
+
+    println("training and testing SP method...")
+
+    for repetition in ProgressBar(1:repetitions)
+        
+        training_costs = [zeros((length(ambiguity_radii),length(weight_parameters))) for _ in 71:100]
+        for ambiguity_radius_index in eachindex(ambiguity_radii)
+            for weight_parameter_index in eachindex(weight_parameters)
+                
+                for t in 71:100
+                
+                    weights = precomputed_weights[ambiguity_radius_index, weight_parameter_index][t-70]
+
+                    demand_samples = demand_sequences[repetition][1:t-1]
+                    order = newsvendor_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights)
+                    training_costs[t-70][ambiguity_radius_index, weight_parameter_index] = newsvendor_loss(order, demand_sequences[repetition][t])
+                end
+            end
+        end
+
+        ambiguity_radius_index, weight_parameter_index = Tuple(argmin(mean(training_costs)))
+        weights = compute_weights(100, ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index])
+        demand_samples = demand_sequences[repetition][1:100]
+        order = newsvendor_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights)
+
+        cost = newsvendor_loss(order, demand_sequences[repetition][101])
+        ambiguity_radius_to_test = ambiguity_radii[ambiguity_radius_index]
+        weight_parameter_to_test = weight_parameters[weight_parameter_index]
+
+        println(results_file, "$cost, $ambiguity_radius_to_test, $weight_parameter_to_test")
+
+    end
+end
+
+windowing_parameters = round.(Int, LinRange(10,history_length,31))
+smoothing_parameters = LinRange(0.01,0.3,30)
+
+train_and_test([0], windowing_weights, [history_length])
+
+train_and_test([0], windowing_weights, windowing_parameters)
+train_and_test([0], smoothing_weights, smoothing_parameters)
+
+function train_and_test(ambiguity_radii, compute_weights, weight_parameters)
+
+    costs = zeros(repetitions)
+
+    ambiguity_radii_to_test = zeros(repetitions)
+    weight_parameters_to_test = zeros(repetitions)
+
+    #precomputed_weights = stack([[[zeros(t-1) for t in 71:100] for ambiguity_radius_index in eachindex(ambiguity_radii)] for weight_parameter_index in eachindex(weight_parameters)])
+    precomputed_weights = hcat([[[zeros(t-1) for t in 71:100] for ambiguity_radius_index in eachindex(ambiguity_radii)] for weight_parameter_index in eachindex(weight_parameters)]...)
+
+    println("precomputing_weights...")
+
+    #Threads.@threads for (ambiguity_radius_index, weight_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters))))
+    for (ambiguity_radius_index, weight_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters))))
         for t in 71:100
             precomputed_weights[ambiguity_radius_index, weight_parameter_index][t-70] = compute_weights(t-1, ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index])
         end
     end
 
     println("training and testing W₂ method...")
+
+    start_time = time()
 
     for repetition in ProgressBar(1:repetitions)
         
@@ -136,6 +197,8 @@ function train_and_test(ambiguity_radii, compute_weights, weight_parameters)
             end
         end
 
+        time_elapsed = time() - start_time
+
         ambiguity_radius_index, weight_parameter_index = Tuple(argmin(mean(training_costs)))
         weights = compute_weights(100, ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index])
         demand_samples = demand_sequences[repetition][1:100]
@@ -145,24 +208,25 @@ function train_and_test(ambiguity_radii, compute_weights, weight_parameters)
         ambiguity_radius_to_test = ambiguity_radii[ambiguity_radius_index]
         weight_parameter_to_test = weight_parameters[weight_parameter_index]
 
-        println(results_file, "$cost, $ambiguity_radius_to_test, $weight_parameter_to_test")
+        println(results_file, "$cost, $ambiguity_radius_to_test, $weight_parameter_to_test, $time_elapsed")
 
     end
 end
 
-windowing_parameters = round.(Int, LinRange(10,history_length,10))
-smoothing_parameters = LinRange(0.003,0.3,10)
+ambiguity_radii = [LinRange(1,10,10); LinRange(20,100,9); LinRange(200,1000,9)]
 
-ambiguity_radii = [LinRange(1,10,4); LinRange(40,100,3); LinRange(400,1000,3)]
-shift_bound_parameters = [LinRange(0.01,0.1,4); LinRange(0.4,1,3); LinRange(4,10,3)]
+windowing_parameters = round.(Int, LinRange(10,history_length,31))
+smoothing_parameters = LinRange(0.01,0.3,30)
+shift_bound_parameters = [LinRange(0.01,0.1,10); LinRange(0.2,1,9); LinRange(2,10,9)]
 
-train_and_test(ambiguity_radii, W₂_concentration_weights, shift_bound_parameters)
-
-train_and_test(ambiguity_radii, smoothing_weights, smoothing_parameters)
+train_and_test(ambiguity_radii, windowing_weights, [history_length])
 
 train_and_test(ambiguity_radii, windowing_weights, windowing_parameters)
 
-train_and_test(ambiguity_radii, windowing_weights, [history_length])
+#close(results_file)
+
+train_and_test(ambiguity_radii, smoothing_weights, smoothing_parameters)
+train_and_test(ambiguity_radii, W₂_concentration_weights, shift_bound_parameters)
 
 
 function REMK_intersection_based_W₂_newsvendor_order(ball_radii, ξ) 
@@ -223,6 +287,8 @@ function train_and_test(initial_ball_radii_parameters, shift_bound_parameters)
 
     println("training and testing intersection-based W₂ method...")
 
+    start_time = time()
+
     for repetition in ProgressBar(1:repetitions)
         
         training_costs = [zeros((length(initial_ball_radii_parameters),length(shift_bound_parameters))) for _ in 71:100]
@@ -240,6 +306,8 @@ function train_and_test(initial_ball_radii_parameters, shift_bound_parameters)
             end
         end
 
+        time_elapsed = time() - start_time
+
         initial_ball_radius_index, shift_bound_parameter_index = Tuple(argmin(mean(training_costs)))
         K = 100
         ball_radii = reverse([initial_ball_radii_parameters[initial_ball_radius_index]+(k-1)*shift_bound_parameters[shift_bound_parameter_index] for k in 1:K])
@@ -250,13 +318,13 @@ function train_and_test(initial_ball_radii_parameters, shift_bound_parameters)
         ε = initial_ball_radii_parameters[initial_ball_radius_index]
         ϱ = shift_bound_parameters[shift_bound_parameter_index]
 
-        println(results_file, "$cost, $ε, $ϱ")
+        println(results_file, "$cost, $ε, $ϱ, $time_elapsed")
 
     end
 end
 
-initial_ball_radii_parameters = [LinRange(100,1000,4); LinRange(4000,10000,3); LinRange(40000,100000,3)]
-shift_bound_parameters = [LinRange(1,10,4); LinRange(40,100,3); LinRange(400,1000,3)]
+initial_ball_radii_parameters = [LinRange(100,1000,10); LinRange(2000,10000,9); LinRange(20000,100000,9)]
+shift_bound_parameters = [LinRange(1,10,10); LinRange(20,100,9); LinRange(200,1000,9)]
 
 train_and_test(initial_ball_radii_parameters, shift_bound_parameters)
 
