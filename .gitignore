@@ -7,7 +7,11 @@
 */*.grbr
 *.grbr
 
-*/results*
+/results/*
+
+results/
+
+*.csv
 
 .idea/*
 .vscode/*

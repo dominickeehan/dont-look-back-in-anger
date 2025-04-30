@@ -73,7 +73,7 @@ shift_distribution = Uniform(-0.0005,0.0005)
 
 initial_demand_probability = 0.1
 
-repetitions = 10
+repetitions = 300
 history_length = 100
 
 demand_sequences = [zeros(history_length+1) for _ in 1:repetitions]
@@ -147,7 +147,7 @@ function parameter_fit(ambiguity_radii, compute_weights, weight_parameters)
 
     costs = [zeros((length(ambiguity_radii),length(weight_parameters))) for _ in 1:repetitions]
 
-    for (ambiguity_radius_index, weight_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters))))
+    Threads.@threads for (ambiguity_radius_index, weight_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters))))
         weights = compute_weights(history_length, ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index])
 
         for repetition in 1:repetitions
@@ -166,19 +166,19 @@ function parameter_fit(ambiguity_radii, compute_weights, weight_parameters)
     return round(mean(minimal_costs),digits=digits), round(sem(minimal_costs),digits=digits), round(ambiguity_radii[ambiguity_radius_index],digits=digits), round(weight_parameters[weight_parameter_index],digits=digits)
 end
 
-windowing_parameters = round.(Int, LinRange(10,history_length,10))
-smoothing_parameters = LinRange(0.003,0.3,10)
+ambiguity_radii = [LinRange(1,10,10); LinRange(20,100,9); LinRange(200,1000,9)]
 
-ambiguity_radii = [LinRange(1,10,4); LinRange(40,100,3); LinRange(400,1000,3)]
-shift_bound_parameters = [LinRange(0.01,0.1,4); LinRange(0.4,1,3); LinRange(4,10,3)]
+windowing_parameters = round.(Int, LinRange(10,history_length,31))
+smoothing_parameters = LinRange(0.01,0.3,30)
+shift_bound_parameters = [LinRange(0.01,0.1,10); LinRange(0.2,1,9); LinRange(2,10,9)]
 
-#=
+
 W₂_naive_cost, W₂_naive_sem, W₂_naive_ε, _ = parameter_fit(ambiguity_radii, windowing_weights, history_length)
 display("W₂ naive: $W₂_naive_ε, $W₂_naive_cost ± $W₂_naive_sem")
 W₂_naive_ε = round(Int, W₂_naive_ε)
-=#
 
-#=
+
+
 W₂_windowing_cost, W₂_windowing_sem, W₂_windowing_ε, W₂_windowing_t = parameter_fit(ambiguity_radii, windowing_weights, windowing_parameters)
 display("W₂ windowing: $W₂_windowing_ε, $W₂_windowing_t, $W₂_windowing_cost ± $W₂_windowing_sem")
 W₂_windowing_ε = round(Int, W₂_windowing_ε)
@@ -187,7 +187,7 @@ W₂_windowing_t = round(Int, W₂_windowing_t)
 W₂_smoothing_cost, W₂_smoothing_sem, W₂_smoothing_ε, W₂_smoothing_α = parameter_fit(ambiguity_radii, smoothing_weights, smoothing_parameters)
 display("W₂ smoothing: $W₂_smoothing_ε, $W₂_smoothing_α, $W₂_smoothing_cost ± $W₂_smoothing_sem")
 W₂_smoothing_ε = round(Int, W₂_smoothing_ε)
-=#
+
 
 W₂_concentration_cost, W₂_concentration_sem, W₂_concentration_ε, W₂_concentration_ϱ = parameter_fit(ambiguity_radii, W₂_concentration_weights, shift_bound_parameters)
 display("W₂ concentration: $W₂_concentration_ε, $W₂_concentration_ϱ, $W₂_concentration_cost ± $W₂_concentration_sem")
@@ -285,8 +285,8 @@ end
 initial_ball_radii_parameters = [LinRange(100,1000,4); LinRange(4000,10000,3); LinRange(40000,100000,3)]
 shift_bound_parameters = [LinRange(1,10,4); LinRange(40,100,3); LinRange(400,1000,3)]
 
-intersection_based_cost, intersection_based_sem, intersection_based_ε, intersection_based_ϱ, empty_frequency = parameter_fit(initial_ball_radii_parameters, shift_bound_parameters)
-display("W₂ intersection: $intersection_based_ε, $intersection_based_ϱ, $intersection_based_cost ± $intersection_based_sem, $empty_frequency")
+#intersection_based_cost, intersection_based_sem, intersection_based_ε, intersection_based_ϱ, empty_frequency = parameter_fit(initial_ball_radii_parameters, shift_bound_parameters)
+#display("W₂ intersection: $intersection_based_ε, $intersection_based_ϱ, $intersection_based_cost ± $intersection_based_sem, $empty_frequency")
 
 
 

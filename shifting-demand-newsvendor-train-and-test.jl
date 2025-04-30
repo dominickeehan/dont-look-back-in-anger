@@ -144,7 +144,7 @@ function train_and_test(ambiguity_radii, compute_weights, weight_parameters)
         ambiguity_radius_to_test = ambiguity_radii[ambiguity_radius_index]
         weight_parameter_to_test = weight_parameters[weight_parameter_index]
 
-        println(results_file, "$cost, $ambiguity_radius_to_test, $weight_parameter_to_test")
+        println(results_file, "$cost, $ambiguity_radius_to_test, $weight_parameter_to_test, 0")
 
     end
 end
