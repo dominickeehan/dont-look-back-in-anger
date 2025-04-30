@@ -2,7 +2,7 @@ using JuMP, Ipopt
 using Plots, Measures
 
 T = 100
-p = 2
+p = 1
 
 function solve_for_weights(ϵ, ρ)
 
@@ -75,4 +75,4 @@ end
 #solve_for_weights(10.0,0.5)
 #solve_for_weights(10.0,0.1)
 
-solve_for_weights(4,0.1)
+solve_for_weights(30,0.8)

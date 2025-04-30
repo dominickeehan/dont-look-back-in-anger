@@ -73,7 +73,7 @@ shift_distribution = Uniform(-0.0005,0.0005)
 
 initial_demand_probability = 0.1
 
-repetitions = 300
+repetitions = 100000
 history_length = 100
 
 demand_sequences = [zeros(history_length+1) for _ in 1:repetitions]
@@ -111,16 +111,16 @@ function parameter_fit(ambiguity_radii, compute_weights, weight_parameters)
     return round(mean(minimal_costs), digits=digits), round(sem(minimal_costs), digits=digits), round(ambiguity_radii[ambiguity_radius_index], digits=digits), round(weight_parameters[weight_parameter_index], digits=digits)
 end
 
-windowing_parameters = round.(Int, LinRange(10,history_length,5))
-smoothing_parameters = LinRange(0.02,0.2,5)
-ambiguity_radii = LinRange(10,100,5)
-shift_bound_parameters = LinRange(1,10,5)
+ambiguity_radii = [LinRange(0.1,1,10); LinRange(2,10,9); LinRange(20,100,9); LinRange(200,1000,9)]
+windowing_parameters = round.(Int, LinRange(1,history_length,40))
+smoothing_parameters = [LinRange(0.001,0.01,10); LinRange(0.02,0.3,29)]
+shift_bound_parameters = [LinRange(0.001,0.01,10); LinRange(0.02,0.1,9); LinRange(0.2,1,9); LinRange(2,10,9)]
 
 
-#W₁_naive_cost, W₁_naive_sem, _, _ = parameter_fit([0], windowing_weights, [history_length])
-#display("W₁ naive: $W₁_naive_cost ± $W₁_naive_sem")
+W₁_naive_cost, W₁_naive_sem, _, _ = parameter_fit([0], windowing_weights, [history_length])
+display("W₁ naive: $W₁_naive_cost ± $W₁_naive_sem")
 
-#=
+
 W₁_windowing_cost, W₁_windowing_sem, W₁_windowing_ε, W₁_windowing_t = parameter_fit([0], windowing_weights, windowing_parameters)
 display("W₁ windowing: $W₁_windowing_t, $W₁_windowing_cost ± $W₁_windowing_sem")
 W₁_windowing_t = round(Int, W₁_windowing_t)
@@ -128,11 +128,11 @@ W₁_windowing_t = round(Int, W₁_windowing_t)
 
 W₁_smoothing_cost, W₁_smoothing_sem, W₁_smoothing_ε, W₁_smoothing_α = parameter_fit([0], smoothing_weights, smoothing_parameters)
 display("W₁ smoothing: $W₁_smoothing_α, $W₁_smoothing_cost ± $W₁_smoothing_sem")
-=#
 
-#W₁_concentration_cost, W₁_concentration_sem, W₁_concentration_ε, W₁_concentration_ϱ = parameter_fit(ambiguity_radii, W₁_concentration_weights, shift_bound_parameters)
-#display("W₁ concentration: $W₁_concentration_ε, $W₁_concentration_ϱ, $W₁_concentration_cost ± $W₁_concentration_sem")
-#W₁_concentration_ε = round(Int, W₁_concentration_ε)
+
+W₁_concentration_cost, W₁_concentration_sem, W₁_concentration_ε, W₁_concentration_ϱ = parameter_fit(ambiguity_radii, W₁_concentration_weights, shift_bound_parameters)
+display("W₁ concentration: $W₁_concentration_ε, $W₁_concentration_ϱ, $W₁_concentration_cost ± $W₁_concentration_sem")
+W₁_concentration_ε = round(Int, W₁_concentration_ε)
 
 
 try
@@ -172,7 +172,7 @@ windowing_parameters = round.(Int, LinRange(10,history_length,31))
 smoothing_parameters = LinRange(0.01,0.3,30)
 shift_bound_parameters = [LinRange(0.01,0.1,10); LinRange(0.2,1,9); LinRange(2,10,9)]
 
-
+#=
 W₂_naive_cost, W₂_naive_sem, W₂_naive_ε, _ = parameter_fit(ambiguity_radii, windowing_weights, history_length)
 display("W₂ naive: $W₂_naive_ε, $W₂_naive_cost ± $W₂_naive_sem")
 W₂_naive_ε = round(Int, W₂_naive_ε)
@@ -192,7 +192,7 @@ W₂_smoothing_ε = round(Int, W₂_smoothing_ε)
 W₂_concentration_cost, W₂_concentration_sem, W₂_concentration_ε, W₂_concentration_ϱ = parameter_fit(ambiguity_radii, W₂_concentration_weights, shift_bound_parameters)
 display("W₂ concentration: $W₂_concentration_ε, $W₂_concentration_ϱ, $W₂_concentration_cost ± $W₂_concentration_sem")
 W₂_concentration_ε = round(Int, W₂_concentration_ε)
-
+=#
 
 try
     println("Parameters & \$\\varepsilon=$W₂_naive_ε\$ & \$\\varepsilon=$W₂_windowing_ε\$, \$t=$W₂_windowing_t\$ & \$\\varepsilon=$W₂_smoothing_ε\$, \$\\alpha=$W₂_smoothing_α\$ & \$\\varepsilon=$W₂_concentration_ε\$, \$\\varrho=$W₂_concentration_ϱ\$ & \$ \$ \\\\")

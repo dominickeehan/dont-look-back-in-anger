@@ -1,4 +1,6 @@
-using CSV, Statistics, StatsBase
+# "C:\Program Files\7-Zip\7z.exe" e "H:\Documents\repositories\dont-look-back-in-anger\results\dominic(1).zip" -r *.csv
+
+using CSV, Statistics, StatsBase, Plots
 
 repetitions = 1
 number_of_jobs = 10000
@@ -40,7 +42,9 @@ function display_extracted_results(name, extracted_results)
 
     println(name*": $mean_ ± $sem_")
 
-    #display(sort(collect(pairs(countmap(eachrow(hcat(extracted_results[2], extracted_results[3]))))), by = x->x.second, rev = true))
+    display(sort(collect(pairs(countmap(eachrow(hcat(extracted_results[2], extracted_results[3]))))), by = x->x.second, rev = true))
+
+    #display(histogram2d(extracted_results[2], extracted_results[3]))
 
 end
 
