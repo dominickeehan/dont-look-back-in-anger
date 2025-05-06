@@ -358,7 +358,7 @@ if false
     font_family = "Computer Modern"
     primary_font = Plots.font(font_family, pointsize = 17)
     secondary_font = Plots.font(font_family, pointsize = 11)
-    legend_font = Plots.font(font_family, pointsize = 16)
+    legend_font = Plots.font(font_family, pointsize = 15)
 
     default(framestyle = :box,
             grid = true,
@@ -379,6 +379,7 @@ if false
     plt = plot(1:history_length, 
             stack(demand_sequences[2:100])[1:end-1,:], 
             xlims = (0,history_length+1),
+            xticks = ([1, 25, 50, 75, 100]),
             xlabel = "Time", 
             ylabel = "Demand",
             labels = nothing, 
