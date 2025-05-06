@@ -30,7 +30,7 @@ end
 
 default() # Reset plot defaults.
 
-gr(size = (sqrt(7/10)*600,sqrt(7/10)*400))
+gr(size = (sqrt(5/10)*600,sqrt(5/10)*400))
 
 font_family = "Computer Modern"
 primary_font = Plots.font(font_family, pointsize = 17)
@@ -91,7 +91,7 @@ include("weights.jl")
 
 default() # Reset plot defaults.
 
-gr(size = (sqrt(7/10)*600,sqrt(7/10)*400))
+gr(size = (sqrt(5/10)*600,sqrt(5/10)*400))
 
 font_family = "Computer Modern"
 primary_font = Plots.font(font_family, pointsize = 17)
