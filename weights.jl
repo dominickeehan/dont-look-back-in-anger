@@ -47,6 +47,7 @@ function W₁_concentration_weights(T, ε, ϱ)
     optimize!(Problem)
 
     weights = [max(value(w[t]),0) for t in 1:T]
+    weights .= weights/sum(weights)
 
     return reverse(weights)
 
@@ -70,6 +71,7 @@ function W₂_concentration_weights(T, ε, ϱ)
     optimize!(Problem)
 
     weights = [max(value(w[t]),0) for t in 1:T]
+    weights .= weights/sum(weights)
 
     return reverse(weights)
 
