@@ -354,10 +354,10 @@ if true
 
     default() # Reset plot defaults.
 
-    gr(size = (600,400))
+    gr(size = (700,343))
 
     font_family = "Computer Modern"
-    primary_font = Plots.font(font_family, pointsize = 17)
+    primary_font = Plots.font(font_family, pointsize = 15)
     secondary_font = Plots.font(font_family, pointsize = 11)
     legend_font = Plots.font(font_family, pointsize = 15)
 
@@ -379,7 +379,7 @@ if true
 
     plt = plot(1:history_length, 
             stack(demand_sequences[2:100])[1:end-1,:], 
-            xlims = (0-2/5,history_length+1+2/5),
+            xlims = (0,history_length+1),
             xticks = ([1, 25, 50, 75, 100]),
             xlabel = "\$t\$", 
             ylabel = "Demand",
@@ -395,8 +395,8 @@ if true
             #markerstrokecolor = :black,
             topmargin = 0pt, 
             rightmargin = 0pt,
-            bottommargin = 3pt, 
-            leftmargin = 3pt,
+            bottommargin = 10pt, 
+            leftmargin = 10pt,
             )
 
     plot!(1:history_length, 
