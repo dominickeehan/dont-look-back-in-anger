@@ -187,10 +187,11 @@ display("W₂ smoothing: $W₂_smoothing_ε, $W₂_smoothing_α, $W₂_smoothing
 W₂_smoothing_ε = round(Int, W₂_smoothing_ε)
 =#
 
+#=
 W₂_concentration_cost, W₂_concentration_sem, W₂_concentration_ε, W₂_concentration_ϱ = parameter_fit(ambiguity_radii, W₂_concentration_weights, shift_bound_parameters)
 display("W₂ concentration: $W₂_concentration_ε, $W₂_concentration_ϱ, $W₂_concentration_cost ± $W₂_concentration_sem")
 W₂_concentration_ε = round(Int, W₂_concentration_ε)
-
+=#
 
 try
     println("Parameters & \$\\varepsilon=$W₂_naive_ε\$ & \$\\varepsilon=$W₂_windowing_ε\$, \$t=$W₂_windowing_t\$ & \$\\varepsilon=$W₂_smoothing_ε\$, \$\\alpha=$W₂_smoothing_α\$ & \$\\varepsilon=$W₂_concentration_ε\$, \$\\varrho=$W₂_concentration_ϱ\$ & \$ \$ \\\\")
@@ -347,7 +348,7 @@ shift_bound_parameters = [LinRange(1,10,4); LinRange(40,100,3); LinRange(400,100
 
 
 
-if false
+if true
 
     using Plots, Measures
 
@@ -378,9 +379,9 @@ if false
 
     plt = plot(1:history_length, 
             stack(demand_sequences[2:100])[1:end-1,:], 
-            xlims = (0,history_length+1),
+            xlims = (0-2/5,history_length+1+2/5),
             xticks = ([1, 25, 50, 75, 100]),
-            xlabel = "Time", 
+            xlabel = "\$t\$", 
             ylabel = "Demand",
             labels = nothing, 
             #linecolor = [palette(:tab10)[1] palette(:tab10)[2] palette(:tab10)[3] palette(:tab10)[4] palette(:tab10)[5]],
@@ -407,14 +408,14 @@ if false
             color = palette(:tab10)[1],
             alpha = 1.0,
             #linestyle = :auto,
-            markersize = 4, 
+            markersize = 3, 
             markerstrokewidth = 1,
             markerstrokecolor = :black,
             )
 
     display(plt)
 
-    #savefig(plt, "figures/demand_sequences.pdf")
+    savefig(plt, "figures/demand_sequences.pdf")
 
 
 

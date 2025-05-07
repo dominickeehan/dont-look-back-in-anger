@@ -30,7 +30,7 @@ end
 
 default() # Reset plot defaults.
 
-gr(size = (sqrt(5/10)*600,sqrt(5/10)*400))
+gr(size = (sqrt(6/10)*600,sqrt(6/10)*400))
 
 font_family = "Computer Modern"
 primary_font = Plots.font(font_family, pointsize = 17)
@@ -55,7 +55,7 @@ default(framestyle = :box,
 
 plt = plot(
             xlabel = "\$t\$", 
-            ylabel = "Datum weight",
+            ylabel = "\$w_t\$",
             xticks = ([1, 25, 50, 75, 100]),
             topmargin = 0pt, 
             rightmargin = 0pt,
@@ -91,7 +91,7 @@ include("weights.jl")
 
 default() # Reset plot defaults.
 
-gr(size = (sqrt(5/10)*600,sqrt(5/10)*400))
+gr(size = (sqrt(6/10)*600,sqrt(6/10)*400))
 
 font_family = "Computer Modern"
 primary_font = Plots.font(font_family, pointsize = 17)
@@ -116,7 +116,7 @@ default(framestyle = :box,
 
 plt = plot(
             xlabel = "\$t\$", 
-            ylabel = "Datum weight",
+            ylabel = "\$w_t\$",
             xticks = ([1, 25, 50, 75, 100]),
             legend = :topleft,
             topmargin = 0pt, 
