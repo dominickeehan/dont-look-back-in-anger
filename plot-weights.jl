@@ -1,7 +1,7 @@
 using JuMP, Ipopt
 using Plots, Measures
 
-T = 100
+T = 12
 
 function concentration_weights(ϱ, ε, p)
 
@@ -25,8 +25,8 @@ function concentration_weights(ϱ, ε, p)
 
 end
 
-ϱ = 1
-ε = 75
+ϱ = 500
+ε = 2000
 
 default() # Reset plot defaults.
 
