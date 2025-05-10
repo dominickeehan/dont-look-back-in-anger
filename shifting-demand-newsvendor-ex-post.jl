@@ -16,16 +16,16 @@ include("weights.jl")
 
 Random.seed!(42)
 
-#shift_distribution = Uniform(-0.01,0.01)
+shift_distribution = Uniform(-0.001,0.001)
 #shift_distribution = TriangularDist(-0.0001,0.0001,0)
-shift_distribution = TriangularDist(-0.001,0.001,0) #TriangularDist(-0.01,0.01,0)
+#shift_distribution = TriangularDist(-0.001,0.001,0) #TriangularDist(-0.01,0.01,0)
 
 initial_demand_probability = 0.1
 
 repetitions = 1000
-history_length = 30
+history_length = 100
 
-N = 10
+N = 5
 
 demand_sequences = [zeros(history_length+1) for _ in 1:repetitions]
 for repetition in 1:repetitions
@@ -43,10 +43,10 @@ function parameter_fit(ambiguity_radii, compute_weights, weight_parameters)
 
     costs = [zeros((length(ambiguity_radii),length(weight_parameters))) for _ in 1:repetitions]
 
-    Threads.@threads for (ambiguity_radius_index, weight_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters))))
+    for (ambiguity_radius_index, weight_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters))))
         weights = compute_weights(history_length, ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index])
 
-        for repetition in 1:repetitions
+        Threads.@threads for repetition in 1:repetitions
             demand_samples = demand_sequences[repetition][1:history_length]
             order = W₁_newsvendor_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights)
             costs[repetition][ambiguity_radius_index, weight_parameter_index] = newsvendor_loss(order, demand_sequences[repetition][history_length+1])
@@ -147,10 +147,10 @@ function parameter_fit(ambiguity_radii, compute_weights, weight_parameters)
 
     costs = [zeros((length(ambiguity_radii),length(weight_parameters))) for _ in 1:repetitions]
 
-    Threads.@threads for (ambiguity_radius_index, weight_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters))))
+    for (ambiguity_radius_index, weight_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters))))
         weights = compute_weights(history_length, ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index])
 
-        for repetition in 1:repetitions
+        Threads.@threads for repetition in 1:repetitions
             demand_samples = demand_sequences[repetition][1:history_length]
             order = W₂_newsvendor_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights)
             costs[repetition][ambiguity_radius_index, weight_parameter_index] = newsvendor_loss(order, demand_sequences[repetition][history_length+1])
@@ -280,8 +280,8 @@ function parameter_fit(initial_ball_radii_parameters, shift_bound_parameters)
 end
 
 
-initial_ball_radii_parameters = LinRange(1000,10000,N) #LinRange(1000,10000,N)
-shift_bound_parameters = LinRange(100,1000,N) #LinRange(10000,100000,N)
+initial_ball_radii_parameters = LinRange(1000,10000,N)#LinRange(1000,10000,N)
+shift_bound_parameters = LinRange(100,1000,N)#LinRange(10000,100000,N)
 
 intersection_based_cost, intersection_based_sem, intersection_based_ε, intersection_based_ϱ, empty_frequency = parameter_fit(initial_ball_radii_parameters, shift_bound_parameters)
 display("W₂ intersection: $intersection_based_ε, $intersection_based_ϱ, $intersection_based_cost ± $intersection_based_sem, $empty_frequency")
