@@ -20,10 +20,10 @@ shift_distribution = Uniform(-0.01,0.01)
 
 initial_demand_probability = 0.1
 
-repetitions = 1000
+repetitions = 10000
 history_length = 100
 
-N = 5
+N = 10
 
 demand_sequences = [zeros(history_length+1) for _ in 1:repetitions]
 for repetition in 1:repetitions
@@ -164,7 +164,7 @@ function parameter_fit(ambiguity_radii, compute_weights, weight_parameters)
     return round(mean(minimal_costs),digits=digits), round(sem(minimal_costs),digits=digits), round(ambiguity_radii[ambiguity_radius_index],digits=digits), round(weight_parameters[weight_parameter_index],digits=digits)
 end
 
-ambiguity_radii = LinRange(1000,10000,N) #LinRange(1000,10000,N)
+ambiguity_radii = LinRange(10000,100000,N) #LinRange(1000,10000,N)
 windowing_parameters = round.(Int, LinRange(1,10,N))
 smoothing_parameters = LinRange(0.1,1.0,N)
 shift_bound_parameters = LinRange(10,100,N)
@@ -279,7 +279,7 @@ end
 
 
 initial_ball_radii_parameters = LinRange(1000,10000,N)#LinRange(1000,10000,N)
-shift_bound_parameters = LinRange(1000,10000,N)#LinRange(10000,100000,N)
+shift_bound_parameters = LinRange(10000,100000,N)#LinRange(10000,100000,N)
 
 intersection_based_cost, intersection_based_sem, intersection_based_ε, intersection_based_ϱ, empty_frequency = parameter_fit(initial_ball_radii_parameters, shift_bound_parameters)
 display("W₂ intersection: $intersection_based_ε, $intersection_based_ϱ, $intersection_based_cost ± $intersection_based_sem, $empty_frequency")
