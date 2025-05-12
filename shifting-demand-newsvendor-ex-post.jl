@@ -23,7 +23,7 @@ initial_demand_probability = 0.1
 repetitions = 10000
 history_length = 100
 
-N = 5
+N = 10
 
 demand_sequences = [zeros(history_length+1) for _ in 1:repetitions]
 for repetition in 1:repetitions
