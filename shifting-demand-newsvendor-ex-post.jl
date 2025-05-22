@@ -20,7 +20,7 @@ shift_distribution = Uniform(-0.005,0.005)
 
 initial_demand_probability = 0.1
 
-repetitions = 10000
+repetitions = 1000
 history_length = 100
 
 N = 10
@@ -199,8 +199,6 @@ end
 
 function REMK_intersection_based_W₂_newsvendor_order(ball_radii, ξ, empty_counter) 
 
-    #return ξ[end]
-
     K = length(ball_radii)
     ξ = ξ[end-K+1:end]
 
@@ -278,8 +276,8 @@ function parameter_fit(initial_ball_radii_parameters, shift_bound_parameters)
 end
 
 
-initial_ball_radii_parameters = LinRange(1000,10000,N)#LinRange(1000,10000,N)
-shift_bound_parameters = LinRange(1000,10000,N)#LinRange(10000,100000,N)
+initial_ball_radii_parameters = LinRange(1000,10000,N) #LinRange(1000,10000,N)
+shift_bound_parameters = LinRange(1000,10000,N) #LinRange(10000,100000,N)
 
 intersection_based_cost, intersection_based_sem, intersection_based_ε, intersection_based_ϱ, empty_frequency = parameter_fit(initial_ball_radii_parameters, shift_bound_parameters)
 display("W₂ intersection: $intersection_based_ε, $intersection_based_ϱ, $intersection_based_cost ± $intersection_based_sem, $empty_frequency")
