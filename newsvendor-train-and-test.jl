@@ -4,20 +4,20 @@
 # Want each job to be under 8 hours.
 # Write the chosen parameters to the file as well.
 
-# Approximately 7 hour runtime.
+# Approximately 6 hour runtime. # (2000+800*3)*?/60/60
 
 using Random, Statistics, StatsBase, Distributions
 using JuMP, MathOptInterface, Gurobi
 using ProgressBars, IterTools
 using CSV
 
-job_number = 42 #parse(Int64, ENV["PBS_ARRAY_INDEX"])
+job_number = parse(Int64, ENV["PBS_ARRAY_INDEX"])
 
 open("$job_number.csv", "w") do file; end
 
 results_file = open("$job_number.csv", "a")
 
-repetitions = 1 # 1000 in total with all other jobs per U, 6000 in total.
+repetitions = 1 # 1000 in total with all other jobs per U, 7000 in total.
 history_length = 100 # 100
 training_length = 30 # 30
 
@@ -52,7 +52,7 @@ optimizer = optimizer_with_attributes(() -> Gurobi.Optimizer(env))
 
 include("newsvendor-orders.jl")
 
-Us = [0.00001, 0.0001, 0.0005, 0.001, 0.005, 0.01] # [0.00001, 0.0001, 0.0005, 0.001, 0.005, 0.01]
+Us = [0.00001, 0.00005, 0.0001, 0.0005, 0.001, 0.005, 0.01] # [0.00001, 0.00005, 0.0001, 0.0005, 0.001, 0.005, 0.01]
 
 Random.seed!(job_number%1000)
 
@@ -145,10 +145,11 @@ function train_and_test(newsvendor_order, ambiguity_radii, compute_weights, weig
     
 end
 
-s = round.(Int, LinRange(1,history_length,34))
+s = round.(Int, LinRange(1,history_length,34)) extra
 α = [LinRange(0.0001,0.001,10); LinRange(0.002,0.01,9); LinRange(0.02,0.1,9); LinRange(0.2,1.0,9)]
+
 ε = [LinRange(1,10,10); LinRange(20,100,9); LinRange(200,1000,9); LinRange(2000,10000,9)]
-ϱ = [[0]; LinRange(0.01,0.1,10); LinRange(0.2,1,9); LinRange(2,10,9); LinRange(20,100,9)]
+ϱ = [[0]; LinRange(0.01,0.1,10); LinRange(0.2,1,9); LinRange(2,10,9); LinRange(20,100,9); LinRange(200,1000,9)]
 
 train_and_test(W1_newsvendor_order, [0], windowing_weights, [history_length])
 train_and_test(W1_newsvendor_order, [0], windowing_weights, s)
@@ -156,10 +157,11 @@ train_and_test(W1_newsvendor_order, [0], smoothing_weights, α)
 train_and_test(W1_newsvendor_order, ε, W1_weights, ϱ)
 
 
-ε = [LinRange(1,10,10); LinRange(20,100,9); LinRange(200,1000,9); LinRange(2000,10000,9)]
-s = round.(Int, LinRange(1,history_length,34))
+s = round.(Int, LinRange(1,history_length,34)) extra
 α = [LinRange(0.0001,0.001,10); LinRange(0.002,0.01,9); LinRange(0.02,0.1,9); LinRange(0.2,1.0,9)]
-ϱ = [[0]; LinRange(0.01,0.1,10); LinRange(0.2,1,9); LinRange(2,10,9); LinRange(20,100,9)]
+
+ε = [LinRange(1,10,10); LinRange(20,100,9); LinRange(200,1000,9); LinRange(2000,10000,9)]
+ϱ = [[0]; LinRange(0.01,0.1,10); LinRange(0.2,1,9); LinRange(2,10,9); LinRange(20,100,9); LinRange(200,1000,9)]
 
 train_and_test(W2_newsvendor_order, ε, windowing_weights, [history_length])
 train_and_test(W2_newsvendor_order, ε, windowing_weights, s)
@@ -167,8 +169,8 @@ train_and_test(W2_newsvendor_order, ε, smoothing_weights, α)
 train_and_test(W2_newsvendor_order, ε, W2_weights, ϱ)
 
 
-ε = [LinRange(100,1000,10); LinRange(2000,10000,9); LinRange(20000,100000,9); LinRange(200000,1000000,9)]
-ϱ = [LinRange(1,10,10); LinRange(20,100,9); LinRange(200,1000,9); LinRange(2000,10000,9)]
+ε = [LinRange(10,100,10); LinRange(200,1000,9); LinRange(2000,10000,9)] # Beyond not needed due to support limit.
+ϱ = [[0]; LinRange(0.1,1,10); LinRange(2,10,9); LinRange(20,100,9); LinRange(200,1000,9); LinRange(2000,10000,9)]
 
 train_and_test(REMK_intersection_based_W2_newsvendor_order, ε, REMK_intersection_ball_radii, ϱ)
 
