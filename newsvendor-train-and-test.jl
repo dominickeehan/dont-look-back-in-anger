@@ -1,7 +1,7 @@
 # Change seed with job number.
-# Output files get saved in same directory. 
-# Save in different files for each job number. 
-# Want each job to be under 9 hours. 
+# Output files get saved in same directory.
+# Save in different files for each job number.
+# Want each job to be under 8 hours.
 # Write the chosen parameters to the file as well.
 
 # Approx. 7.5 hour runtime.
