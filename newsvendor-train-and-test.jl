@@ -50,7 +50,7 @@ GRBsetintparam(env, "OutputFlag", 0)
 GRBsetintparam(env, "BarHomogeneous", 1)
 optimizer = optimizer_with_attributes(() -> Gurobi.Optimizer(env))
 
-include("newsvendor_orders.jl")
+include("newsvendor-orders.jl")
 
 for U in [0.00001, 0.0001, 0.0005, 0.001, 0.005, 0.01] # [0.00001, 0.0001, 0.0005, 0.001, 0.005, 0.01]
 
