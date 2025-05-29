@@ -122,7 +122,7 @@ include("weights.jl")
 
 Random.seed!(42)
 
-repetitions = 200
+repetitions = 500
 history_length = 100
 
 digits = 4
@@ -174,7 +174,7 @@ function intersection_ex_post_costs(demand_sequences, initial_ball_radii_paramet
     return round(mean(minimal_costs), digits=digits), round(sem(minimal_costs), digits=digits)
 end
 
-uniform_shift_sizes = [0.0001,0.001,0.005,0.01]
+uniform_shift_sizes = [0.00001,0.0001,0.001,0.003,0.005,0.01]
 
 windowing_parameters = round.(Int, LinRange(1,history_length,30))
 
