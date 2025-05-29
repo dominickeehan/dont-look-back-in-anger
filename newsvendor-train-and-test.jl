@@ -19,9 +19,9 @@ open("$job_number.csv", "w") do file; end
 
 results_file = open("$job_number.csv", "a")
 
-repetitions = 1000
-history_length = 100
-training_length = 30
+repetitions = 1000 #1000
+history_length = 100 #100
+training_length = 30 #30
 
 number_of_consumers = 10000
 D = number_of_consumers
@@ -53,7 +53,7 @@ newsvendor_loss(order, demand) = Cu*max(demand-order,0) + Co*max(order-demand,0)
 function expected_newsvendor_loss(order, demand_probability)
 
     expected_underage = D*demand_probability*(1-cdf(Binomial(D-1,demand_probability),order-2)) 
-        - x*(1-cdf(Binomial(D,demand_probability),order-1))
+        - order*(1-cdf(Binomial(D,demand_probability),order-1))
 
     expected_overage = order*cdf(Binomial(D,demand_probability),order) 
         - D*demand_probability*(cdf(Binomial(D-1,demand_probability),order-1))
@@ -62,7 +62,7 @@ function expected_newsvendor_loss(order, demand_probability)
 
 end
 
-W1_newsvendor_order(ε, demands, weights) = quantile(demands, Weights(weights), Cu/(Co+Cu))
+W1_newsvendor_order(_, demands, weights) = quantile(demands, Weights(weights), Cu/(Co+Cu))
 
 function train_and_test(newsvendor_order, ambiguity_radii, compute_weights, weight_parameters)
 
@@ -81,7 +81,7 @@ function train_and_test(newsvendor_order, ambiguity_radii, compute_weights, weig
         end
     end
 
-    println("Training and testing W1 method...")
+    println("Training and testing...")
 
     Threads.@threads for repetition in ProgressBar(1:repetitions)
     #for repetition in ProgressBar(1:repetitions)
@@ -137,6 +137,8 @@ s = round.(Int, LinRange(1,history_length,34))
 train_and_test(W1_newsvendor_order, [0], windowing_weights, [history_length])
 train_and_test(W1_newsvendor_order, [0], windowing_weights, s)
 train_and_test(W1_newsvendor_order, [0], smoothing_weights, α)
+
+#=
 train_and_test(W1_newsvendor_order, ε, W1_weights, ϱ)
 
 
@@ -246,7 +248,7 @@ function REMK_intersection_based_W2_newsvendor_order(_, demands, ball_radii)
 
     optimize!(Problem)
 
-    try; return value(order); catch; return REMK_intersection_based_W2_newsvendor_order(2*ε, demands, 2*ϱ); end
+    try; return value(order); catch; return REMK_intersection_based_W2_newsvendor_order(0, demands, 2*ball_radii); end
 
 end
 
@@ -258,3 +260,5 @@ REMK_intersection_ball_radii(K, ε, ϱ) = [ε+(K-k)*ϱ for k in K:-1:1]
 train_and_test(REMK_intersection_based_W2_newsvendor_order, ε, REMK_intersection_ball_radii, ϱ)
 
 #close(results_file)
+
+=#
