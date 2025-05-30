@@ -145,7 +145,7 @@ function train_and_test(newsvendor_order, ambiguity_radii, compute_weights, weig
     
 end
 
-s = round.(Int, LinRange(1,history_length,34)) extra
+s = round.(Int, LinRange(1,history_length,34)) #extra
 α = [LinRange(0.0001,0.001,10); LinRange(0.002,0.01,9); LinRange(0.02,0.1,9); LinRange(0.2,1.0,9)]
 
 ε = [LinRange(1,10,10); LinRange(20,100,9); LinRange(200,1000,9); LinRange(2000,10000,9)]
@@ -157,7 +157,7 @@ train_and_test(W1_newsvendor_order, [0], smoothing_weights, α)
 train_and_test(W1_newsvendor_order, ε, W1_weights, ϱ)
 
 
-s = round.(Int, LinRange(1,history_length,34)) extra
+s = round.(Int, LinRange(1,history_length,34)) #extra
 α = [LinRange(0.0001,0.001,10); LinRange(0.002,0.01,9); LinRange(0.02,0.1,9); LinRange(0.2,1.0,9)]
 
 ε = [LinRange(1,10,10); LinRange(20,100,9); LinRange(200,1000,9); LinRange(2000,10000,9)]
