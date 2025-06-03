@@ -43,9 +43,10 @@ smoothing_W2_results = extract_results(7, u_index)
 concentration_W2_results = extract_results(8, u_index)
 
 intersection_W2_results = extract_results(9, u_index)
-argmax(intersection_W2_results[1])
-max(intersection_W2_results[1][1:end .!= 680]...)
-max(concentration_W2_results[1]...)
+
+#argmax(intersection_W2_results[1])
+#max(intersection_W2_results[1][1:end .!= 680]...)
+#max(concentration_W2_results[1]...)
 
 function display_extracted_results(name, extracted_results)
     μ = mean(skipmissing(extracted_results[1]))
@@ -53,9 +54,9 @@ function display_extracted_results(name, extracted_results)
 
     println(name*": $μ ± $σ")
 
-    display(sort(collect(pairs(countmap(eachrow(hcat(extracted_results[2], extracted_results[3]))))), by = x->x.second, rev = true))
+    #display(sort(collect(pairs(countmap(eachrow(hcat(extracted_results[2], extracted_results[3]))))), by = x->x.second, rev = true))
 
-    display(count(ismissing, extracted_results[1]))
+    #display(count(ismissing, extracted_results[1]))
 
 end
 
@@ -70,9 +71,6 @@ display_extracted_results("Smoothing W2", smoothing_W2_results)
 display_extracted_results("Concentration W2", concentration_W2_results)
 
 display_extracted_results("Intersection W2", intersection_W2_results)
-
-
-
 
 
 function extract_line_to_plot(skipto)
@@ -113,68 +111,85 @@ default(framestyle = :box,
         minorgridlinestyle = :dash,
         tick_direction = :in,
         xminorticks = 9, 
-        yminorticks = 9,
+        yminorticks = 0,
         fontfamily = font_family,
         guidefont = primary_font,
         tickfont = secondary_font,
         legendfont = legend_font)
 
-plt = plot(xscale = :log10, yscale = :log10,
-            xlabel = "\$u\$ {extent of shift param}", 
-            ylabel = "Expected cost\n{+word to emph train/test approach}",)
+plt = plot(xscale = :log10, #yscale = :log10,
+            xlabel = "Extent of shift, \$u\$", 
+            ylabel = "Expected cost (normalized)",)
 
 fillalpha = 0.1
 
+normalizer, _ = extract_line_to_plot(3)
+
 expected_costs, sems = extract_line_to_plot(1)
-plot!(U, expected_costs, ribbon = sems, fillalpha = fillalpha,
+plot!(U, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
+        color = palette(:tab10)[8],
+        linestyle = :solid,
+        label = nothing)
+expected_costs, sems = extract_line_to_plot(2)
+plot!(U, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
         color = palette(:tab10)[1],
         linestyle = :solid,
-        label = "\$W_1\$ naïve")
-expected_costs, sems = extract_line_to_plot(2)
-plot!(U, expected_costs, ribbon = sems, fillalpha = fillalpha,
+        label = nothing)
+expected_costs, sems = extract_line_to_plot(3)
+plot!(U, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
         color = palette(:tab10)[2],
         linestyle = :solid,
-        label = "\$W_1\$ windowing")
-expected_costs, sems = extract_line_to_plot(3)
-plot!(U, expected_costs, ribbon = sems, fillalpha = fillalpha,
+        label = nothing)
+expected_costs, sems = extract_line_to_plot(4)
+plot!(U, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
         color = palette(:tab10)[3],
         linestyle = :solid,
-        label = "\$W_1\$ smoothing")
-expected_costs, sems = extract_line_to_plot(4)
-plot!(U, expected_costs, ribbon = sems, fillalpha = fillalpha,
-        color = palette(:tab10)[4],
-        linestyle = :solid,
-        label = "\$W_1\$ concentration")
+        label = nothing)
 
 
 expected_costs, sems = extract_line_to_plot(5)
-plot!(U, expected_costs, ribbon = sems, fillalpha = fillalpha,
+plot!(U, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
+        color = palette(:tab10)[8],
+        linestyle = :dash,
+        label = nothing)
+expected_costs, sems = extract_line_to_plot(6)
+plot!(U, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
         color = palette(:tab10)[1],
         linestyle = :dash,
-        label = "\$W_2\$ naïve")
-expected_costs, sems = extract_line_to_plot(6)
-plot!(U, expected_costs, ribbon = sems, fillalpha = fillalpha,
+        label = nothing)
+expected_costs, sems = extract_line_to_plot(7)
+plot!(U, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
         color = palette(:tab10)[2],
         linestyle = :dash,
-        label = "\$W_2\$ windowing")
-expected_costs, sems = extract_line_to_plot(7)
-plot!(U, expected_costs, ribbon = sems, fillalpha = fillalpha,
+        label = nothing)
+expected_costs, sems = extract_line_to_plot(8)
+plot!(U, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
         color = palette(:tab10)[3],
         linestyle = :dash,
-        label = "\$W_2\$ smoothing")
-expected_costs, sems = extract_line_to_plot(8)
-plot!(U, expected_costs, ribbon = sems, fillalpha = fillalpha,
-        color = palette(:tab10)[4],
-        linestyle = :dash,
-        label = "\$W_2\$ concentration")
+        label = nothing)
 
 
 expected_costs, sems = extract_line_to_plot(9)
-plot!(U, expected_costs, ribbon = sems, fillalpha = fillalpha,
-        color = palette(:tab10)[8],
+plot!(U, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
+        color = palette(:tab10)[5],
         linestyle = :dash,
-        label = "\$W_2\$ intersection")
+        label = nothing)
 
+ylims!((0.8, 1.6))
+xlims!((0.0001, 0.01))
 
+#plot!(legend_columns = 2)
+#plot!([0,-1], [-1,-1], linestyle = :solid, color = :white, label = " ")
+
+plot!([0,-1], [-1,-1], linestyle = :solid, color = :black, label = "\$W_1\$")
+plot!([0,-1], [-1,-1], linestyle = :dash, color = :black, label = "\$W_2\$")
+
+scatter!([0,-1], [-1,-1], markershape = :circle, markerstrokecolor = palette(:tab10)[8], color = palette(:tab10)[8], label = "Naïve")
+scatter!([0,-1], [-1,-1], markershape = :circle, markerstrokecolor = palette(:tab10)[1], color = palette(:tab10)[1], label = "Windowing")
+scatter!([0,-1], [-1,-1], markershape = :circle, markerstrokecolor = palette(:tab10)[2], color = palette(:tab10)[2], label = "Smoothing")
+scatter!([0,-1], [-1,-1], markershape = :circle, markerstrokecolor = palette(:tab10)[3], color = palette(:tab10)[3], label = "Concentration")
+scatter!([0,-1], [-1,-1], markershape = :circle, markerstrokecolor = palette(:tab10)[5], color = palette(:tab10)[5], label = "Intersection")
+
+plot!(legend = :topleft)
 
 display(plt)
