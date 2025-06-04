@@ -1,33 +1,43 @@
 using JuMP, Ipopt
 using Plots, Measures
 
-T = 12
+include("weights.jl")
 
-function concentration_weights(ϱ, ε, p)
+T = 100
 
-    if ϱ >= (1/1)*ε; ϱ = (1/1)*ε; end
+ε = 10000
 
-    Problem = Model(optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0))
-
-    @variable(Problem, 1>= w[t=1:T] >=0)
-
-    @constraint(Problem, sum(w[t] for t in 1:T) == 1)
-    @constraint(Problem, sum(w[t]*t^p*ϱ^p for t in 1:T) <= ε^p)
-
-    @objective(Problem, Max, (1/(sum(w[t]^2 for t in 1:T)))*((ε-(sum(w[t]*t^p*ϱ^p for t in 1:T))^(1/p))^(2*p)))
-
-    optimize!(Problem)
-
-    weights = [max(value(w[t]),0) for t in 1:T]
-    weights .= weights/sum(weights)
-
-    return reverse(weights)
-
+plt = plot()
+for i in [[0]; LinRange(1,10,10); LinRange(10,100,10); LinRange(100,1000,10); LinRange(1000,10000,10);]
+        plot!(1:T, W1_weights(T, ε, i), label = nothing)
 end
+display(plt)
 
-ϱ = 500
-ε = 2000
+plt = plot()
+for i in [[0]; LinRange(1,10,10); LinRange(10,100,10); LinRange(100,1000,10); LinRange(1000,10000,10);]
+        plot!(1:T, W2_weights(T, ε, i), label = nothing)
+end
+display(plt)
 
+plt = plot()
+for i in 0.0001*[[0]; LinRange(1,10,10); LinRange(10,100,10); LinRange(100,1000,10); LinRange(1000,10000,10);]
+        plot!(1:T, smoothing_weights(T, ε, i), label = nothing)
+end
+display(plt)
+
+plt = plot()
+for i in [round.(Int, LinRange(1,10,10)); round.(Int, LinRange(12,30,10)); round.(Int, LinRange(33,60,10)); round.(Int, LinRange(64,100,10));]
+        plot!(1:T, windowing_weights(T, ε, i), label = nothing)
+end
+display(plt)
+
+display(plot(1:T, smoothing_weights(T, 0, 0.0001)))
+display(plot(1:T, W2_weights(T, ε, 1)))
+display(plot(1:T, W1_weights(T, ε, 1)))
+
+
+
+#=
 default() # Reset plot defaults.
 
 gr(size = (sqrt(6/10)*600,sqrt(6/10)*400))
@@ -145,3 +155,8 @@ ylims!(yl)
 display(plt)
 
 savefig(plt, "figures/optimal-weights-and-smoothing-weights.pdf")
+=#
+
+
+
+

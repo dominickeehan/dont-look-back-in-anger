@@ -22,6 +22,9 @@ end
 
 function smoothing_weights(T, _, α)
 
+    if α == 0; weights = zeros(T); weights .= 1/T; return weights; end
+
+    
     weights = [α*(1-α)^(t-1) for t in T:-1:1]
     weights .= weights/sum(weights)
 
@@ -35,6 +38,8 @@ using JuMP, Ipopt
 Ipoptimizer = optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0)#, "tol" => 1e-9)
 
 function W1_weights(T, ε, ϱ)
+
+    if ϱ == 0; weights = zeros(T); weights .= 1/T; return weights; end
 
     if ϱ >= ε; weights = zeros(T); weights[T] = 1; return weights; end
 
@@ -60,6 +65,8 @@ end
 
 
 function W2_weights(T, ε, ϱ)
+
+    if ϱ == 0; weights = zeros(T); weights .= 1/T; return weights; end
 
     if ϱ >= ε; weights = zeros(T); weights[T] = 1; return weights; end
     
