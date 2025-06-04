@@ -7,7 +7,6 @@
 # Approximately 6 hour runtime. # (2000+800*3)*?/60/60
 
 using Random, Statistics, StatsBase, Distributions
-using JuMP, MathOptInterface, Gurobi
 using ProgressBars, IterTools
 using CSV
 
@@ -21,13 +20,13 @@ repetitions = 1 # 1000 in total with all other jobs per U, 7000 in total.
 history_length = 100 # 100
 training_length = 30 # 30
 
-number_of_consumers = 10000 # 10000
-D = number_of_consumers
 
 initial_demand_probability = 0.1 # 0.1
 
-Cu = 4 # 4 # Per-unit underage cost.
-Co = 1 # 1 # Per-unit overage cost.
+
+include("weights.jl")
+
+include("newsvendor-optimizations.jl")
 
 newsvendor_loss(order, demand) = Cu*max(demand-order,0) + Co*max(order-demand,0)
 
@@ -42,15 +41,6 @@ function expected_newsvendor_loss(order, demand_probability)
     return Cu*expected_underage + Co*expected_overage
 
 end
-
-include("weights.jl")
-
-env = Gurobi.Env() 
-GRBsetintparam(env, "OutputFlag", 0)
-GRBsetintparam(env, "BarHomogeneous", 1)
-optimizer = optimizer_with_attributes(() -> Gurobi.Optimizer(env))
-
-include("newsvendor-orders.jl")
 
 Us = [0.00001, 0.00005, 0.0001, 0.0005, 0.001, 0.005, 0.01] # [0.00001, 0.00005, 0.0001, 0.0005, 0.001, 0.005, 0.01]
 
@@ -76,7 +66,7 @@ for repetition in 1:repetitions
 end
 
 
-function train_and_test(newsvendor_order, ambiguity_radii, compute_weights, weight_parameters)
+function train_and_test(newsvendor_value_and_order, ambiguity_radii, compute_weights, weight_parameters)
 
     costs = zeros(repetitions)
 
@@ -110,7 +100,7 @@ function train_and_test(newsvendor_order, ambiguity_radii, compute_weights, weig
                         precomputed_weights[ambiguity_radius_index, weight_parameter_index][t-(history_length-training_length)]
 
                     demand_samples = demand_sequences[repetition][1:t-1]
-                    order = newsvendor_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights)
+                    _, order = newsvendor_value_and_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights)
                     training_costs[t-(history_length-training_length)][ambiguity_radius_index, weight_parameter_index] = 
                         newsvendor_loss(order, demand_sequences[repetition][t])
 
@@ -124,7 +114,7 @@ function train_and_test(newsvendor_order, ambiguity_radii, compute_weights, weig
             compute_weights(history_length, ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index])
     
         demand_samples = demand_sequences[repetition][1:history_length]
-        order = newsvendor_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights)
+        value, order = newsvendor_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights)
 
         #costs[repetition] = newsvendor_loss(order, demand_sequences[repetition][history_length+1])
         costs[repetition] = expected_newsvendor_loss(order, demand_probability[repetition][history_length+1])
@@ -148,7 +138,7 @@ end
 s = round.(Int, LinRange(1,history_length,34)) # Need to have 1,2,...,10,...
 α = [LinRange(0.0001,0.001,10); LinRange(0.002,0.01,9); LinRange(0.02,0.1,9); LinRange(0.2,1.0,9)] # this I think is ok.
 
-ε = [LinRange(1,10,10); LinRange(20,100,9); LinRange(200,1000,9); LinRange(2000,10000,9)] # can we have 0 here?
+ε = [LinRange(1,10,10); LinRange(20,100,9); LinRange(200,1000,9); LinRange(2000,10000,9)] # can we have 0
 ϱ = [[0]; LinRange(0.01,0.1,10); LinRange(0.2,1,9); LinRange(2,10,9); LinRange(20,100,9); LinRange(200,1000,9) # LinRange(2000,10000,9)]
 
 train_and_test(W1_newsvendor_order, [0], windowing_weights, [history_length])
@@ -157,19 +147,22 @@ train_and_test(W1_newsvendor_order, [0], smoothing_weights, α)
 train_and_test(W1_newsvendor_order, ε, W1_weights, ϱ)
 
 
-s = round.(Int, LinRange(1,history_length,34))
-α = [LinRange(0.0001,0.001,10); LinRange(0.002,0.01,9); LinRange(0.02,0.1,9); LinRange(0.2,1.0,9)]
 
-ε = [LinRange(1,10,10); LinRange(20,100,9); LinRange(200,1000,9); LinRange(2000,10000,9)]
-ϱ = [[0]; LinRange(0.01,0.1,10); LinRange(0.2,1,9); LinRange(2,10,9); LinRange(20,100,9); LinRange(200,1000,9)#; LinRange(2000,10000,9)]
+
+
+s = [round.(Int, LinRange(1,10,10)); round.(Int, LinRange(12,30,10)); round.(Int, LinRange(33,60,10)); round.(Int, LinRange(64,100,10));]
+α = [[0]; LinRange(0.0001,0.001,10); LinRange(0.002,0.01,9); LinRange(0.02,0.1,9); LinRange(0.2,1.0,9)]
+
+ε = [[0]; LinRange(1,10,10); LinRange(20,100,9); LinRange(200,1000,9); LinRange(2000,10000,9)]
+ϱ_divided_by_ε = [[0]; LinRange(0.0001,0.001,10); LinRange(0.002,0.01,9); LinRange(0.02,0.1,9); LinRange(0.2,1,9)]
 
 train_and_test(W2_newsvendor_order, ε, windowing_weights, [history_length])
 train_and_test(W2_newsvendor_order, ε, windowing_weights, s)
 train_and_test(W2_newsvendor_order, ε, smoothing_weights, α)
-train_and_test(W2_newsvendor_order, ε, W2_weights, ϱ)
+train_and_test(W2_newsvendor_order, ε, W2_weights, ϱ_divided_by_ε)
 
 
-ε = [LinRange(10,100,10); LinRange(200,1000,9); LinRange(2000,10000,9)] # Beyond not needed due to support limit.
+ε = [LinRange(10,100,10); LinRange(200,1000,9); LinRange(2000,10000,9)]
 ϱ = [[0]; LinRange(0.1,1,10); LinRange(2,10,9); LinRange(20,100,9); LinRange(200,1000,9); LinRange(2000,10000,9)]
 
 train_and_test(REMK_intersection_based_W2_newsvendor_order, ε, REMK_intersection_ball_radii, ϱ)

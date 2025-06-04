@@ -1,415 +1,98 @@
 using  Random, Statistics, StatsBase, Distributions
+using ProgressBars, IterTools
 
-number_of_consumers = 1e4
-D = number_of_consumers
+repetitions = 10
+history_length = 100
 
-Cu = 4 # Cost of underage.
-Co = 1 # Cost of overage.
 
-newsvendor_loss(x,ξ) = Cu*max(ξ-x,0) + Co*max(x-ξ,0)
+initial_demand_probability = 0.1 # 0.1
 
-newsvendor_order(ε, ξ, weights) = quantile(ξ, Weights(weights), Cu/(Co+Cu))
-
-W₁_newsvendor_order(ε, ξ, weights) = newsvendor_order(ε, ξ, weights)
 
 include("weights.jl")
 
+include("newsvendor-optimizations.jl")
+
+# newsvendor_loss(order, demand) = Cu*max(demand-order,0) + Co*max(order-demand,0)
+
+function expected_newsvendor_loss(order, demand_probability)
+
+    expected_underage = D*demand_probability*(1-cdf(Binomial(D-1,demand_probability),order-2)) -
+        order*(1-cdf(Binomial(D,demand_probability),order-1))
+
+    expected_overage = order*cdf(Binomial(D,demand_probability),order) -
+        D*demand_probability*(cdf(Binomial(D-1,demand_probability),order-1))
+
+    return Cu*expected_underage + Co*expected_overage
+
+end
+
+
 Random.seed!(42)
-
-shift_distribution = Uniform(-0.005,0.005)
-
-initial_demand_probability = 0.1
-
-repetitions = 1000
-history_length = 100
-
-N = 10
+U = 10^(-1) # Why W2 messed up for 10^(-1)?
+shift_distribution = Uniform(-U,U)
 
 demand_sequences = [zeros(history_length+1) for _ in 1:repetitions]
+demand_probability = [zeros(history_length+1) for _ in 1:repetitions]
+
 for repetition in 1:repetitions
-    demand_probability = initial_demand_probability
+    demand_probability[repetition][1] = initial_demand_probability
+
     for t in 1:history_length+1
-        demand_sequences[repetition][t] = rand(Binomial(number_of_consumers, demand_probability))
-        demand_probability = min(max(demand_probability + rand(shift_distribution), 0), 1.0)
-    end
-end
-
-
-
-using ProgressBars, IterTools
-function parameter_fit(ambiguity_radii, compute_weights, weight_parameters)
-
-    costs = [zeros((length(ambiguity_radii),length(weight_parameters))) for _ in 1:repetitions]
-
-    for (ambiguity_radius_index, weight_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters))))
-        weights = compute_weights(history_length, ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index])
-
-        Threads.@threads for repetition in 1:repetitions
-            demand_samples = demand_sequences[repetition][1:history_length]
-            order = W₁_newsvendor_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights)
-            costs[repetition][ambiguity_radius_index, weight_parameter_index] = newsvendor_loss(order, demand_sequences[repetition][history_length+1])
-
-        end
-    end
-
-    ambiguity_radius_index, weight_parameter_index = Tuple(argmin(mean(costs)))
-    minimal_costs = [costs[repetition][ambiguity_radius_index, weight_parameter_index] for repetition in 1:repetitions]
-
-    digits = 4
-
-    return round(mean(minimal_costs), digits=digits), round(sem(minimal_costs), digits=digits), round(ambiguity_radii[ambiguity_radius_index], digits=digits), round(weight_parameters[weight_parameter_index], digits=digits)
-end
-
-windowing_parameters = round.(Int, LinRange(1,history_length,history_length))
-smoothing_parameters = [LinRange(0.0001,0.001,10); LinRange(0.002,0.01,9); LinRange(0.02,1.0,99)]
-ambiguity_radii = [history_length]
-shift_bound_parameters = [0; LinRange(0.1,1,10); LinRange(2,history_length,history_length-1)]
-
-W₁_naive_cost, W₁_naive_sem, _, _ = parameter_fit([0], windowing_weights, [history_length])
-display("W₁ naive: $W₁_naive_cost ± $W₁_naive_sem")
-
-#W₁_windowing_cost, W₁_windowing_sem, _, W₁_windowing_t = parameter_fit([0], windowing_weights, windowing_parameters)
-#display("W₁ windowing: $W₁_windowing_t, $W₁_windowing_cost ± $W₁_windowing_sem")
-#W₁_windowing_t = round(Int, W₁_windowing_t)
-
-W₁_smoothing_cost, W₁_smoothing_sem, _, W₁_smoothing_α = parameter_fit([0], smoothing_weights, smoothing_parameters)
-display("W₁ smoothing: $W₁_smoothing_α, $W₁_smoothing_cost ± $W₁_smoothing_sem")
-
-#W₁_concentration_cost, W₁_concentration_sem, W₁_concentration_ε, W₁_concentration_ϱ = parameter_fit(ambiguity_radii, W₁_concentration_weights, shift_bound_parameters)
-#display("W₁ concentration: $W₁_concentration_ε, $W₁_concentration_ϱ, $W₁_concentration_cost ± $W₁_concentration_sem")
-#W₁_concentration_ε = round(Int, W₁_concentration_ε)
-
-
-try
-#    println("Parameters &  & \$t=$W₁_windowing_t\$ & \$\\alpha=$W₁_smoothing_α\$ \\\\")
-#    println("Expected cost & \$$W₁_naive_cost \\pm $W₁_naive_sem\$ & \$$W₁_windowing_cost \\pm $W₁_windowing_sem\$ & \$$W₁_smoothing_cost \\pm $W₁_smoothing_sem\$\\\\")
-catch
-end
-
-
-
-using JuMP, MathOptInterface
-using Gurobi
-env = Gurobi.Env() 
-GRBsetintparam(env, "OutputFlag", 0)
-GRBsetintparam(env, "BarHomogeneous", 1)
-optimizer = optimizer_with_attributes(() -> Gurobi.Optimizer(env))
-
-function W₂_newsvendor_order(ε, ξ, weights) 
-
-    ξ = ξ[weights .>= 1e-3]
-    weights = weights[weights .>= 1e-3]
-    weights .= weights/sum(weights)
-
-    T = length(ξ)
-
-    Problem = Model(optimizer)
-
-    C = [-1; 1]
-    d = [0, D]
-    a = [Cu,-Co]
-    b(x) = [-Cu*x, Co*x]
-
-    @variables(Problem, begin
-                            D >= x >= 0
-                                 λ >= 0
-                                 γ[t=1:T]
-                                 z[t=1:T,i=1:2,j=1:2] >= 0
-                                 w[t=1:T,i=1:2]
-                        end)
-
-    for t in 1:T
-        for i in 1:2
-            @constraints(Problem, begin
-                                        # b(x)[i] + w[t,i]*ξ[t] + (1/4)*(1/λ)*w[t,i]^2 + z[t,i,:]'*d <= γ[t] <==>
-                                        # w[t,i]^2 <= 2*(2*λ)*(γ[t] - b(x)[i] - w[t,i]*ξ[t] - z[t,i,:]'*d) <==>
-                                        [2*λ; γ[t] - b(x)[i] - w[t,i]*ξ[t] - z[t,i,:]'*d; w[t,i]] in MathOptInterface.RotatedSecondOrderCone(3)
-                                        a[i] - C'*z[t,i,:] == w[t,i]
-                                  end)
-        end
-    end
-
-    @objective(Problem, Min, ε*λ + weights'*γ)
-
-    optimize!(Problem)
-
-    try
-        return value(x)
-    catch
-        #display("catch")
-        return newsvendor_order(ε, ξ, weights)
-    end
-end
-
-function parameter_fit(ambiguity_radii, compute_weights, weight_parameters)
-
-    costs = [zeros((length(ambiguity_radii),length(weight_parameters))) for _ in 1:repetitions]
-
-    for (ambiguity_radius_index, weight_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters))))
-        weights = compute_weights(history_length, ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index])
-
-        Threads.@threads for repetition in 1:repetitions
-            demand_samples = demand_sequences[repetition][1:history_length]
-            order = W₂_newsvendor_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights)
-            costs[repetition][ambiguity_radius_index, weight_parameter_index] = newsvendor_loss(order, demand_sequences[repetition][history_length+1])
-
-        end
-    end
-
-    ambiguity_radius_index, weight_parameter_index = Tuple(argmin(mean(costs)))
-    minimal_costs = [costs[repetition][ambiguity_radius_index, weight_parameter_index] for repetition in 1:repetitions]
-
-    digits = 4
-
-    return round(mean(minimal_costs),digits=digits), round(sem(minimal_costs),digits=digits), round(ambiguity_radii[ambiguity_radius_index],digits=digits), round(weight_parameters[weight_parameter_index],digits=digits)
-end
-
-ambiguity_radii = LinRange(1000,10000,N) #LinRange(1000,10000,N)
-windowing_parameters = round.(Int, LinRange(1,10,N))
-smoothing_parameters = LinRange(0.1,1.0,N)
-shift_bound_parameters = LinRange(10,100,N)
-
-#W₂_naive_cost, W₂_naive_sem, W₂_naive_ε, _ = parameter_fit(ambiguity_radii, windowing_weights, history_length)
-#display("W₂ naive: $W₂_naive_ε, $W₂_naive_cost ± $W₂_naive_sem")
-#W₂_naive_ε = round(Int, W₂_naive_ε)
-
-#W₂_windowing_cost, W₂_windowing_sem, W₂_windowing_ε, W₂_windowing_t = parameter_fit(ambiguity_radii, windowing_weights, windowing_parameters)
-#display("W₂ windowing: $W₂_windowing_ε, $W₂_windowing_t, $W₂_windowing_cost ± $W₂_windowing_sem")
-#W₂_windowing_ε = round(Int, W₂_windowing_ε)
-#W₂_windowing_t = round(Int, W₂_windowing_t)
-
-
-W₂_smoothing_cost, W₂_smoothing_sem, W₂_smoothing_ε, W₂_smoothing_α = parameter_fit(ambiguity_radii, smoothing_weights, smoothing_parameters)
-display("W₂ smoothing: $W₂_smoothing_ε, $W₂_smoothing_α, $W₂_smoothing_cost ± $W₂_smoothing_sem")
-W₂_smoothing_ε = round(Int, W₂_smoothing_ε)
-
-
-#W₂_concentration_cost, W₂_concentration_sem, W₂_concentration_ε, W₂_concentration_ϱ = parameter_fit(ambiguity_radii, W₂_concentration_weights, shift_bound_parameters)
-#display("W₂ concentration: $W₂_concentration_ε, $W₂_concentration_ϱ, $W₂_concentration_cost ± $W₂_concentration_sem")
-#W₂_concentration_ε = round(Int, W₂_concentration_ε)
-
-
-try
-    println("Parameters & \$\\varepsilon=$W₂_naive_ε\$ & \$\\varepsilon=$W₂_windowing_ε\$, \$t=$W₂_windowing_t\$ & \$\\varepsilon=$W₂_smoothing_ε\$, \$\\alpha=$W₂_smoothing_α\$ & \$\\varepsilon=$W₂_concentration_ε\$, \$\\varrho=$W₂_concentration_ϱ\$ & \$ \$ \\\\")
-    println("Expected cost & \$$W₂_naive_cost \\pm $W₂_naive_sem\$ & \$$W₂_windowing_cost \\pm $W₂_windowing_sem\$ & \$$W₂_smoothing_cost \\pm $W₂_smoothing_sem\$ & \$$W₂_concentration_cost \\pm $W₂_concentration_sem\$ & \$ \$ \\\\")
-catch
-end
-
-
-
-function REMK_intersection_based_W₂_newsvendor_order(ball_radii, ξ, empty_counter) 
-
-    K = length(ball_radii)
-    ξ = ξ[end-K+1:end]
-
-    Problem = Model(optimizer)
-
-    C = [-1; 1]
-    d = [0, D]
-    a = [Cu,-Co]
-    b(x) = [-Cu*x, Co*x]
-
-    @variables(Problem, begin
-                            D >= x >= 0
-                                 λ[k=1:K] >= 0
-                                 γ[k=1:K]
-                                 z[i=1:2,j=1:2] >= 0
-                                 w[i=1:2,k=1:K]
-                                 s[i=1:2,k=1:K]
-                        end)
-
-    for i in 1:2
-        @constraints(Problem, begin
-                                    # b(x)[i] + sum(w[i,k]*ξ[k] + (1/4)*(1/λ[k])*w[i,k]^2 for k in 1:K) + z[i,:]'*d <= sum(γ[k] for k in 1:K)
-                                    # <==> b(x)[i] + sum(w[i,k]*ξ[k] + s[i,k] for k in 1:K) + z[i,:]'*d <= sum(γ[k] for k in 1:K),      (1/4)*(1/λ[K])*w[i,k]^2 <= s[i,k] for all i,k
-                                    # <==> b(x)[i] + sum(w[i,k]*ξ[k] + s[i,k] for k in 1:K) + z[i,:]'*d <= sum(γ[k] for k in 1:K),      [2*λ[k]; s[i,k]; w[i,k]] in MathOptInterface.RotatedSecondOrderCone(3) for all i,k
-                                    b(x)[i] + sum(w[i,k]*ξ[k] + s[i,k] for k in 1:K) + z[i,:]'*d <= sum(γ[k] for k in 1:K)
-                                    a[i] - C'*z[i,:] == sum(w[i,k] for k in 1:K)
-                                end)
-    end
-
-    for i in 1:2
-        for k in 1:K
-            @constraints(Problem, begin
-                                        [2*λ[k]; s[i,k]; w[i,k]] in MathOptInterface.RotatedSecondOrderCone(3) 
-                                    end)
-        end
-    end
-
-    @objective(Problem, Min, sum(ball_radii[k]*λ[k] for k in 1:K) + sum(γ[k] for k in 1:K))
-
-    optimize!(Problem)
-
-    try
-        return value(x), empty_counter
-    catch
-        return REMK_intersection_based_W₂_newsvendor_order(2*ball_radii,ξ,1)
-    end
-end
-
-K = history_length
-function parameter_fit(initial_ball_radii_parameters, shift_bound_parameters)
-
-    costs = [zeros((length(initial_ball_radii_parameters),length(shift_bound_parameters))) for repetition in 1:repetitions]
-    empty_counters = [zeros((length(initial_ball_radii_parameters),length(shift_bound_parameters))) for repetition in 1:repetitions]
-
-    for (initial_ball_radius_index, shift_bound_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(initial_ball_radii_parameters), eachindex(shift_bound_parameters))))
-
-        ball_radii = reverse([initial_ball_radii_parameters[initial_ball_radius_index]+(k-1)*shift_bound_parameters[shift_bound_parameter_index] for k in 1:K])
-
-        Threads.@threads for repetition in 1:repetitions
-            demand_samples = demand_sequences[repetition][1:history_length]
-            order, empty_counter = REMK_intersection_based_W₂_newsvendor_order(ball_radii, demand_samples, 0)
-            costs[repetition][initial_ball_radius_index, shift_bound_parameter_index] = newsvendor_loss(order, demand_sequences[repetition][history_length+1])
-            empty_counters[repetition][initial_ball_radius_index, shift_bound_parameter_index] = empty_counter
+        demand_sequences[repetition][t] = rand(Binomial(D, demand_probability[repetition][t]))
         
+        if t < history_length+1
+            demand_probability[repetition][t+1] = min(max(demand_probability[repetition][t] + rand(shift_distribution), 0.0), 1.0)
+        end
+    end
+end
+
+
+function parameter_fit(newsvendor_value_and_order, ambiguity_radii, compute_weights, weight_parameters)
+
+    costs = [zeros((length(ambiguity_radii),length(weight_parameters))) for _ in 1:repetitions]
+
+    Threads.@threads for (ambiguity_radius_index, weight_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters))))
+        weights = compute_weights(history_length, ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index])
+
+        for repetition in 1:repetitions
+            demand_samples = demand_sequences[repetition][1:history_length]
+            _, order = newsvendor_value_and_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights)
+            costs[repetition][ambiguity_radius_index, weight_parameter_index] = expected_newsvendor_loss(order, demand_probability[repetition][history_length+1])
+
         end
     end
 
-    initial_ball_radius_index, shift_bound_parameter_index = Tuple(argmin(mean(costs)))
-    minimal_costs = [costs[repetition][initial_ball_radius_index, shift_bound_parameter_index] for repetition in 1:repetitions]
-    empty_frequency = mean([empty_counters[repetition][initial_ball_radius_index, shift_bound_parameter_index] for repetition in 1:repetitions])
+    ambiguity_radius_index, weight_parameter_index = Tuple(argmin(mean(costs)))
+    minimal_costs = [costs[repetition][ambiguity_radius_index, weight_parameter_index] for repetition in 1:repetitions]
 
-    digits = 4
+    μ = mean(minimal_costs)
+    σ = sem(minimal_costs)
+    display("$μ ± $σ")
+    
+    display([ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index]])
 
-    return round(mean(minimal_costs), digits=digits), round(sem(minimal_costs), digits=digits), round(initial_ball_radii_parameters[initial_ball_radius_index], digits=digits), round(shift_bound_parameters[shift_bound_parameter_index], digits=digits), empty_frequency
 end
 
+s = [round.(Int, LinRange(1,10,10)); round.(Int, LinRange(12,30,10)); round.(Int, LinRange(33,60,10)); round.(Int, LinRange(64,100,10));]
+α = [[0]; LinRange(0.0001,0.001,10); LinRange(0.002,0.01,9); LinRange(0.02,0.1,9); LinRange(0.2,1.0,9)]
 
-initial_ball_radii_parameters = LinRange(1000,10000,N) #LinRange(1000,10000,N)
-shift_bound_parameters = LinRange(1000,10000,N) #LinRange(10000,100000,N)
+#ε = [[0]; LinRange(1,10,10); LinRange(20,100,9); LinRange(200,1000,9); LinRange(2000,10000,9)]
+ε = 10*[[0]; LinRange(10,100,10); LinRange(200,1000,9); LinRange(2000,10000,9); LinRange(20000,100000,9)]
+ϱ_divided_by_ε = [[0]; LinRange(0.0001,0.001,10); LinRange(0.002,0.01,9); LinRange(0.02,0.1,9); LinRange(0.2,1,9)]
 
-intersection_based_cost, intersection_based_sem, intersection_based_ε, intersection_based_ϱ, empty_frequency = parameter_fit(initial_ball_radii_parameters, shift_bound_parameters)
-display("W₂ intersection: $intersection_based_ε, $intersection_based_ϱ, $intersection_based_cost ± $intersection_based_sem, $empty_frequency")
+parameter_fit(SO_newsvendor_value_and_order, ε, smoothing_weights, α)
 
+#parameter_fit(W1_newsvendor_value_and_order, ε, windowing_weights, [history_length])
+#parameter_fit(W1_newsvendor_value_and_order, ε, windowing_weights, s)
+parameter_fit(W1_newsvendor_value_and_order, ε, smoothing_weights, α)
+#parameter_fit(W1_newsvendor_value_and_order, ε, W1_concentration_weights, ϱ_divided_by_ε)
 
+#parameter_fit(W2_newsvendor_value_and_order, ε, windowing_weights, [history_length])
+#parameter_fit(W2_newsvendor_value_and_order, ε, windowing_weights, s)
+#parameter_fit(W2_newsvendor_value_and_order, ε, smoothing_weights, α)
+#parameter_fit(W2_newsvendor_value_and_order, ε, W2_concentration_weights, ϱ_divided_by_ε)
 
+ε = [LinRange(100,1000,10); LinRange(2000,10000,9); LinRange(20000,100000,9); LinRange(200000,1000000,9)]
+ϱ = [[0]; LinRange(1,10,10); LinRange(20,100,9); LinRange(200,1000,9); LinRange(2000,10000,9)]
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-if true
-
-    using Plots, Measures
-
-    default() # Reset plot defaults.
-
-    gr(size = (700,343))
-
-    font_family = "Computer Modern"
-    primary_font = Plots.font(font_family, pointsize = 15)
-    secondary_font = Plots.font(font_family, pointsize = 11)
-    legend_font = Plots.font(font_family, pointsize = 15)
-
-    default(framestyle = :box,
-            grid = true,
-            #gridlinewidth = 1.0,
-            gridalpha = 0.075,
-            #minorgrid = true,
-            #minorgridlinewidth = 1.0, 
-            #minorgridalpha = 0.075,
-            #minorgridlinestyle = :dash,
-            tick_direction = :in,
-            xminorticks = 0, 
-            yminorticks = 0,
-            fontfamily = font_family,
-            guidefont = primary_font,
-            tickfont = secondary_font,
-            legendfont = legend_font)
-
-    plt = plot(1:history_length, 
-            stack(demand_sequences[2:repetitions])[1:end-1,:], 
-            xlims = (0,history_length+1),
-            xticks = ([1, 25, 50, 75, 100]),
-            xlabel = "\$t\$", 
-            ylabel = "Demand",
-            labels = nothing, 
-            #linecolor = [palette(:tab10)[1] palette(:tab10)[2] palette(:tab10)[3] palette(:tab10)[4] palette(:tab10)[5]],
-            #markercolor = palette(:tab10)[1],
-            #markershape = :circle,
-            color = palette(:tab10)[1],
-            alpha = 0.03,
-            #linestyle = :auto,
-            #markersize = 4, 
-            #markerstrokewidth = 1,
-            #markerstrokecolor = :black,
-            topmargin = 0pt, 
-            rightmargin = 0pt,
-            bottommargin = 10pt, 
-            leftmargin = 10pt,
-            )
-
-    plot!(1:history_length, 
-            stack(demand_sequences[1])[1:end-1,:], 
-            labels = nothing, 
-            #linecolor = [palette(:tab10)[1] palette(:tab10)[2] palette(:tab10)[3] palette(:tab10)[4] palette(:tab10)[5]],
-            markercolor = palette(:tab10)[1],
-            markershape = :circle,
-            color = palette(:tab10)[1],
-            alpha = 1.0,
-            #linestyle = :auto,
-            markersize = 3, 
-            markerstrokewidth = 1,
-            markerstrokecolor = :black,
-            )
-
-    display(plt)
-
-    savefig(plt, "figures/demand_sequences.pdf")
-
-end
+parameter_fit(REMK_intersection_based_W2_newsvendor_value_and_order, ε, REMK_intersection_ball_radii, ϱ)
