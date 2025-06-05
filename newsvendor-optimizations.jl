@@ -1,35 +1,64 @@
+using Statistics, StatsBase
 using JuMP, MathOptInterface, Gurobi
 
-D = 10000
+D = 10000 # 10000
 
 Cu = 4 # Per-unit underage cost.
 Co = 1 # Per-unit overage cost.
 
 
-function SO_newsvendor_value_and_order(_, demands, weights) 
-    
-    order = quantile(demands, Weights(weights), Cu/(Co+Cu))
-    
-    expected_underage = sum(weights[t]*max(demands[t] - order,0) for t in eachindex(weights))
-    expected_overage = sum(weights[t]*max(order - demands[t],0) for t in eachindex(weights))
+env = Gurobi.Env()
+GRBsetintparam(env, "OutputFlag", 0)
+optimizer = optimizer_with_attributes(() -> Gurobi.Optimizer(env))
 
-    return Cu*expected_underage + Co*expected_overage, order
+function SO_newsvendor_value_and_order(_, demands, weights) 
+
+    T = length(demands)
+
+    Problem = Model(optimizer)
+
+    C = [-1; 1]
+    d = [0, D]
+    a = [Cu,-Co]
+    b(order) = [-Cu*order, Co*order]
+
+    @variables(Problem, begin
+                            D >= order >= 0
+                                 s[t=1:T]
+                        end)
+
+    for t in 1:T
+        for i in 1:2
+            @constraints(Problem, begin
+                                        b(order)[i] + a[i]*demands[t] <= s[t]
+                                  end)
+        end
+    end
+
+    @objective(Problem, Min, weights'*s)
+
+    optimize!(Problem)
+
+    try
+        return objective_value(Problem), value(order) 
+
+    catch
+        order = quantile(demands, Weights(weights), Cu/(Co+Cu))
+    
+        expected_underage = sum(weights[t]*max(demands[t] - order,0) for t in eachindex(weights))
+        expected_overage = sum(weights[t]*max(order - demands[t],0) for t in eachindex(weights))
+
+        return Cu*expected_underage + Co*expected_overage, order
+    
+    end
 
 end
 
-
-env = Gurobi.Env() 
-GRBsetintparam(env, "OutputFlag", 0)
-optimizer = optimizer_with_attributes(() -> Gurobi.Optimizer(env))
 
 function W1_newsvendor_value_and_order(ε, demands, weights) 
 
     if ε == 0; return SO_newsvendor_value_and_order(ε, demands, weights); end
 
-
-    demands = demands[weights .>= 1e-6]
-    weights = weights[weights .>= 1e-6]
-    weights .= weights/sum(weights)
 
     T = length(demands)
 
@@ -78,10 +107,6 @@ function W2_newsvendor_value_and_order(ε, demands, weights)
     if ε == 0; return SO_newsvendor_value_and_order(ε, demands, weights); end
 
 
-    demands = demands[weights .>= 1e-6] # 1.5 mins at 1e-6 vs 1 min at 1e-3.
-    weights = weights[weights .>= 1e-6]
-    weights .= weights/sum(weights)
-
     T = length(demands)
 
     Problem = Model(BarHomogeneous_optimizer)
@@ -121,13 +146,25 @@ function W2_newsvendor_value_and_order(ε, demands, weights)
 end
 
 
-REMK_intersection_ball_radii(K, ε, ϱ) = [ε+(K-k)*ϱ for k in 1:K]
+function REMK_intersection_weights(K, ϱ_divided_by_ε) 
 
-function REMK_intersection_based_W2_newsvendor_value_and_order(_, demands, ball_radii)
+    return ones(K)*ϱ_divided_by_ε
 
-    K = length(ball_radii)
-    demands = demands[end-K+1:end]
+end
 
+function REMK_intersection_ball_radii(K, ε, ϱ_divided_by_ε) 
+    
+    ϱ = ϱ_divided_by_ε * ε
+
+    return [ε+(K-k+1)*ϱ for k in 1:K]
+
+end
+
+function REMK_intersection_W2_newsvendor_value_and_order(ε, demands, weights)
+
+    K = length(demands)
+
+    ball_radii = REMK_intersection_ball_radii(K, ε, weights[end])
 
     Problem = Model(BarHomogeneous_optimizer)
 
@@ -168,13 +205,14 @@ function REMK_intersection_based_W2_newsvendor_value_and_order(_, demands, ball_
 
     optimize!(Problem)
 
-    try; return objective_value(Problem), value(order); catch; return REMK_intersection_based_W2_newsvendor_value_and_order(0, demands, 2*ball_radii); end
+    try; return objective_value(Problem), value(order); catch; return REMK_intersection_W2_newsvendor_value_and_order(2*ε, demands, weights); end
 
 end
 
 
 #include("weights.jl")
 
-#display(REMK_intersection_based_W2_newsvendor_value_and_order(0, [1, 2, 3, 4, 100], REMK_intersection_ball_radii(5, 100000000, 0)))
-#W2_newsvendor_value_and_order(10000000, [1, 2, 3, 4, 5], ones(5)*1/5)
-#W1_newsvendor_value_and_order(1000000, [1, 2, 3, 4, 5], ones(5)*1/5)
+#display(REMK_intersection_W2_newsvendor_value_and_order(0, [1, 2, 3, 4, 5], REMK_intersection_ball_radii(5, 0.001, 0)))
+#display(SO_newsvendor_value_and_order(0, [1, 2, 3, 4, 5], ones(5)*1/5))
+#display(W1_newsvendor_value_and_order(0.1, [1, 2, 3, 4, 5], ones(5)*1/5))
+#display(W2_newsvendor_value_and_order(0.1, [1, 2, 3, 4, 5], ones(5)*1/5))

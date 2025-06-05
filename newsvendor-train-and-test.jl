@@ -4,7 +4,7 @@
 # Want each job to be under 8 hours.
 # Write the chosen parameters to the file as well.
 
-# Approximately 6 hour runtime. # (2000+800*3)*?/60/60
+# Approximately 7 hours runtime.
 
 using Random, Statistics, StatsBase, Distributions
 using ProgressBars, IterTools
@@ -42,7 +42,7 @@ function expected_newsvendor_loss(order, demand_probability)
 
 end
 
-Us = [0.00001, 0.00005, 0.0001, 0.0005, 0.001, 0.005, 0.01] # [0.00001, 0.00005, 0.0001, 0.0005, 0.001, 0.005, 0.01]
+Us = [1e-4, 2.5e-4, 5e-4, 7.5e-4, 1e-3, 2.5e-3, 5e-3, 7.5e-3, 1e-2, 2.5e-2]
 
 Random.seed!(job_number%1000)
 
@@ -57,7 +57,7 @@ for repetition in 1:repetitions
     demand_probability[repetition][1] = initial_demand_probability
 
     for t in 1:history_length+1
-        demand_sequences[repetition][t] = rand(Binomial(number_of_consumers, demand_probability[repetition][t]))
+        demand_sequences[repetition][t] = rand(Binomial(D, demand_probability[repetition][t]))
         
         if t < history_length+1
             demand_probability[repetition][t+1] = min(max(demand_probability[repetition][t] + rand(shift_distribution), 0.0), 1.0)
@@ -70,37 +70,34 @@ function train_and_test(newsvendor_value_and_order, ambiguity_radii, compute_wei
 
     costs = zeros(repetitions)
 
-    #precomputed_weights = stack([[[zeros(t-1) for t in history_length-training_length+1:history_length] for ambiguity_radius_index in eachindex(ambiguity_radii)] for weight_parameter_index in eachindex(weight_parameters)])
-    precomputed_weights = hcat([[[zeros(t-1) for t in history_length-training_length+1:history_length] for ambiguity_radius_index in eachindex(ambiguity_radii)] for weight_parameter_index in eachindex(weight_parameters)]...)
+    precomputed_weights = hcat([[zeros(t-1) for t in history_length-training_length+1:history_length] for weight_parameter_index in eachindex(weight_parameters)])
 
     println("Precomputing_weights...")
-
-    #Threads.@threads for (ambiguity_radius_index, weight_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters))))
-    for (ambiguity_radius_index, weight_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters))))
+    #Threads.@threads for weight_parameter_index in ProgressBar(eachindex(weight_parameters))
+    for weight_parameter_index in ProgressBar(eachindex(weight_parameters))
         for t in history_length-training_length+1:history_length
-            precomputed_weights[ambiguity_radius_index, weight_parameter_index][t-(history_length-training_length)] = 
-                compute_weights(t-1, ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index])
+            precomputed_weights[weight_parameter_index][t-(history_length-training_length)] = 
+                compute_weights(t-1, weight_parameters[weight_parameter_index])
         
         end
     end
 
     println("Training and testing...")
-
-    #Threads.@threads for repetition in ProgressBar(1:repetitions)
     for repetition in ProgressBar(1:repetitions)
 
         start_time = time()
 
         training_costs = [zeros((length(ambiguity_radii),length(weight_parameters))) for _ in history_length-training_length+1:history_length]
 
+        #Threads.@threads for ambiguity_radius_index in eachindex(ambiguity_radii)
         for ambiguity_radius_index in eachindex(ambiguity_radii)
-            for weight_parameter_index in eachindex(weight_parameters)                
+            for weight_parameter_index in eachindex(weight_parameters)   
                 for t in history_length-training_length+1:history_length                
-                    weights = 
-                        precomputed_weights[ambiguity_radius_index, weight_parameter_index][t-(history_length-training_length)]
+                    local weights = 
+                        precomputed_weights[weight_parameter_index][t-(history_length-training_length)]
 
-                    demand_samples = demand_sequences[repetition][1:t-1]
-                    _, order = newsvendor_value_and_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights)
+                    local demand_samples = demand_sequences[repetition][1:t-1]
+                    local _, order = newsvendor_value_and_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights)
                     training_costs[t-(history_length-training_length)][ambiguity_radius_index, weight_parameter_index] = 
                         newsvendor_loss(order, demand_sequences[repetition][t])
 
@@ -109,12 +106,10 @@ function train_and_test(newsvendor_value_and_order, ambiguity_radii, compute_wei
         end
 
         ambiguity_radius_index, weight_parameter_index = Tuple(argmin(mean(training_costs)))
-    
-        weights = 
-            compute_weights(history_length, ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index])
+        weights = compute_weights(history_length, weight_parameters[weight_parameter_index])
     
         demand_samples = demand_sequences[repetition][1:history_length]
-        value, order = newsvendor_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights)
+        value, order = newsvendor_value_and_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights)
 
         #costs[repetition] = newsvendor_loss(order, demand_sequences[repetition][history_length+1])
         costs[repetition] = expected_newsvendor_loss(order, demand_probability[repetition][history_length+1])
@@ -125,7 +120,7 @@ function train_and_test(newsvendor_value_and_order, ambiguity_radii, compute_wei
 
         time_elapsed = time() - start_time
 
-        println(results_file, "$U, $realised_cost, $tested_ambiguity_radius, $tested_weight_parameter, $time_elapsed")
+        println(results_file, "$U, $tested_ambiguity_radius, $tested_weight_parameter, $value, $realised_cost, $time_elapsed")
 
     end
 
@@ -135,36 +130,35 @@ function train_and_test(newsvendor_value_and_order, ambiguity_radii, compute_wei
     
 end
 
-s = round.(Int, LinRange(1,history_length,34)) # Need to have 1,2,...,10,...
-α = [LinRange(0.0001,0.001,10); LinRange(0.002,0.01,9); LinRange(0.02,0.1,9); LinRange(0.2,1.0,9)] # this I think is ok.
-
-ε = [LinRange(1,10,10); LinRange(20,100,9); LinRange(200,1000,9); LinRange(2000,10000,9)] # can we have 0
-ϱ = [[0]; LinRange(0.01,0.1,10); LinRange(0.2,1,9); LinRange(2,10,9); LinRange(20,100,9); LinRange(200,1000,9) # LinRange(2000,10000,9)]
-
-train_and_test(W1_newsvendor_order, [0], windowing_weights, [history_length])
-train_and_test(W1_newsvendor_order, [0], windowing_weights, s)
-train_and_test(W1_newsvendor_order, [0], smoothing_weights, α)
-train_and_test(W1_newsvendor_order, ε, W1_weights, ϱ)
-
-
-
-
-
+ε = [[0]; LinRange(1e0,1e1,10); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9); LinRange(2e3,1e4,9); LinRange(2e4,1e5,9)]
 s = [round.(Int, LinRange(1,10,10)); round.(Int, LinRange(12,30,10)); round.(Int, LinRange(33,60,10)); round.(Int, LinRange(64,100,10));]
-α = [[0]; LinRange(0.0001,0.001,10); LinRange(0.002,0.01,9); LinRange(0.02,0.1,9); LinRange(0.2,1.0,9)]
+α = [[0]; LinRange(1e-4,1e-3,10); LinRange(2e-3,1e-2,9); LinRange(2e-2,1e-1,9); LinRange(2e-1,1e0,9)]
+ϱ_divided_by_ε = [[0]; LinRange(1e-4,1e-3,10); LinRange(2e-3,1e-2,9); LinRange(2e-2,1e-1,9); LinRange(2e-1,1e0,9)]
 
-ε = [[0]; LinRange(1,10,10); LinRange(20,100,9); LinRange(200,1000,9); LinRange(2000,10000,9)]
-ϱ_divided_by_ε = [[0]; LinRange(0.0001,0.001,10); LinRange(0.002,0.01,9); LinRange(0.02,0.1,9); LinRange(0.2,1,9)]
+println("SO...")
 
-train_and_test(W2_newsvendor_order, ε, windowing_weights, [history_length])
-train_and_test(W2_newsvendor_order, ε, windowing_weights, s)
-train_and_test(W2_newsvendor_order, ε, smoothing_weights, α)
-train_and_test(W2_newsvendor_order, ε, W2_weights, ϱ_divided_by_ε)
+train_and_test(SO_newsvendor_value_and_order, 0, windowing_weights, [history_length])
+train_and_test(SO_newsvendor_value_and_order, 0, windowing_weights, s)
+train_and_test(SO_newsvendor_value_and_order, 0, smoothing_weights, α)
+
+println("W1...")
+
+train_and_test(W1_newsvendor_value_and_order, ε, windowing_weights, [history_length])
+train_and_test(W1_newsvendor_value_and_order, ε, windowing_weights, s)
+train_and_test(W1_newsvendor_value_and_order, ε, smoothing_weights, α)
+train_and_test(W1_newsvendor_value_and_order, ε, W1_concentration_weights, ϱ_divided_by_ε)
 
 
-ε = [LinRange(10,100,10); LinRange(200,1000,9); LinRange(2000,10000,9)]
-ϱ = [[0]; LinRange(0.1,1,10); LinRange(2,10,9); LinRange(20,100,9); LinRange(200,1000,9); LinRange(2000,10000,9)]
+println("W2...")
 
-train_and_test(REMK_intersection_based_W2_newsvendor_order, ε, REMK_intersection_ball_radii, ϱ)
+train_and_test(W2_newsvendor_value_and_order, ε, windowing_weights, [history_length])
+train_and_test(W2_newsvendor_value_and_order, ε, windowing_weights, s)
+train_and_test(W2_newsvendor_value_and_order, ε, smoothing_weights, α)
+train_and_test(W2_newsvendor_value_and_order, ε, W2_concentration_weights, ϱ_divided_by_ε)
+
+ε = [LinRange(1e2,1e3,10); LinRange(2e3,1e4,9); LinRange(2e4,1e5,9); LinRange(2e5,1e6,9); LinRange(2e6,1e7,9)]
+ϱ_divided_by_ε = [[0]; LinRange(1e-4,1e-3,10); LinRange(2e-3,1e-2,9); LinRange(2e-2,1e-1,9); LinRange(2e-1,1e0,9)]
+
+train_and_test(REMK_intersection_W2_newsvendor_value_and_order, ε, REMK_intersection_weights, ϱ_divided_by_ε)
 
 close(results_file)

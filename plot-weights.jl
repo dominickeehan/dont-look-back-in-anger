@@ -5,35 +5,34 @@ include("weights.jl")
 
 T = 100
 
-ε = 10000
-
+ϱ_divided_by_ε = 1*[[0]; LinRange(1e-4,1e-3,10); LinRange(1e-3,1e-2,10); LinRange(1e-2,1e-1,10); LinRange(1e-1,1e0,10)]
+        
 plt = plot()
-for i in [[0]; LinRange(1,10,10); LinRange(10,100,10); LinRange(100,1000,10); LinRange(1000,10000,10);]
-        plot!(1:T, W1_weights(T, ε, i), label = nothing)
+for i in ϱ_divided_by_ε
+        plot!(1:T, W1_concentration_weights(T, i), label = nothing, color = :black)
 end
+#plot!(1:T, W1_concentration_weights(T, 0.15), label = nothing, color = :red)
 display(plt)
 
 plt = plot()
-for i in [[0]; LinRange(1,10,10); LinRange(10,100,10); LinRange(100,1000,10); LinRange(1000,10000,10);]
-        plot!(1:T, W2_weights(T, ε, i), label = nothing)
+for i in ϱ_divided_by_ε
+        plot!(1:T, W2_concentration_weights(T, i), label = nothing, color = :black)
 end
+#plot!(1:T, W2_concentration_weights(T, 0.25), label = nothing, color = :red)
 display(plt)
 
 plt = plot()
-for i in 0.0001*[[0]; LinRange(1,10,10); LinRange(10,100,10); LinRange(100,1000,10); LinRange(1000,10000,10);]
-        plot!(1:T, smoothing_weights(T, ε, i), label = nothing)
+for i in [[0]; LinRange(1e-4,1e-3,10); LinRange(2e-3,1e-2,9); LinRange(2e-2,1e-1,9); LinRange(2e-1,1e0,9)]
+        plot!(1:T, smoothing_weights(T, i), label = nothing, color = :black)
 end
 display(plt)
 
 plt = plot()
 for i in [round.(Int, LinRange(1,10,10)); round.(Int, LinRange(12,30,10)); round.(Int, LinRange(33,60,10)); round.(Int, LinRange(64,100,10));]
-        plot!(1:T, windowing_weights(T, ε, i), label = nothing)
+        plot!(1:T, windowing_weights(T, i), label = nothing, color = :black)
 end
 display(plt)
 
-display(plot(1:T, smoothing_weights(T, 0, 0.0001)))
-display(plot(1:T, W2_weights(T, ε, 1)))
-display(plot(1:T, W1_weights(T, ε, 1)))
 
 
 

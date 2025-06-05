@@ -30,7 +30,7 @@ function extract_results(skipto, u_index)
     return costs, parameter_1s, parameter_2s
 end
 
-u_index = 4
+u_index = 7
 
 naive_W1_results = extract_results(1, u_index)
 windowing_W1_results = extract_results(2, u_index)
@@ -54,9 +54,9 @@ function display_extracted_results(name, extracted_results)
 
     println(name*": $μ ± $σ")
 
-    #display(sort(collect(pairs(countmap(eachrow(hcat(extracted_results[2], extracted_results[3]))))), by = x->x.second, rev = true))
+    display(sort(collect(pairs(countmap(eachrow(hcat(extracted_results[2], extracted_results[3]))))), by = x->x.second, rev = true))
 
-    #display(count(ismissing, extracted_results[1]))
+    display(count(ismissing, extracted_results[1]))
 
 end
 

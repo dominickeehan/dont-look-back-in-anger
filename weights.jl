@@ -1,7 +1,7 @@
 # Dominic Keehan : 2025
 
 
-function windowing_weights(T, _, window_size)
+function windowing_weights(T, window_size)
 
     weights = zeros(T)
 
@@ -20,7 +20,7 @@ function windowing_weights(T, _, window_size)
 end
 
 
-function smoothing_weights(T, _, α)
+function smoothing_weights(T, α)
 
     if α == 0; weights = zeros(T); weights .= 1/T; return weights; end
 
@@ -37,7 +37,9 @@ using JuMP, Ipopt
 
 Ipoptimizer = optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0)#, "tol" => 1e-9)
 
-function W1_concentration_weights(T, ε, ϱ_divided_by_ε)
+function W1_concentration_weights(T, ϱ_divided_by_ε)
+
+    ε = 100
 
     ϱ = ϱ_divided_by_ε * ε
 
@@ -66,7 +68,9 @@ function W1_concentration_weights(T, ε, ϱ_divided_by_ε)
 end
 
 
-function W2_concentration_weights(T, ε, ϱ_divided_by_ε)
+function W2_concentration_weights(T, ϱ_divided_by_ε)
+
+    ε = 100
 
     ϱ = ϱ_divided_by_ε * ε
 
@@ -95,4 +99,3 @@ function W2_concentration_weights(T, ε, ϱ_divided_by_ε)
     return weights
 
 end
-
