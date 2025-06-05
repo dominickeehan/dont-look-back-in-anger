@@ -1,8 +1,8 @@
 using Random, Statistics, StatsBase, Distributions
 using ProgressBars, IterTools
 
-repetitions = 3
-history_length = 100
+repetitions = 10
+history_length = 30
 
 
 initial_demand_probability = 0.1 # 0.1
@@ -28,8 +28,8 @@ end
 
 
 Random.seed!(42)
-U = 10^(-2)
-shift_distribution = Uniform(-U,U)
+u = 0.025
+shift_distribution = Uniform(-u,u)
 
 demand_sequences = [zeros(history_length+1) for _ in 1:repetitions]
 demand_probability = [zeros(history_length+1) for _ in 1:repetitions]
@@ -50,19 +50,23 @@ end
 function parameter_fit(newsvendor_value_and_order, ambiguity_radii, compute_weights, weight_parameters)
 
     costs = [zeros((length(ambiguity_radii),length(weight_parameters))) for _ in 1:repetitions]
+    doubling_count = [zeros((length(ambiguity_radii),length(weight_parameters))) for _ in 1:repetitions]
 
     precomputed_weights = [zeros(history_length) for weight_parameter_index in eachindex(weight_parameters)]
 
-    Threads.@threads for weight_parameter_index in eachindex(weight_parameters)
+    println("Precomputing weights...")
+    Threads.@threads for weight_parameter_index in ProgressBar(eachindex(weight_parameters))
         precomputed_weights[weight_parameter_index] = compute_weights(history_length, weight_parameters[weight_parameter_index])
     end
 
+    println("Parameter fitting...")
     Threads.@threads for (ambiguity_radius_index, weight_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters))))
         for repetition in 1:repetitions
-            weights = precomputed_weights[weight_parameter_index]
+            local weights = precomputed_weights[weight_parameter_index]
 
-            demand_samples = demand_sequences[repetition][1:history_length]
-            _, order = newsvendor_value_and_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights)
+            local demand_samples = demand_sequences[repetition][1:history_length]
+            local _, order, doubling_count[repetition][ambiguity_radius_index, weight_parameter_index] = 
+                newsvendor_value_and_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights, 0)
             costs[repetition][ambiguity_radius_index, weight_parameter_index] = expected_newsvendor_loss(order, demand_probability[repetition][history_length+1])
 
         end
@@ -76,12 +80,12 @@ function parameter_fit(newsvendor_value_and_order, ambiguity_radii, compute_weig
     display("$μ ± $σ")
     
     display([ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index]])
+    display(mean([doubling_count[repetition][ambiguity_radius_index, weight_parameter_index] for repetition in 1:repetitions]))
 
 end
 
-
 ε = [[0]; LinRange(1e0,1e1,10); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9); LinRange(2e3,1e4,9); LinRange(2e4,1e5,9)]
-s = [round.(Int, LinRange(1,10,10)); round.(Int, LinRange(12,30,10)); round.(Int, LinRange(33,60,10)); round.(Int, LinRange(64,100,10));]
+s = [round.(Int, LinRange(1,10,10)); round.(Int, LinRange(12,30,10)); round.(Int, LinRange(33,60,10)); round.(Int, LinRange(64,100,10))]
 α = [[0]; LinRange(1e-4,1e-3,10); LinRange(2e-3,1e-2,9); LinRange(2e-2,1e-1,9); LinRange(2e-1,1e0,9)]
 ϱ_divided_by_ε = [[0]; LinRange(1e-4,1e-3,10); LinRange(2e-3,1e-2,9); LinRange(2e-2,1e-1,9); LinRange(2e-1,1e0,9)]
 
@@ -94,10 +98,10 @@ s = [round.(Int, LinRange(1,10,10)); round.(Int, LinRange(12,30,10)); round.(Int
 
 #parameter_fit(W2_newsvendor_value_and_order, ε, windowing_weights, [history_length])
 #parameter_fit(W2_newsvendor_value_and_order, ε, windowing_weights, s)
-parameter_fit(W2_newsvendor_value_and_order, ε, smoothing_weights, α)
-#parameter_fit(W2_newsvendor_value_and_order, ε, W2_concentration_weights, ϱ_divided_by_ε)
+#parameter_fit(W2_newsvendor_value_and_order, ε, smoothing_weights, α)
+parameter_fit(W2_newsvendor_value_and_order, ε, W2_concentration_weights, ϱ_divided_by_ε)
 
 ε = [LinRange(1e2,1e3,10); LinRange(2e3,1e4,9); LinRange(2e4,1e5,9); LinRange(2e5,1e6,9); LinRange(2e6,1e7,9)]
 ϱ_divided_by_ε = [[0]; LinRange(1e-4,1e-3,10); LinRange(2e-3,1e-2,9); LinRange(2e-2,1e-1,9); LinRange(2e-1,1e0,9)]
 
-#parameter_fit(REMK_intersection_W2_newsvendor_value_and_order, ε, REMK_intersection_weights, ϱ_divided_by_ε)
+parameter_fit(REMK_intersection_W2_newsvendor_value_and_order, ε, REMK_intersection_weights, ϱ_divided_by_ε)

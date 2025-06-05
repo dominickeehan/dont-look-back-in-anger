@@ -42,13 +42,13 @@ function expected_newsvendor_loss(order, demand_probability)
 
 end
 
-Us = [1e-4, 2.5e-4, 5e-4, 7.5e-4, 1e-3, 2.5e-3, 5e-3, 7.5e-3, 1e-2, 2.5e-2]
+U = [1e-4, 2.5e-4, 5e-4, 7.5e-4, 1e-3, 2.5e-3, 5e-3, 7.5e-3, 1e-2, 2.5e-2]
 
 Random.seed!(job_number%1000)
 
-U = Us[ceil(Int,(job_number+1)/1000)]
+u = U[ceil(Int,(job_number+1)/1000)]
 
-shift_distribution = Uniform(-U,U)
+shift_distribution = Uniform(-u,u)
 
 demand_sequences = [zeros(history_length+1) for _ in 1:repetitions]
 demand_probability = [zeros(history_length+1) for _ in 1:repetitions]
@@ -72,7 +72,7 @@ function train_and_test(newsvendor_value_and_order, ambiguity_radii, compute_wei
 
     precomputed_weights = hcat([[zeros(t-1) for t in history_length-training_length+1:history_length] for weight_parameter_index in eachindex(weight_parameters)])
 
-    println("Precomputing_weights...")
+    println("Precomputing weights...")
     #Threads.@threads for weight_parameter_index in ProgressBar(eachindex(weight_parameters))
     for weight_parameter_index in ProgressBar(eachindex(weight_parameters))
         for t in history_length-training_length+1:history_length
@@ -97,7 +97,7 @@ function train_and_test(newsvendor_value_and_order, ambiguity_radii, compute_wei
                         precomputed_weights[weight_parameter_index][t-(history_length-training_length)]
 
                     local demand_samples = demand_sequences[repetition][1:t-1]
-                    local _, order = newsvendor_value_and_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights)
+                    local _, order, _ = newsvendor_value_and_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights, 0)
                     training_costs[t-(history_length-training_length)][ambiguity_radius_index, weight_parameter_index] = 
                         newsvendor_loss(order, demand_sequences[repetition][t])
 
@@ -109,7 +109,7 @@ function train_and_test(newsvendor_value_and_order, ambiguity_radii, compute_wei
         weights = compute_weights(history_length, weight_parameters[weight_parameter_index])
     
         demand_samples = demand_sequences[repetition][1:history_length]
-        value, order = newsvendor_value_and_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights)
+        value, order, doubling_count = newsvendor_value_and_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights, 0)
 
         #costs[repetition] = newsvendor_loss(order, demand_sequences[repetition][history_length+1])
         costs[repetition] = expected_newsvendor_loss(order, demand_probability[repetition][history_length+1])
@@ -120,7 +120,7 @@ function train_and_test(newsvendor_value_and_order, ambiguity_radii, compute_wei
 
         time_elapsed = time() - start_time
 
-        println(results_file, "$U, $tested_ambiguity_radius, $tested_weight_parameter, $value, $realised_cost, $time_elapsed")
+        println(results_file, "$u, $tested_ambiguity_radius, $tested_weight_parameter, $doubling_count, $value, $realised_cost, $time_elapsed")
 
     end
 
@@ -131,7 +131,7 @@ function train_and_test(newsvendor_value_and_order, ambiguity_radii, compute_wei
 end
 
 ε = [[0]; LinRange(1e0,1e1,10); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9); LinRange(2e3,1e4,9); LinRange(2e4,1e5,9)]
-s = [round.(Int, LinRange(1,10,10)); round.(Int, LinRange(12,30,10)); round.(Int, LinRange(33,60,10)); round.(Int, LinRange(64,100,10));]
+s = [round.(Int, LinRange(1,10,10)); round.(Int, LinRange(12,30,10)); round.(Int, LinRange(33,60,10)); round.(Int, LinRange(64,100,10))]
 α = [[0]; LinRange(1e-4,1e-3,10); LinRange(2e-3,1e-2,9); LinRange(2e-2,1e-1,9); LinRange(2e-1,1e0,9)]
 ϱ_divided_by_ε = [[0]; LinRange(1e-4,1e-3,10); LinRange(2e-3,1e-2,9); LinRange(2e-2,1e-1,9); LinRange(2e-1,1e0,9)]
 
@@ -147,7 +147,6 @@ train_and_test(W1_newsvendor_value_and_order, ε, windowing_weights, [history_le
 train_and_test(W1_newsvendor_value_and_order, ε, windowing_weights, s)
 train_and_test(W1_newsvendor_value_and_order, ε, smoothing_weights, α)
 train_and_test(W1_newsvendor_value_and_order, ε, W1_concentration_weights, ϱ_divided_by_ε)
-
 
 println("W2...")
 

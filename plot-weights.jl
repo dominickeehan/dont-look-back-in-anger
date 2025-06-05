@@ -5,8 +5,8 @@ include("weights.jl")
 
 T = 100
 
-ϱ_divided_by_ε = 1*[[0]; LinRange(1e-4,1e-3,10); LinRange(1e-3,1e-2,10); LinRange(1e-2,1e-1,10); LinRange(1e-1,1e0,10)]
-        
+ϱ_divided_by_ε = [[0]; LinRange(1e-4,1e-3,10); LinRange(2e-3,1e-2,9); LinRange(2e-2,1e-1,9); LinRange(2e-1,1e0,9)]
+
 plt = plot()
 for i in ϱ_divided_by_ε
         plot!(1:T, W1_concentration_weights(T, i), label = nothing, color = :black)

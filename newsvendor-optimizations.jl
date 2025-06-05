@@ -11,7 +11,7 @@ env = Gurobi.Env()
 GRBsetintparam(env, "OutputFlag", 0)
 optimizer = optimizer_with_attributes(() -> Gurobi.Optimizer(env))
 
-function SO_newsvendor_value_and_order(_, demands, weights) 
+function SO_newsvendor_value_and_order(_, demands, weights, doubling_count) 
 
     T = length(demands)
 
@@ -40,7 +40,7 @@ function SO_newsvendor_value_and_order(_, demands, weights)
     optimize!(Problem)
 
     try
-        return objective_value(Problem), value(order) 
+        return objective_value(Problem), value(order), doubling_count 
 
     catch
         order = quantile(demands, Weights(weights), Cu/(Co+Cu))
@@ -48,16 +48,16 @@ function SO_newsvendor_value_and_order(_, demands, weights)
         expected_underage = sum(weights[t]*max(demands[t] - order,0) for t in eachindex(weights))
         expected_overage = sum(weights[t]*max(order - demands[t],0) for t in eachindex(weights))
 
-        return Cu*expected_underage + Co*expected_overage, order
+        return Cu*expected_underage + Co*expected_overage, order, doubling_count+1
     
     end
 
 end
 
 
-function W1_newsvendor_value_and_order(ε, demands, weights) 
+function W1_newsvendor_value_and_order(ε, demands, weights, doubling_count) 
 
-    if ε == 0; return SO_newsvendor_value_and_order(ε, demands, weights); end
+    if ε == 0; return SO_newsvendor_value_and_order(ε, demands, weights, doubling_count); end
 
 
     T = length(demands)
@@ -92,7 +92,13 @@ function W1_newsvendor_value_and_order(ε, demands, weights)
 
     optimize!(Problem)
 
-    try; return objective_value(Problem), value(order); catch; return W1_newsvendor_value_and_order(2*ε, demands, weights); end
+    try
+        return objective_value(Problem), value(order), doubling_count
+    
+    catch
+        return W1_newsvendor_value_and_order(2*ε, demands, weights, doubling_count+1)
+    
+    end
 
 end
 
@@ -102,9 +108,9 @@ GRBsetintparam(BarHomogeneous_env, "OutputFlag", 0)
 GRBsetintparam(BarHomogeneous_env, "BarHomogeneous", 1)
 BarHomogeneous_optimizer = optimizer_with_attributes(() -> Gurobi.Optimizer(BarHomogeneous_env))
 
-function W2_newsvendor_value_and_order(ε, demands, weights) 
+function W2_newsvendor_value_and_order(ε, demands, weights, doubling_count) 
 
-    if ε == 0; return SO_newsvendor_value_and_order(ε, demands, weights); end
+    if ε == 0; return SO_newsvendor_value_and_order(ε, demands, weights, doubling_count); end
 
 
     T = length(demands)
@@ -141,7 +147,13 @@ function W2_newsvendor_value_and_order(ε, demands, weights)
 
     optimize!(Problem)
 
-    try; return objective_value(Problem), value(order); catch; return W2_newsvendor_value_and_order(2*ε, demands, weights); end
+    try
+        return objective_value(Problem), value(order), doubling_count
+    
+    catch
+        return W2_newsvendor_value_and_order(2*ε, demands, weights, doubling_count+1)
+    
+    end
 
 end
 
@@ -160,7 +172,7 @@ function REMK_intersection_ball_radii(K, ε, ϱ_divided_by_ε)
 
 end
 
-function REMK_intersection_W2_newsvendor_value_and_order(ε, demands, weights)
+function REMK_intersection_W2_newsvendor_value_and_order(ε, demands, weights, doubling_count)
 
     K = length(demands)
 
@@ -205,14 +217,13 @@ function REMK_intersection_W2_newsvendor_value_and_order(ε, demands, weights)
 
     optimize!(Problem)
 
-    try; return objective_value(Problem), value(order); catch; return REMK_intersection_W2_newsvendor_value_and_order(2*ε, demands, weights); end
+    try
+        return objective_value(Problem), value(order), doubling_count
+    
+    catch
+        return REMK_intersection_W2_newsvendor_value_and_order(2*ε, demands, weights, doubling_count+1)
+    
+    end
 
 end
 
-
-#include("weights.jl")
-
-#display(REMK_intersection_W2_newsvendor_value_and_order(0, [1, 2, 3, 4, 5], REMK_intersection_ball_radii(5, 0.001, 0)))
-#display(SO_newsvendor_value_and_order(0, [1, 2, 3, 4, 5], ones(5)*1/5))
-#display(W1_newsvendor_value_and_order(0.1, [1, 2, 3, 4, 5], ones(5)*1/5))
-#display(W2_newsvendor_value_and_order(0.1, [1, 2, 3, 4, 5], ones(5)*1/5))
