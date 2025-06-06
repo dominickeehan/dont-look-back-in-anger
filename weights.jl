@@ -24,6 +24,7 @@ function smoothing_weights(T, α)
 
     if α == 0; weights = zeros(T); weights .= 1/T; return weights; end
 
+    if α >= 1; α = 1; end
     
     weights = [α*(1-α)^(t-1) for t in T:-1:1]
     weights .= weights/sum(weights)
@@ -37,11 +38,11 @@ using JuMP, Ipopt
 
 Ipoptimizer = optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0)#, "tol" => 1e-9)
 
-function W1_concentration_weights(T, ϱ_divided_by_ε)
+function W1_concentration_weights(T, ϱ╱ε)
 
-    ε = 100
+    ε = 1000
 
-    ϱ = ϱ_divided_by_ε * ε
+    ϱ = ϱ╱ε * ε
 
     if ϱ == 0; weights = zeros(T); weights .= 1/T; return weights; end
 
@@ -68,11 +69,11 @@ function W1_concentration_weights(T, ϱ_divided_by_ε)
 end
 
 
-function W2_concentration_weights(T, ϱ_divided_by_ε)
+function W2_concentration_weights(T, ϱ╱ε)
 
-    ε = 100
+    ε = 1000
 
-    ϱ = ϱ_divided_by_ε * ε
+    ϱ = ϱ╱ε * ε
 
     if ϱ == 0; weights = zeros(T); weights .= 1/T; return weights; end
 

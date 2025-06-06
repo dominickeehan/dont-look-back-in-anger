@@ -5,24 +5,24 @@ include("weights.jl")
 
 T = 100
 
-ϱ_divided_by_ε = [[0]; LinRange(1e-4,1e-3,10); LinRange(2e-3,1e-2,9); LinRange(2e-2,1e-1,9); LinRange(2e-1,1e0,9)]
+GeomRange(a, b, n) = exp.(LinRange(log(a), log(b), n))
+
+ϱ╱ε = [[0]; GeomRange(1e-4,1e0,40)]
 
 plt = plot()
-for i in ϱ_divided_by_ε
+for i in ϱ╱ε
         plot!(1:T, W1_concentration_weights(T, i), label = nothing, color = :black)
 end
-#plot!(1:T, W1_concentration_weights(T, 0.15), label = nothing, color = :red)
 display(plt)
 
 plt = plot()
-for i in ϱ_divided_by_ε
+for i in ϱ╱ε
         plot!(1:T, W2_concentration_weights(T, i), label = nothing, color = :black)
 end
-#plot!(1:T, W2_concentration_weights(T, 0.25), label = nothing, color = :red)
 display(plt)
 
 plt = plot()
-for i in [[0]; LinRange(1e-4,1e-3,10); LinRange(2e-3,1e-2,9); LinRange(2e-2,1e-1,9); LinRange(2e-1,1e0,9)]
+for i in [[0]; GeomRange(1e-4,1e0,40)]
         plot!(1:T, smoothing_weights(T, i), label = nothing, color = :black)
 end
 display(plt)

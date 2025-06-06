@@ -132,8 +132,11 @@ end
 
 ε = [[0]; LinRange(1e0,1e1,10); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9); LinRange(2e3,1e4,9); LinRange(2e4,1e5,9)]
 s = [round.(Int, LinRange(1,10,10)); round.(Int, LinRange(12,30,10)); round.(Int, LinRange(33,60,10)); round.(Int, LinRange(64,100,10))]
-α = [[0]; LinRange(1e-4,1e-3,10); LinRange(2e-3,1e-2,9); LinRange(2e-2,1e-1,9); LinRange(2e-1,1e0,9)]
-ϱ_divided_by_ε = [[0]; LinRange(1e-4,1e-3,10); LinRange(2e-3,1e-2,9); LinRange(2e-2,1e-1,9); LinRange(2e-1,1e0,9)]
+
+GeomRange(a, b, n) = exp.(LinRange(log(a), log(b), n))
+
+α = [[0]; GeomRange(1e-4,1e0,40)]
+ϱ╱ε = [[0]; GeomRange(1e-4,1e0,40)]
 
 println("SO...")
 
@@ -146,18 +149,18 @@ println("W1...")
 train_and_test(W1_newsvendor_value_and_order, ε, windowing_weights, [history_length])
 train_and_test(W1_newsvendor_value_and_order, ε, windowing_weights, s)
 train_and_test(W1_newsvendor_value_and_order, ε, smoothing_weights, α)
-train_and_test(W1_newsvendor_value_and_order, ε, W1_concentration_weights, ϱ_divided_by_ε)
+train_and_test(W1_newsvendor_value_and_order, ε, W1_concentration_weights, ϱ╱ε)
 
 println("W2...")
 
 train_and_test(W2_newsvendor_value_and_order, ε, windowing_weights, [history_length])
 train_and_test(W2_newsvendor_value_and_order, ε, windowing_weights, s)
 train_and_test(W2_newsvendor_value_and_order, ε, smoothing_weights, α)
-train_and_test(W2_newsvendor_value_and_order, ε, W2_concentration_weights, ϱ_divided_by_ε)
+train_and_test(W2_newsvendor_value_and_order, ε, W2_concentration_weights, ϱ╱ε)
 
 ε = [LinRange(1e2,1e3,10); LinRange(2e3,1e4,9); LinRange(2e4,1e5,9); LinRange(2e5,1e6,9); LinRange(2e6,1e7,9)]
-ϱ_divided_by_ε = [[0]; LinRange(1e-4,1e-3,10); LinRange(2e-3,1e-2,9); LinRange(2e-2,1e-1,9); LinRange(2e-1,1e0,9)]
+ϱ╱ε = [[0]; GeomRange(1e-4,1e0,40)]
 
-train_and_test(REMK_intersection_W2_newsvendor_value_and_order, ε, REMK_intersection_weights, ϱ_divided_by_ε)
+train_and_test(REMK_intersection_W2_newsvendor_value_and_order, ε, REMK_intersection_weights, ϱ╱ε)
 
 close(results_file)
