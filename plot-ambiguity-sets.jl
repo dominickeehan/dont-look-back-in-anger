@@ -3,21 +3,23 @@ using JuMP, Gurobi
 using Plots
 using ProgressBars
 
+Random.seed!(42)
+
 env = Gurobi.Env()
 GRBsetintparam(env, "OutputFlag", 0)
 Linear_Optimizer = optimizer_with_attributes(() -> Gurobi.Optimizer(env))
 
 """
-Compute the first-order Wasserstein distance between two one-dimensional empirical distributions.
+Compute the second-order Wasserstein distance between two one-dimensional empirical distributions.
 """
-function W1(P, Q)
+function W2(P, Q)
 
     # P, Q := [points, weights] .
 
     m = length(P[1])
     n = length(Q[1])
 
-    d = [abs(ξ - ζ) for ξ in P[1], ζ in Q[1]]
+    d = [abs(ξ - ζ)^2 for ξ in P[1], ζ in Q[1]]
 
     model = Model(Linear_Optimizer)
 
@@ -30,23 +32,23 @@ function W1(P, Q)
 
     optimize!(model)
 
-    try; return objective_value(model); catch; return Inf; end
+    try; return sqrt(objective_value(model)); catch; return Inf; end
 
 end
 
+include("weights.jl")
 
 normalise(x) = x/sum(x)
 
-support = LinRange(-50,50,1000)
+support = LinRange(-1000,1000,1000)
+number_of_points = 50
+P = [Vector(LinRange(-50,50,number_of_points)), W2_concentration_weights(number_of_points, 0.01)]
 
-P = [Vector(LinRange(-25,25,100)), normalise(Vector(LinRange(0.0,1.0,100)))]
-
-ε = 5
+ε = 20
 number_of_distributions = 100000
-number_of_points = 30
 
 Qs = [[zeros(number_of_points), zeros(number_of_points)] for _ in 1:number_of_distributions]
-distance_to_Ps = zeros(length(Qs))
+plot_Qs = zeros(length(Qs))
 
 Threads.@threads for i in ProgressBar(eachindex(Qs))
     n = rand(1:number_of_points)
@@ -56,26 +58,26 @@ Threads.@threads for i in ProgressBar(eachindex(Qs))
 
     Qs[i] = [points, weights]
 
-    distance_to_Ps[i] = W1(P,Qs[i])
+    plot_Qs[i] = ifelse(W2(P,Qs[i]) <= ε, 1, 0)
 
 end
 
 
 
-bins = 5
+bins = 10
 alpha = 0.0
-fillalpha = 0.005
+fillalpha = 1/sum(plot_Qs)
 plt = plot(xlims=(support[1],support[end]))
 
 for i in ProgressBar(eachindex(Qs))
-    if distance_to_Ps[i] <= ε
-        stephist!(Qs[i][1], weights=Qs[i][2], color=:red, bins=bins, alpha=alpha, fill=true, fillalpha=fillalpha, labels=nothing,)
+    if plot_Qs[i] == 1
+        stephist!(Qs[i][1], weights=Qs[i][2], bins=bins, normalise=true, color=:red, alpha=alpha, fill=true, fillalpha=fillalpha, labels=nothing,)
 
     end
 
 end
 
-stephist!(P[1], weights=P[2], bins=bins, color=:black, alpha=1, fill=true, fillalpha=0.1, labels=nothing,)
+stephist!(P[1], weights=P[2], bins=bins, normalise=true, color=:black, alpha=1, fill=false, labels=nothing,)
 display(plt)
 
 

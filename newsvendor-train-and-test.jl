@@ -124,9 +124,9 @@ function train_and_test(newsvendor_value_and_order, ambiguity_radii, compute_wei
 
     end
 
-    #μ = mean(costs)
-    #σ = sem(costs)
-    #display("$μ ± $σ")
+    μ = mean(costs)
+    σ = sem(costs)
+    display("$μ ± $σ")
     
 end
 

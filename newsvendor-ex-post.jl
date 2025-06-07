@@ -1,7 +1,7 @@
 using Random, Statistics, StatsBase, Distributions
 using ProgressBars, IterTools
 
-repetitions = 100
+repetitions = 10
 history_length = 30
 
 
@@ -28,7 +28,7 @@ end
 
 
 Random.seed!(42)
-u = 0.001
+u = 0.01
 shift_distribution = Uniform(-u,u)
 
 demand_sequences = [zeros(history_length+1) for _ in 1:repetitions]
@@ -94,21 +94,21 @@ GeomRange(a, b, n) = exp.(LinRange(log(a), log(b), n))
 
 #parameter_fit(SO_newsvendor_value_and_order, ε, smoothing_weights, α)
 
-#parameter_fit(W1_newsvendor_value_and_order, ε, windowing_weights, [history_length])
+parameter_fit(W1_newsvendor_value_and_order, ε, windowing_weights, [history_length])
 #parameter_fit(W1_newsvendor_value_and_order, ε, windowing_weights, s)
-#parameter_fit(W1_newsvendor_value_and_order, ε, smoothing_weights, α)
+parameter_fit(W1_newsvendor_value_and_order, ε, smoothing_weights, α)
 #parameter_fit(W1_newsvendor_value_and_order, ε, W1_concentration_weights, ϱ╱ε)
 
 #parameter_fit(W1_newsvendor_value_and_order, 0, windowing_weights, s)
-parameter_fit(W1_newsvendor_value_and_order, 0, smoothing_weights, α)
+#parameter_fit(W1_newsvendor_value_and_order, 0, smoothing_weights, α)
 #parameter_fit(W1_newsvendor_value_and_order, 0, W1_concentration_weights, ϱ╱ε)
 
 #parameter_fit(W2_newsvendor_value_and_order, ε, windowing_weights, [history_length])
 #parameter_fit(W2_newsvendor_value_and_order, ε, windowing_weights, s)
-#parameter_fit(W2_newsvendor_value_and_order, ε, smoothing_weights, α)
+parameter_fit(W2_newsvendor_value_and_order, ε, smoothing_weights, α)
 #parameter_fit(W2_newsvendor_value_and_order, ε, W2_concentration_weights, ϱ_divided_by_ε)
 
 ε = [LinRange(1e2,1e3,10); LinRange(2e3,1e4,9); LinRange(2e4,1e5,9); LinRange(2e5,1e6,9); LinRange(2e6,1e7,9)]
-ϱ╱ε = [[0]; GeomRange(1e-2,1e2,40)]
+ϱ╱ε = [[0]; GeomRange(1e-4,1e0,40)]
 
 parameter_fit(REMK_intersection_W2_newsvendor_value_and_order, ε, REMK_intersection_weights, ϱ╱ε)
