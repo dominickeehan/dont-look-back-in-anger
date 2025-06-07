@@ -7,15 +7,15 @@ Cu = 4 # Per-unit underage cost.
 Co = 1 # Per-unit overage cost.
 
 
-env = Gurobi.Env()
-GRBsetintparam(env, "OutputFlag", 0)
-optimizer = optimizer_with_attributes(() -> Gurobi.Optimizer(env))
+Linear_env = Gurobi.Env()
+GRBsetintparam(Linear_env, "OutputFlag", 0)
+Linear_optimizer = optimizer_with_attributes(() -> Gurobi.Optimizer(Linear_env))
 
 function SO_newsvendor_value_and_order(_, demands, weights, doubling_count) 
 
     T = length(demands)
 
-    Problem = Model(optimizer)
+    Problem = Model(Linear_optimizer)
 
     C = [-1; 1]
     d = [0, D]
@@ -62,7 +62,7 @@ function W1_newsvendor_value_and_order(ε, demands, weights, doubling_count)
 
     T = length(demands)
 
-    Problem = Model(optimizer)
+    Problem = Model(Linear_optimizer)
 
     C = [-1; 1]
     d = [0, D]
