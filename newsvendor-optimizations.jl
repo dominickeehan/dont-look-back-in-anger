@@ -158,20 +158,6 @@ function W2_newsvendor_value_and_order(ε, demands, weights, doubling_count)
 end
 
 
-function REMK_intersection_weights(K, ϱ_divided_by_ε) 
-
-    return ones(K)*ϱ_divided_by_ε
-
-end
-
-function REMK_intersection_ball_radii(K, ε, ϱ_divided_by_ε) 
-    
-    ϱ = ϱ_divided_by_ε * ε
-
-    return [ε+(K-k+1)*ϱ for k in 1:K]
-
-end
-
 function REMK_intersection_W2_newsvendor_value_and_order(ε, demands, weights, doubling_count)
 
     K = length(demands)

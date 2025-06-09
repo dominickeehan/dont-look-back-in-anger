@@ -100,3 +100,18 @@ function W2_concentration_weights(T, ϱ╱ε)
     return weights
 
 end
+
+
+function REMK_intersection_weights(K, ϱ╱ε) 
+
+    return ones(K) * ϱ╱ε
+
+end
+
+function REMK_intersection_ball_radii(K, ε, ϱ╱ε) 
+    
+    ϱ = ϱ╱ε * ε
+
+    return [ε+(K-k+1)*ϱ for k in 1:K]
+
+end
