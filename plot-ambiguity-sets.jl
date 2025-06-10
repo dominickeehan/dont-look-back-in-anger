@@ -55,85 +55,65 @@ include("weights.jl")
 
 normalise(x) = x/sum(x)
 
+function mean_and_std(Q)
 
-
-support = LinRange(-120,120,1000)
-number_of_points = 20
-bin_div = 2
-
-ε = 40
-ϱ = ε/10
-
-points = Vector(LinRange(-50,50,number_of_points))
-weights = W2_concentration_weights(number_of_points, ϱ/ε)
-P = [points, weights]
-
-number_of_distributions = 100000 #1000000
-
-Qs = [[zeros(number_of_points), zeros(number_of_points)] for _ in 1:number_of_distributions]
-Threads.@threads for i in ProgressBar(eachindex(Qs))
-    local n = number_of_points #rand(50:number_of_points)
-    local points = rand(support, n)
-    local weights = rand(Uniform(0,1), n)
-    local weights .= normalise(weights)
-
-    Qs[i] = [points, weights]
+    return sum(Q[2][i]*Q[1][i] for i in 1:length(Q[1])), std(Q[1], Weights(Q[2]))
 
 end
 
+support = [-30,30]
+number_of_points = 10
 
-plot_ball_Qs = zeros(length(Qs))
+number_of_distributions = 10000
 
-Threads.@threads for i in ProgressBar(eachindex(Qs))
-    plot_ball_Qs[i] = in_W2_ball(P,ε,Qs[i])
+plt = plot(xlims=(support[1],support[end]), ylims=(0,30))
 
-end
+for ε in [20, 15, 10, 5]
 
+    ϱ = ε/10
 
+    P = [Vector(LinRange(-5,5,10)), W2_concentration_weights(10, ϱ/ε)]
 
+    Qs = [[zeros(number_of_points), zeros(number_of_points)] for _ in 1:number_of_distributions]
+    Threads.@threads for i in ProgressBar(eachindex(Qs))
+        local n = number_of_points
+        local μ = rand(Uniform(support[1],support[end]))
+        local σ = rand(Uniform(0,30))
+        local points = rand(Normal(μ, σ), n)
 
-
-alpha = 0.0
-fillalpha = max(1/sum(plot_ball_Qs),0.002)
-display(sum(plot_ball_Qs))
-plt = plot(xlims=(support[1],support[end]))
-
-for i in ProgressBar(eachindex(Qs))
-    if plot_ball_Qs[i] == 1
-        stephist!(Qs[i][1], weights=Qs[i][2], bins=ceil(Int,length(Qs[i][1])/bin_div), normalise=true, color=:red, alpha=alpha, fill=true, fillalpha=fillalpha, labels=nothing,)
+        Qs[i] = [points, 1/n*ones(n)]
 
     end
 
-end
-
-#stephist!(P[1], weights=P[2], bins=ceil(Int,length(P[1])/bin_div), normalise=true, color=:black, alpha=1.0, fill=true, fillalpha=0.0, labels=nothing,)
-plot!(P[1], P[2], seriestype=:sticks, color=:black, linewidth=1, markershape=:circle, markersize=2, markercolor=:grey, labels=nothing,)
-title!("Concentration \$ε=$ε\$, \$ϱ=$ϱ\$")
-ylims!((0,1))
-display(plt)
-
-
-
-plot_intersection_Qs = zeros(length(Qs))
-
-Threads.@threads for i in ProgressBar(eachindex(Qs))
-    plot_intersection_Qs[i] = in_W2_intersection(points,ε,ϱ,Qs[i])
-
-end
-
-fillalpha = max(1/sum(plot_intersection_Qs),0.002)
-display(sum(plot_intersection_Qs))
-plt = plot(xlims=(support[1],support[end]))
-
-for i in ProgressBar(eachindex(Qs))
-    if plot_intersection_Qs[i] == 1
-        stephist!(Qs[i][1], weights=Qs[i][2], bins=ceil(Int,length(Qs[i][1])/bin_div), normalise=true, color=:red, alpha=alpha, fill=true, fillalpha=fillalpha, labels=nothing,)
+    plot_ball_Qs = zeros(length(Qs))
+    Threads.@threads for i in ProgressBar(eachindex(Qs))
+        plot_ball_Qs[i] = in_W2_ball(P,ε,Qs[i])
 
     end
 
+    plot_intersection_Qs = zeros(length(Qs))
+    Threads.@threads for i in ProgressBar(eachindex(Qs))
+        plot_intersection_Qs[i] = in_W2_intersection(P[1],ε,ϱ,Qs[i])
+
+    end
+
+    for i in ProgressBar(eachindex(Qs))
+        if plot_ball_Qs[i] == 1
+            mean, width = mean_and_std(Qs[i])
+            scatter!([mean], [width], color=:blue, markersize=4, markerstrokewidth=0.0, labels=nothing,)
+
+        end
+
+        if plot_intersection_Qs[i] == 1
+            mean, width = mean_and_std(Qs[i])
+            scatter!([mean], [width], color=:orange, markersize=4, markerstrokewidth=0.0, labels=nothing,)
+
+        end
+
+    end
 end
 
-#plot!(P[1], 1/number_of_points*ones(number_of_points), seriestype=:sticks, color=:black, linewidth=1, markershape=:circle, markersize=2, markercolor=:grey, labels=nothing,)
-title!("Intersection \$ε=$ε\$, \$ϱ=$ϱ\$")
-ylims!((0,1))
+
+
 display(plt)
+
