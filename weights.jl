@@ -13,7 +13,7 @@ function windowing_weights(T, window_size)
         end
     end
 
-    weights .= weights/sum(weights)
+    weights = weights/sum(weights)
 
     return weights
 
@@ -23,11 +23,9 @@ end
 function smoothing_weights(T, α)
 
     if α == 0; weights = zeros(T); weights .= 1/T; return weights; end
-
-    if α >= 1; α = 1; end
     
     weights = [α*(1-α)^(t-1) for t in T:-1:1]
-    weights .= weights/sum(weights)
+    weights = weights/sum(weights)
 
     return weights
 
@@ -36,7 +34,7 @@ end
 
 using JuMP, Ipopt
 
-Ipoptimizer = optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0)#, "tol" => 1e-9)
+Ipoptimizer = optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0)
 
 function W1_concentration_weights(T, ϱ╱ε)
 
@@ -51,7 +49,7 @@ function W1_concentration_weights(T, ϱ╱ε)
 
     Problem = Model(Ipoptimizer)
 
-    @variable(Problem, 1>= w[t=1:T] >=0)
+    @variable(Problem, 1 >= w[t=1:T] >= 0)
 
     @constraint(Problem, sum(w[t] for t in 1:T) == 1)
     @constraint(Problem, sum(w[t]*(T-t+1)*ϱ for t in 1:T) <= ε)
@@ -62,7 +60,7 @@ function W1_concentration_weights(T, ϱ╱ε)
 
 
     weights = [max(value(w[t]),0) for t in 1:T]
-    weights .= weights/sum(weights)
+    weights = weights/sum(weights)
 
     return weights
 
@@ -84,7 +82,7 @@ function W2_concentration_weights(T, ϱ╱ε)
 
     Problem = Model(Ipoptimizer)
 
-    @variable(Problem, 1>= w[t=1:T] >=0)
+    @variable(Problem, 1 >= w[t=1:T] >= 0)
 
     @constraint(Problem, sum(w[t] for t in 1:T) == 1)
     @constraint(Problem, sum(w[t]*(T-t+1)^p*ϱ^p for t in 1:T) <= ε^p)
@@ -94,8 +92,9 @@ function W2_concentration_weights(T, ϱ╱ε)
     optimize!(Problem)
 
 
+
     weights = [max(value(w[t]),0) for t in 1:T]
-    weights .= weights/sum(weights)
+    weights = weights/sum(weights)
 
     return weights
 

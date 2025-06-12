@@ -57,29 +57,30 @@ normalise(x) = x/sum(x)
 
 function mean_and_std(Q)
 
-    return sum(Q[2][i]*Q[1][i] for i in 1:length(Q[1])), std(Q[1], Weights(Q[2]))
+    return sum(Q[2][i]*Q[1][i] for i in 1:length(Q[1])), skewness(Q[1], Weights(Q[2]))
 
 end
 
 support = [-30,30]
 number_of_points = 10
 
-number_of_distributions = 10000
+number_of_distributions = 100000
 
-plt = plot(xlims=(support[1],support[end]), ylims=(0,30))
+plt = plot(xlims=(support[1],support[end]), ylims=(-2.5,2.5), xlabel="mean", ylabel="skewness")
 
-for ε in [20, 15, 10, 5]
+for ε in [20]
 
-    ϱ = ε/10
+    ϱ = 1
 
-    P = [Vector(LinRange(-5,5,10)), W2_concentration_weights(10, ϱ/ε)]
+    P = [Vector(LinRange(-10,10,10)), W2_concentration_weights(10, ϱ/ε)]
 
     Qs = [[zeros(number_of_points), zeros(number_of_points)] for _ in 1:number_of_distributions]
     Threads.@threads for i in ProgressBar(eachindex(Qs))
         local n = number_of_points
         local μ = rand(Uniform(support[1],support[end]))
-        local σ = rand(Uniform(0,30))
-        local points = rand(Normal(μ, σ), n)
+        local σ = rand(Uniform(0,40))
+        local shape = rand(Uniform(-40,40))
+        local points = rand(SkewNormal(μ, σ, shape), n)
 
         Qs[i] = [points, 1/n*ones(n)]
 
@@ -100,13 +101,13 @@ for ε in [20, 15, 10, 5]
     for i in ProgressBar(eachindex(Qs))
         if plot_ball_Qs[i] == 1
             mean, width = mean_and_std(Qs[i])
-            scatter!([mean], [width], color=:blue, markersize=4, markerstrokewidth=0.0, labels=nothing,)
+            scatter!([mean], [width], color=:blue, markersize=3, markerstrokewidth=0.0, labels=nothing,)
 
         end
 
         if plot_intersection_Qs[i] == 1
             mean, width = mean_and_std(Qs[i])
-            scatter!([mean], [width], color=:orange, markersize=4, markerstrokewidth=0.0, labels=nothing,)
+            scatter!([mean], [width], color=:orange, markersize=3, markerstrokewidth=0.0, labels=nothing,)
 
         end
 

@@ -10,11 +10,14 @@ using Random, Statistics, StatsBase, Distributions
 using ProgressBars, IterTools
 using CSV
 
-job_number = parse(Int64, ENV["PBS_ARRAY_INDEX"])
+include("weights.jl")
+include("newsvendor-optimizations.jl")
 
-open("$job_number.csv", "w") do file; end
+for job_number in 6000:7000 #parse(Int64, ENV["PBS_ARRAY_INDEX"])
 
-results_file = open("$job_number.csv", "a")
+#open("$job_number.csv", "w") do file; end
+
+#results_file = open("$job_number.csv", "a")
 
 repetitions = 1 # 1000 in total with all other jobs per U, 7000 in total.
 history_length = 100 # 100
@@ -24,25 +27,21 @@ training_length = 30 # 30
 initial_demand_probability = 0.1 # 0.1
 
 
-include("weights.jl")
-
-include("newsvendor-optimizations.jl")
-
-newsvendor_loss(order, demand) = Cu*max(demand-order,0) + Co*max(order-demand,0)
+newsvendor_loss(order, demand) = Cu*max(demand-order,0.0) + Co*max(order-demand,0.0)
 
 function expected_newsvendor_loss(order, demand_probability)
 
-    expected_underage = D*demand_probability*(1-cdf(Binomial(D-1,demand_probability),order-2)) -
-        order*(1-cdf(Binomial(D,demand_probability),order-1))
+    expected_underage = D*demand_probability*(1.0-cdf(Binomial(D-1.0,demand_probability),order-2.0)) -
+        order*(1.0-cdf(Binomial(D,demand_probability),order-1.0))
 
     expected_overage = order*cdf(Binomial(D,demand_probability),order) -
-        D*demand_probability*(cdf(Binomial(D-1,demand_probability),order-1))
+        D*demand_probability*(cdf(Binomial(D-1.0,demand_probability),order-1.0))
 
     return Cu*expected_underage + Co*expected_overage
 
 end
 
-U = [1e-4, 2.5e-4, 5e-4, 7.5e-4, 1e-3, 2.5e-3, 5e-3, 7.5e-3, 1e-2, 2.5e-2]
+U = [1e-4, 2.5e-4, 5e-4, 7.5e-4, 1e-3, 2.5e-3, 5e-3, 7.5e-3, 1e-2]
 
 Random.seed!(job_number%1000)
 
@@ -50,20 +49,36 @@ u = U[ceil(Int,(job_number+1)/1000)]
 
 shift_distribution = Uniform(-u,u)
 
-demand_sequences = [zeros(history_length+1) for _ in 1:repetitions]
-demand_probability = [zeros(history_length+1) for _ in 1:repetitions]
+demand_sequences = [zeros(history_length) for _ in 1:repetitions]
+final_demand_probabilities = [zeros(10000) for _ in 1:repetitions]
 
 for repetition in 1:repetitions
-    demand_probability[repetition][1] = initial_demand_probability
+    local demand_probability = initial_demand_probability
 
-    for t in 1:history_length+1
-        demand_sequences[repetition][t] = rand(Binomial(D, demand_probability[repetition][t]))
+    for t in 1:history_length
+        demand_sequences[repetition][t] = rand(Binomial(D, demand_probability))
         
-        if t < history_length+1
-            demand_probability[repetition][t+1] = min(max(demand_probability[repetition][t] + rand(shift_distribution), 0.0), 1.0)
+        if t < history_length
+            demand_probability = min(max(demand_probability + rand(shift_distribution), 0.0), 1.0)
+
+        else
+            for i in eachindex(final_demand_probabilities[repetition])
+                final_demand_probabilities[repetition][i] = min(max(demand_probability + rand(shift_distribution), 0.0), 1.0)
+            
+            end
         end
     end
 end
+
+#display(demand_sequences[1])
+if REMK_intersection_W2_newsvendor_value_and_order(1000.0, demand_sequences[1], 1.0, 0)[1] <= 0
+    println(job_number)
+end
+    #println(demand_sequences[1])
+
+end
+
+throw=throw
 
 
 function train_and_test(newsvendor_value_and_order, ambiguity_radii, compute_weights, weight_parameters)
@@ -73,8 +88,8 @@ function train_and_test(newsvendor_value_and_order, ambiguity_radii, compute_wei
     precomputed_weights = hcat([[zeros(t-1) for t in history_length-training_length+1:history_length] for weight_parameter_index in eachindex(weight_parameters)])
 
     println("Precomputing weights...")
-    #Threads.@threads for weight_parameter_index in ProgressBar(eachindex(weight_parameters))
-    for weight_parameter_index in ProgressBar(eachindex(weight_parameters))
+    Threads.@threads for weight_parameter_index in ProgressBar(eachindex(weight_parameters))
+    #for weight_parameter_index in ProgressBar(eachindex(weight_parameters))
         for t in history_length-training_length+1:history_length
             precomputed_weights[weight_parameter_index][t-(history_length-training_length)] = 
                 compute_weights(t-1, weight_parameters[weight_parameter_index])
@@ -89,8 +104,8 @@ function train_and_test(newsvendor_value_and_order, ambiguity_radii, compute_wei
 
         training_costs = [zeros((length(ambiguity_radii),length(weight_parameters))) for _ in history_length-training_length+1:history_length]
 
-        #Threads.@threads for ambiguity_radius_index in eachindex(ambiguity_radii)
-        for ambiguity_radius_index in eachindex(ambiguity_radii)
+        Threads.@threads for ambiguity_radius_index in eachindex(ambiguity_radii)
+        #for ambiguity_radius_index in eachindex(ambiguity_radii)
             for weight_parameter_index in eachindex(weight_parameters)   
                 for t in history_length-training_length+1:history_length                
                     local weights = 
@@ -112,7 +127,8 @@ function train_and_test(newsvendor_value_and_order, ambiguity_radii, compute_wei
         value, order, doubling_count = newsvendor_value_and_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights, 0)
 
         #costs[repetition] = newsvendor_loss(order, demand_sequences[repetition][history_length+1])
-        costs[repetition] = expected_newsvendor_loss(order, demand_probability[repetition][history_length+1])
+        costs[repetition] = 
+            mean([expected_newsvendor_loss(order, final_demand_probabilities[repetition][i]) for i in eachindex(final_demand_probabilities[repetition])])
         realised_cost = costs[repetition]
 
         tested_ambiguity_radius = ambiguity_radii[ambiguity_radius_index]
@@ -140,27 +156,27 @@ LogRange(start, stop, len) = exp.(LinRange(log(start), log(stop), len))
 
 println("SO...")
 
-train_and_test(SO_newsvendor_value_and_order, 0, windowing_weights, [history_length])
-train_and_test(SO_newsvendor_value_and_order, 0, windowing_weights, s)
+#train_and_test(SO_newsvendor_value_and_order, 0, windowing_weights, [history_length])
+#train_and_test(SO_newsvendor_value_and_order, 0, windowing_weights, s)
 train_and_test(SO_newsvendor_value_and_order, 0, smoothing_weights, α)
 
 println("W1...")
 
-train_and_test(W1_newsvendor_value_and_order, ε, windowing_weights, [history_length])
-train_and_test(W1_newsvendor_value_and_order, ε, windowing_weights, s)
-train_and_test(W1_newsvendor_value_and_order, ε, smoothing_weights, α)
-train_and_test(W1_newsvendor_value_and_order, ε, W1_concentration_weights, ϱ╱ε)
+#train_and_test(W1_newsvendor_value_and_order, ε, windowing_weights, [history_length])
+#train_and_test(W1_newsvendor_value_and_order, ε, windowing_weights, s)
+#train_and_test(W1_newsvendor_value_and_order, ε, smoothing_weights, α)
+#train_and_test(W1_newsvendor_value_and_order, ε, W1_concentration_weights, ϱ╱ε)
 
 println("W2...")
 
-train_and_test(W2_newsvendor_value_and_order, ε, windowing_weights, [history_length])
-train_and_test(W2_newsvendor_value_and_order, ε, windowing_weights, s)
-train_and_test(W2_newsvendor_value_and_order, ε, smoothing_weights, α)
-train_and_test(W2_newsvendor_value_and_order, ε, W2_concentration_weights, ϱ╱ε)
+#train_and_test(W2_newsvendor_value_and_order, ε, windowing_weights, [history_length])
+#train_and_test(W2_newsvendor_value_and_order, ε, windowing_weights, s)
+#train_and_test(W2_newsvendor_value_and_order, ε, smoothing_weights, α)
+#train_and_test(W2_newsvendor_value_and_order, ε, W2_concentration_weights, ϱ╱ε)
 
 ε = [LinRange(1e2,1e3,10); LinRange(2e3,1e4,9); LinRange(2e4,1e5,9); LinRange(2e5,1e6,9); LinRange(2e6,1e7,9)]
 ϱ╱ε = [[0]; LogRange(1e-4,1e0,40)]
 
-train_and_test(REMK_intersection_W2_newsvendor_value_and_order, ε, REMK_intersection_weights, ϱ╱ε)
+#train_and_test(REMK_intersection_W2_newsvendor_value_and_order, ε, REMK_intersection_weights, ϱ╱ε)
 
 close(results_file)

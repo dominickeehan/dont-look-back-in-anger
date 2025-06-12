@@ -1,18 +1,15 @@
 using Random, Statistics, StatsBase, Distributions
 using ProgressBars, IterTools
 
+include("weights.jl")
+include("newsvendor-optimizations.jl")
+
 repetitions = 10
-history_length = 30
+history_length = 100
 
 
 initial_demand_probability = 0.1 # 0.1
 
-
-include("weights.jl")
-
-include("newsvendor-optimizations.jl")
-
-# newsvendor_loss(order, demand) = Cu*max(demand-order,0) + Co*max(order-demand,0)
 
 function expected_newsvendor_loss(order, demand_probability)
 
@@ -31,21 +28,39 @@ Random.seed!(42)
 u = 0.01
 shift_distribution = Uniform(-u,u)
 
-demand_sequences = [zeros(history_length+1) for _ in 1:repetitions]
-demand_probability = [zeros(history_length+1) for _ in 1:repetitions]
+demand_sequences = [zeros(history_length) for _ in 1:repetitions]
+final_demand_probabilities = [zeros(100) for _ in 1:repetitions]
 
 for repetition in 1:repetitions
-    demand_probability[repetition][1] = initial_demand_probability
+    local demand_probability = initial_demand_probability
 
-    for t in 1:history_length+1
-        demand_sequences[repetition][t] = rand(Binomial(D, demand_probability[repetition][t]))
+    for t in 1:history_length
+        demand_sequences[repetition][t] = rand(Binomial(D, demand_probability))
         
-        if t < history_length+1
-            demand_probability[repetition][t+1] = min(max(demand_probability[repetition][t] + rand(shift_distribution), 0.0), 1.0)
+        if t < history_length
+            demand_probability = min(max(demand_probability + rand(shift_distribution), 0), 1)
+
+        else
+            for i in eachindex(final_demand_probabilities[repetition])
+                final_demand_probabilities[repetition][i] = min(max(demand_probability + rand(shift_distribution), 0), 1)
+        
+            end
         end
     end
 end
 
+#W2_newsvendor_value_and_order(1, demand_sequences[1], smoothing_weights(history_length, 0.99), 0)
+#W2_newsvendor_value_and_order(1, demand_sequences[1], smoothing_weights(history_length, 0.01), 0)
+
+display(W2_newsvendor_value_and_order(1e5, demand_sequences[1], smoothing_weights(history_length, 0.9), 0))
+#display(W1_newsvendor_value_and_order(100000, demand_sequences[1], smoothing_weights(history_length, 0.99), 0))
+#display(SO_newsvendor_value_and_order(0, demand_sequences[1], smoothing_weights(history_length, 0.5), 0))
+#display(quantile(demand_sequences[1], Weights(smoothing_weights(history_length, 0.5)), Cu/(Co+Cu)))
+
+#W2_newsvendor_value_and_order(10000, demand_sequences[1], smoothing_weights(history_length, 0.01), 0)
+#display(REMK_intersection_W2_newsvendor_value_and_order(1e10, demand_sequences[1], 100, 0))
+
+throw = throw
 
 function parameter_fit(newsvendor_value_and_order, ambiguity_radii, compute_weights, weight_parameters)
 
@@ -67,7 +82,9 @@ function parameter_fit(newsvendor_value_and_order, ambiguity_radii, compute_weig
             local demand_samples = demand_sequences[repetition][1:history_length]
             local _, order, doubling_count[repetition][ambiguity_radius_index, weight_parameter_index] = 
                 newsvendor_value_and_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights, 0)
-            costs[repetition][ambiguity_radius_index, weight_parameter_index] = expected_newsvendor_loss(order, demand_probability[repetition][history_length+1])
+
+            costs[repetition][ambiguity_radius_index, weight_parameter_index] = 
+                mean([expected_newsvendor_loss(order, final_demand_probabilities[repetition][i]) for i in eachindex(final_demand_probabilities[repetition])])
 
         end
     end
@@ -84,19 +101,19 @@ function parameter_fit(newsvendor_value_and_order, ambiguity_radii, compute_weig
 
 end
 
-ε = [[0]; LinRange(1e0,1e1,10); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9); LinRange(2e3,1e4,9); LinRange(2e4,1e5,9)]
+ε = [0; LinRange(1e0,1e1,10); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9); LinRange(2e3,1e4,9); LinRange(2e4,1e5,9)]
 s = [round.(Int, LinRange(1,10,10)); round.(Int, LinRange(12,30,10)); round.(Int, LinRange(33,60,10)); round.(Int, LinRange(64,100,10))]
 
 LogRange(start, stop, len) = exp.(LinRange(log(start), log(stop), len))
 
-α = [[0]; LogRange(1e-4,1e0,40)]
-ϱ╱ε = [[0]; LogRange(1e-4,1e0,40)]
+α = [0; LogRange(1e-4,1e0,40)]
+ϱ╱ε = [0; LogRange(1e-4,1e0,40)]
 
-#parameter_fit(SO_newsvendor_value_and_order, ε, smoothing_weights, α)
+#parameter_fit(SO_newsvendor_value_and_order, [0], smoothing_weights, α)
 
-parameter_fit(W1_newsvendor_value_and_order, ε, windowing_weights, [history_length])
+#parameter_fit(W1_newsvendor_value_and_order, ε, windowing_weights, [history_length])
 #parameter_fit(W1_newsvendor_value_and_order, ε, windowing_weights, s)
-parameter_fit(W1_newsvendor_value_and_order, ε, smoothing_weights, α)
+#parameter_fit(W1_newsvendor_value_and_order, ε, smoothing_weights, α)
 #parameter_fit(W1_newsvendor_value_and_order, ε, W1_concentration_weights, ϱ╱ε)
 
 #parameter_fit(W1_newsvendor_value_and_order, 0, windowing_weights, s)
@@ -106,9 +123,12 @@ parameter_fit(W1_newsvendor_value_and_order, ε, smoothing_weights, α)
 #parameter_fit(W2_newsvendor_value_and_order, ε, windowing_weights, [history_length])
 #parameter_fit(W2_newsvendor_value_and_order, ε, windowing_weights, s)
 parameter_fit(W2_newsvendor_value_and_order, ε, smoothing_weights, α)
-#parameter_fit(W2_newsvendor_value_and_order, ε, W2_concentration_weights, ϱ_divided_by_ε)
+#parameter_fit(W2_newsvendor_value_and_order, ε, W2_concentration_weights, ϱ╱ε)
 
-ε = [LinRange(1e2,1e3,10); LinRange(2e3,1e4,9); LinRange(2e4,1e5,9); LinRange(2e5,1e6,9); LinRange(2e6,1e7,9)]
-ϱ╱ε = [[0]; LogRange(1e-4,1e0,40)]
 
-parameter_fit(REMK_intersection_W2_newsvendor_value_and_order, ε, REMK_intersection_weights, ϱ╱ε)
+
+#ε = [LinRange(1e1,1e2,10); LinRange(2e2,1e3,9); LinRange(2e3,1e4,9); LinRange(2e4,1e5,9); LinRange(2e5,1e6,9)]
+#ϱ╱ε = [0; LogRange(1e-4,1e3,40)]
+
+#parameter_fit(REMK_intersection_W2_newsvendor_value_and_order, ε, REMK_intersection_weights, ϱ╱ε)
+
