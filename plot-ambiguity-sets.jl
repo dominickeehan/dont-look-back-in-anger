@@ -64,13 +64,13 @@ end
 support = [-30,30]
 number_of_points = 10
 
-number_of_distributions = 100000
+number_of_distributions = 40000
 
 plt = plot(xlims=(support[1],support[end]), ylims=(-2.5,2.5), xlabel="mean", ylabel="skewness")
 
-for ε in [20]
+for ε in [15]
 
-    ϱ = 1
+    ϱ = ε/10
 
     P = [Vector(LinRange(-10,10,10)), W2_concentration_weights(10, ϱ/ε)]
 

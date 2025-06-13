@@ -10,7 +10,7 @@ Co = 1 # Per-unit overage cost.
 
 
 env = Gurobi.Env()
-GRBsetintparam(env, "OutputFlag", 1)
+GRBsetintparam(env, "OutputFlag", 0)
 GRBsetintparam(env, "BarHomogeneous", 1) # Useful for dealing with very unbalanced weights/intersections giving nearly infeasible problems.
 #GRBsetintparam(env, "NumericFocus", 3) # Useful for dealing with very unbalanced weights.
 
@@ -53,12 +53,9 @@ function SO_newsvendor_value_and_order(_, demands, weights, doubling_count)
         return objective_value(Problem), value(order), doubling_count 
 
     else
-        #order = quantile(demands, Weights(weights), Cu/(Co+Cu))
-    
-        #expected_underage = sum(weights[t]*max(demands[t] - order,0) for t in eachindex(weights))
-        #expected_overage = sum(weights[t]*max(order - demands[t],0) for t in eachindex(weights))
+        order = quantile(demands, Weights(weights), Cu/(Co+Cu))
 
-        #return Cu*expected_underage + Co*expected_overage, order, doubling_count+1
+        return sum(weights[t] * (Cu*max(demands[t]-order,0) + Co*max(order-demands[t],0)) for t in eachindex(weights)), order, doubling_count+1
     
     end
 end
@@ -106,7 +103,7 @@ function W1_newsvendor_value_and_order(ε, demands, weights, doubling_count)
     optimize!(Problem)
 
     # Try to return a suboptimal solution from an early termination as the problem is always feasible.
-    # (This may be neccesary due to near-infeasiblity caused by very unbalanced weights.)
+    # (This may be neccesary due to near infeasiblity caused by very unbalanced weights.)
     try
         return objective_value(Problem), value(order), doubling_count
     
@@ -162,7 +159,7 @@ function W2_newsvendor_value_and_order(ε, demands, weights, doubling_count)
     optimize!(Problem)
 
     # Try to return a suboptimal solution from an early termination as the problem is always feasible.
-    # (This may be neccesary due to near-infeasiblity caused by very unbalanced weights.)
+    # (This may be neccesary due to near infeasiblity caused by very unbalanced weights.)
     try
         return objective_value(Problem), value(order), doubling_count
     
@@ -232,3 +229,4 @@ function REMK_intersection_W2_newsvendor_value_and_order(ε, demands, weights, d
     
     end
 end
+

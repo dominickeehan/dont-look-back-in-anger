@@ -31,7 +31,7 @@ function extract_results(skipto, u_index)
         if objective_values[job_number+1] < 0
                 #println(job_index)
                 #objective_values[job_number+1] = 10000
-                costs[job_number+1] = 10000
+                #costs[job_number+1] = 10000
         end
 
     end
@@ -39,7 +39,7 @@ function extract_results(skipto, u_index)
     return costs, parameter_1s, parameter_2s, objective_values
 end
 
-u_index = 9
+u_index = 1
 
 naive_SO_results = extract_results(1, u_index)
 windowing_SO_results = extract_results(2, u_index)
@@ -65,11 +65,11 @@ function display_extracted_results(name, extracted_results)
     μ = mean(skipmissing(extracted_results[1]))
     σ = sem(skipmissing(extracted_results[1]))
 
-    #println(name*": $μ ± $σ")
+    println(name*": $μ ± $σ")
 
-    #display(sort(collect(pairs(countmap(eachrow(hcat(extracted_results[2], extracted_results[3]))))), by = x->x.second, rev = true))
+    display(sort(collect(pairs(countmap(eachrow(hcat(extracted_results[2], extracted_results[3]))))), by = x->x.second, rev = true))
 
-    #display(count(ismissing, extracted_results[1]))
+    display(count(ismissing, extracted_results[1]))
 
 end
 

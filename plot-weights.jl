@@ -23,13 +23,13 @@ display(plt)
 
 plt = plot()
 for i in [[0]; GeomRange(1e-4,1e0,40)]
-        plot!(1:T, smoothing_weights(T, i), label = nothing, color = :black)
+#        plot!(1:T, smoothing_weights(T, i), label = nothing, color = :black)
 end
 display(plt)
 
 plt = plot()
 for i in [round.(Int, LinRange(1,10,10)); round.(Int, LinRange(12,30,10)); round.(Int, LinRange(33,60,10)); round.(Int, LinRange(64,100,10));]
-        plot!(1:T, windowing_weights(T, i), label = nothing, color = :black)
+#        plot!(1:T, windowing_weights(T, i), label = nothing, color = :black)
 end
 display(plt)
 
