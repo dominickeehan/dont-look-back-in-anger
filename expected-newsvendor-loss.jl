@@ -4,7 +4,7 @@ D = 10000
 demand_probability = 0.001
 Cu = 5.0
 Co = 2.0
-order = 100.1
+order = 100.2
 
 function expected_newsvendor_loss_analytical()
 

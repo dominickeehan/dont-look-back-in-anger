@@ -16,7 +16,7 @@ GRBsetintparam(env, "BarHomogeneous", 1) # Useful for dealing with very unbalanc
 
 optimizer = optimizer_with_attributes(() -> Gurobi.Optimizer(env))
 
-function SO_newsvendor_value_and_order(_, demands, weights, doubling_count) 
+function SO_newsvendor_objective_value_and_order(_, demands, weights, doubling_count) 
 
     nonzero_weight_indices = weights .> weight_tolerance
     weights = weights[nonzero_weight_indices]
@@ -49,10 +49,10 @@ function SO_newsvendor_value_and_order(_, demands, weights, doubling_count)
 
     optimize!(Problem)
 
-    if is_solved_and_feasible(Problem)
+    try
         return objective_value(Problem), value(order), doubling_count 
 
-    else
+    catch
         order = quantile(demands, Weights(weights), Cu/(Co+Cu))
 
         return sum(weights[t] * (Cu*max(demands[t]-order,0) + Co*max(order-demands[t],0)) for t in eachindex(weights)), order, doubling_count+1
@@ -61,9 +61,9 @@ function SO_newsvendor_value_and_order(_, demands, weights, doubling_count)
 end
 
 
-function W1_newsvendor_value_and_order(ε, demands, weights, doubling_count) 
+function W1_newsvendor_objective_value_and_order(ε, demands, weights, doubling_count) 
 
-    if ε == 0; return SO_newsvendor_value_and_order(ε, demands, weights, doubling_count); end
+    if ε == 0; return SO_newsvendor_objective_value_and_order(ε, demands, weights, doubling_count); end
 
     nonzero_weight_indices = weights .> weight_tolerance
     weights = weights[nonzero_weight_indices]
@@ -108,14 +108,14 @@ function W1_newsvendor_value_and_order(ε, demands, weights, doubling_count)
         return objective_value(Problem), value(order), doubling_count
     
     catch
-        return W1_newsvendor_value_and_order(2*ε, demands, weights, doubling_count+1)
+        return W1_newsvendor_objective_value_and_order(2*ε, demands, weights, doubling_count+1)
     
     end
 end
 
-function W2_newsvendor_value_and_order(ε, demands, weights, doubling_count) 
+function W2_newsvendor_objective_value_and_order(ε, demands, weights, doubling_count) 
 
-    if ε == 0; return SO_newsvendor_value_and_order(ε, demands, weights, doubling_count); end
+    if ε == 0; return SO_newsvendor_objective_value_and_order(ε, demands, weights, doubling_count); end
 
     nonzero_weight_indices = weights .> weight_tolerance
     weights = weights[nonzero_weight_indices]
@@ -164,13 +164,13 @@ function W2_newsvendor_value_and_order(ε, demands, weights, doubling_count)
         return objective_value(Problem), value(order), doubling_count
     
     catch
-        return W2_newsvendor_value_and_order(2*ε, demands, weights, doubling_count+1)
+        return W2_newsvendor_objective_value_and_order(2*ε, demands, weights, doubling_count+1)
     
     end
 end
 
 
-function REMK_intersection_W2_newsvendor_value_and_order(ε, demands, weights, doubling_count)
+function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, weights, doubling_count)
 
     K = length(demands)
 
@@ -225,7 +225,7 @@ function REMK_intersection_W2_newsvendor_value_and_order(ε, demands, weights, d
         return objective_value(Problem), value(order), doubling_count
     
     else
-        return REMK_intersection_W2_newsvendor_value_and_order(2*ε, demands, weights, doubling_count+1)
+        return REMK_intersection_W2_newsvendor_objective_value_and_order(2*ε, demands, weights, doubling_count+1)
     
     end
 end

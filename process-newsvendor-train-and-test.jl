@@ -6,7 +6,7 @@ using Plots, Measures
 repetitions = 1
 number_of_jobs = 1000
 
-U = [1e-4, 2.5e-4, 5e-4, 7.5e-4, 1e-3, 2.5e-3, 5e-3, 7.5e-3, 1e-2, 2.5e-2]
+U = [1e-4, 2.5e-4, 5e-4, 7.5e-4, 1e-3, 2.5e-3, 5e-3, 7.5e-3, 1e-2]
 
 using ProgressBars
 
@@ -28,18 +28,18 @@ function extract_results(skipto, u_index)
                 [missing, missing, missing, missing]
         end
 
-        if objective_values[job_number+1] < 0
-                #println(job_index)
+        #if objective_values[job_number+1] < 0
+        #        println(job_index)
                 #objective_values[job_number+1] = 10000
                 #costs[job_number+1] = 10000
-        end
+        #end
 
     end
 
     return costs, parameter_1s, parameter_2s, objective_values
 end
 
-u_index = 1
+u_index = 9
 
 naive_SO_results = extract_results(1, u_index)
 windowing_SO_results = extract_results(2, u_index)
@@ -51,15 +51,7 @@ smoothing_W2_results = extract_results(10, u_index)
 concentration_W2_results = extract_results(11, u_index)
 
 intersection_W2_results = extract_results(12, u_index)
-argmax(intersection_W2_results[1])
-max(intersection_W2_results[1]...)
-min(intersection_W2_results[1]...)
-max(intersection_W2_results[4]...)
-intersection_W2_results[4]
 
-min(skipmissing(intersection_W2_results[4])...)
-argmin(skipmissing(intersection_W2_results[4]))
-#println(intersection_W2_results[4])
 
 function display_extracted_results(name, extracted_results)
     μ = mean(skipmissing(extracted_results[1]))
@@ -73,7 +65,7 @@ function display_extracted_results(name, extracted_results)
 
 end
 
-#display_extracted_results("Naive W1", naive_SO_results)
+display_extracted_results("Naive SO", naive_SO_results)
 #display_extracted_results("Windowing W1", windowing_SO_results)
 #display_extracted_results("Smoothing W1", smoothing_SO_results)
 
@@ -94,10 +86,10 @@ function extract_line_to_plot(skipto)
 
         error_indices = Int[]
 
-        for i in [1,2,3,8,9,10,11,12]
+        #for i in [1,2,3,8,9,10,11,12]
                 #_, _, _, values = extract_results(i, u_index)
                 #push!(error_indices, findall(<=(0.0), values)...)
-        end
+        #end
         
         costs, _, _, _ = extract_results(skipto, u_index)
 
@@ -189,7 +181,7 @@ plot!(U, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fill
         linestyle = :dash,
         label = nothing)
 
-ylims!((0.75, 1.5))
+ylims!((0.85, 1.5))
 xlims!((0.0001, 0.01))
 
 #plot!(legend_columns = 2)
@@ -208,7 +200,7 @@ plot!(legend = :topleft)
 
 display(plt)
 
-
+savefig(plt, "figures/to-discuss-1.pdf")
 
 
 
@@ -249,19 +241,36 @@ default(framestyle = :box,
         tickfont = secondary_font,
         legendfont = legend_font)
 
-plt=plot(xlims=(-100,300), ylabel="Frequency (normalized)", xlabel="Out-of-sample disappointment (%)")
+plt=plot(xlims=(-100,1000), ylabel="Frequency (normalized)", xlabel="Out-of-sample disappointment (%)")
 u_index = 9
+bins = 150
 #stephist!(extract_histogram_to_plot(9, u_index), color=palette(:tab10)[2], normalize=:pdf, label="Windowing",)
 #stephist!(extract_histogram_to_plot(10, u_index), color=palette(:tab10)[3], normalize=:pdf, fill=true, fillalpha=0.1, label="\$W_2\$ Smoothing")
-stephist!(extract_histogram_to_plot(11, u_index), color=palette(:tab10)[4], linestyle=:dash, normalize=:pdf, fill=true, fillalpha=0.1, label="\$W_2\$ Concentration")
+
+#stephist!(skipmissing(extract_histogram_to_plot(3, u_index)), bins=bins, color=palette(:tab10)[3], linestyle=:solid, normalize=:pdf, fill=true, fillalpha=0.1, label="SO Smoothing")
 #vline!([mean(extract_histogram_to_plot(9, u_index))], color=palette(:tab10)[2], label=nothing)
 #vline!([mean(extract_histogram_to_plot(10, u_index))], color=palette(:tab10)[3], label=nothing)
-vspan!([-sem(extract_histogram_to_plot(11, u_index))+mean(extract_histogram_to_plot(11, u_index)),sem(extract_histogram_to_plot(11, u_index))+mean(extract_histogram_to_plot(11, u_index))], color=palette(:tab10)[4], alpha=0.1, label=nothing)
-vline!([mean(extract_histogram_to_plot(11, u_index))], color=palette(:tab10)[4], linestyle=:dash, label=nothing)
-stephist!(extract_histogram_to_plot(12, u_index), color=palette(:tab10)[5], linestyle=:dash, normalize=:pdf, fill=true, fillalpha=0.1, label="\$W_2\$ Intersections")
-vspan!([-sem(extract_histogram_to_plot(12, u_index))+mean(extract_histogram_to_plot(12, u_index)),sem(extract_histogram_to_plot(12, u_index))+mean(extract_histogram_to_plot(12, u_index))], color=palette(:tab10)[5], alpha=0.1, label=nothing)
+#vspan!([-sem(skipmissing(extract_histogram_to_plot(3, u_index)))+mean(skipmissing(extract_histogram_to_plot(3, u_index))),sem(skipmissing(extract_histogram_to_plot(3, u_index)))+mean(skipmissing(extract_histogram_to_plot(3, u_index)))], color=palette(:tab10)[3], alpha=0.1, label=nothing)
+#vline!([mean(skipmissing(extract_histogram_to_plot(3, u_index)))], color=palette(:tab10)[3], linestyle=:solid, label=nothing)
+
+
+stephist!(skipmissing(extract_histogram_to_plot(11, u_index)), bins=bins, color=palette(:tab10)[4], linestyle=:dash, normalize=:pdf, fill=true, fillalpha=0.1, label="\$W_2\$ Concentration")
+#vline!([mean(extract_histogram_to_plot(9, u_index))], color=palette(:tab10)[2], label=nothing)
+#vline!([mean(extract_histogram_to_plot(10, u_index))], color=palette(:tab10)[3], label=nothing)
+vspan!([-sem(skipmissing(extract_histogram_to_plot(11, u_index)))+mean(skipmissing(extract_histogram_to_plot(11, u_index))),sem(skipmissing(extract_histogram_to_plot(11, u_index)))+mean(skipmissing(extract_histogram_to_plot(11, u_index)))], color=palette(:tab10)[4], alpha=0.1, label=nothing)
+vline!([mean(skipmissing(extract_histogram_to_plot(11, u_index)))], color=palette(:tab10)[4], linestyle=:dash, label=nothing)
+stephist!(skipmissing(extract_histogram_to_plot(12, u_index)), bins=bins, color=palette(:tab10)[5], linestyle=:dash, normalize=:pdf, fill=true, fillalpha=0.1, label="\$W_2\$ Intersections")
+vspan!([-sem(skipmissing(extract_histogram_to_plot(12, u_index)))+mean(skipmissing(extract_histogram_to_plot(12, u_index))),sem(skipmissing(extract_histogram_to_plot(12, u_index)))+mean(skipmissing(extract_histogram_to_plot(12, u_index)))], color=palette(:tab10)[5], alpha=0.1, label=nothing)
 vline!([mean(skipmissing(extract_histogram_to_plot(12, u_index)))], color=palette(:tab10)[5], linestyle=:dash, label=nothing)
 display(plt)
 
 #x = extract_histogram_to_plot(12, u_index)
 #min(x...)
+
+ints = identity.(skipmissing(extract_histogram_to_plot(11, u_index)))
+display(mean(ints[ints .>= 0]))
+
+ints = identity.(skipmissing(extract_histogram_to_plot(12, u_index)))
+display(mean(ints[ints .>= 0]))
+
+savefig(plt, "figures/to-discuss-3.pdf")
