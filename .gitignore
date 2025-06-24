@@ -11,6 +11,9 @@
 
 results/
 
+data/
+newsvendor-data/
+
 *.csv
 
 .idea/*
