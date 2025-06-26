@@ -7,11 +7,7 @@
 */*.grbr
 *.grbr
 
-/results/*
-
 results/
-
-data/
 newsvendor-data/
 
 *.csv

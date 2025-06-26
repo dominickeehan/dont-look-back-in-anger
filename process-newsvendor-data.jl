@@ -1,104 +1,76 @@
-# "C:\Program Files\7-Zip\7z.exe" e "C:\Users\dkee331\Documents\repositories\dont-look-back-in-anger\results\dominic(2).zip" -r -o"C:\Users\dkee331\Documents\repositories\dont-look-back-in-anger\results" *.csv
+# "C:\Program Files\7-Zip\7z.exe" e "C:\Users\dkee331\Documents\repositories\dont-look-back-in-anger\newsvendor-data\dominic(10).zip" -r -o"C:\Users\dkee331\Documents\repositories\dont-look-back-in-anger\newsvendor-data" *.csv
 
 using CSV, Statistics, StatsBase 
+using ProgressBars
 using Plots, Measures
 
-repetitions = 1
-number_of_jobs = 1000
+number_of_jobs_per_u = 100
 
-U = [1e-4, 2.5e-4, 5e-4, 7.5e-4, 1e-3, 2.5e-3, 5e-3, 7.5e-3, 1e-2]
+U = [1e-4, 2.5e-4, 5e-4, 7.5e-4, 1e-3, 2.5e-3, 5e-3, 7.5e-3, 1e-2]#, 2.5e-2, 5e-2]
 
-using ProgressBars
+history_length = 100
+ε = [0; LinRange(1e0,1e1,10); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9); LinRange(2e3,1e4,9); LinRange(2e4,1e5,9)]
+s = [round.(Int, LinRange(1,10,10)); round.(Int, LinRange(12,30,10)); round.(Int, LinRange(33,60,10)); round.(Int, LinRange(64,100,10))]
+LogRange(start, stop, len) = exp.(LinRange(log(start), log(stop), len))
+α = [0; LogRange(1e-4,1e0,39)]
+ϱ╱ε = [0; LogRange(1e-4,1e0,39)]
 
-function extract_results(skipto, u_index)
-    costs = Vector{Union{Missing, Float64}}(undef, number_of_jobs)
-    parameter_1s = Vector{Union{Missing, Float64}}(undef, number_of_jobs)
-    parameter_2s = Vector{Union{Missing, Float64}}(undef, number_of_jobs)
-    objective_values = Vector{Union{Missing, Float64}}(undef, number_of_jobs)
+ambiguity_radii = [[0], [0], [0], ε, ε, ε, ε, ε, ε, ε, ε, ε[2:end]]
+weight_parameters = [[history_length], s, α, [history_length], s, α, ϱ╱ε, [history_length], s, α, ϱ╱ε, ϱ╱ε,]
 
-    Threads.@threads for job_number in 0:number_of_jobs-1
+function extract_ex_post_expected_cost(method_index, u_index)
 
-        job_index = 999*(u_index-1)+job_number
-        results_file = CSV.File("results/$job_index.csv", header = false, skipto = skipto*repetitions)
-        try
-            costs[job_number+1], parameter_1s[job_number+1], parameter_2s[job_number+1], objective_values[job_number+1] = 
-                [[row.Column6, row.Column2, row.Column3, row.Column5] for row in Iterators.take(results_file, repetitions)][1]
-        catch
-            costs[job_number+1], parameter_1s[job_number+1], parameter_2s[job_number+1], objective_values[job_number+1] = 
-                [missing, missing, missing, missing]
+        length_ambiguity_radii = length(ambiguity_radii[method_index])
+        length_weight_parameters = length(weight_parameters[method_index])
+
+        costs = [Matrix{Union{Missing, Float64}}(undef,length_ambiguity_radii,length_weight_parameters) for _ in 1:number_of_jobs_per_u]
+        
+        skipto = sum(length(ambiguity_radii[i])*length(weight_parameters[i]) for i in 1:method_index-1; init=0)+1+1 # (Second +1 to ignore header)
+        take = length_ambiguity_radii*length_weight_parameters       
+
+        #display(skipto)
+
+        Threads.@threads for job in 0:number_of_jobs_per_u-1
+        #for job in ProgressBar(0:number_of_jobs_per_u-1)
+                local job_index = 999*(u_index-1)+job
+                local results_file = CSV.File("newsvendor-data/$job_index.csv", header=false, skipto=skipto)
+
+                local data = [row.Column9 for row in Iterators.take(results_file, take)]
+
+                try
+                        data = reshape(data, length_weight_parameters, length_ambiguity_radii)'
+                
+                catch
+                        data = Matrix{Missing}(missing,length_ambiguity_radii,length_weight_parameters)
+
+                end
+
+                for ambiguity_radius_index in eachindex(ambiguity_radii[method_index])
+                        for weight_parameter_index in eachindex(weight_parameters[method_index])
+                                costs[job+1][ambiguity_radius_index,weight_parameter_index] = data[ambiguity_radius_index,weight_parameter_index]
+                        end
+                end
         end
 
-        #if objective_values[job_number+1] < 0
-        #        println(job_index)
-                #objective_values[job_number+1] = 10000
-                #costs[job_number+1] = 10000
-        #end
+        ambiguity_radius_index, weight_parameter_index = Tuple(argmin(mean(skipmissing(costs))))
+        minimal_costs = [costs[i][ambiguity_radius_index, weight_parameter_index] for i in 1:number_of_jobs_per_u]
 
-    end
-
-    return costs, parameter_1s, parameter_2s, objective_values
+        return mean(skipmissing(minimal_costs)), sem(skipmissing(minimal_costs))
 end
 
-u_index = 9
+display(extract_ex_post_expected_cost(11, 9))
 
-naive_SO_results = extract_results(1, u_index)
-windowing_SO_results = extract_results(2, u_index)
-smoothing_SO_results = extract_results(3, u_index)
+throw = throw
 
-naive_W2_results = extract_results(8, u_index)
-windowing_W2_results = extract_results(9, u_index)
-smoothing_W2_results = extract_results(10, u_index)
-concentration_W2_results = extract_results(11, u_index)
+function extract_line_to_plot(method_index)
 
-intersection_W2_results = extract_results(12, u_index)
+        expected_costs = zeros(length(U))
+        sems = zeros(length(U))
 
+        for u_index in ProgressBar(eachindex(U))
+                expected_costs[u_index], sems[u_index] = extract_ex_post_expected_cost(method_index, u_index)
 
-function display_extracted_results(name, extracted_results)
-    μ = mean(skipmissing(extracted_results[1]))
-    σ = sem(skipmissing(extracted_results[1]))
-
-    println(name*": $μ ± $σ")
-
-    display(sort(collect(pairs(countmap(eachrow(hcat(extracted_results[2], extracted_results[3]))))), by = x->x.second, rev = true))
-
-    display(count(ismissing, extracted_results[1]))
-
-end
-
-display_extracted_results("Naive SO", naive_SO_results)
-#display_extracted_results("Windowing W1", windowing_SO_results)
-#display_extracted_results("Smoothing W1", smoothing_SO_results)
-
-#display_extracted_results("Naive W2", naive_W2_results)
-#display_extracted_results("Windowing W2", windowing_W2_results)
-#display_extracted_results("Smoothing W2", smoothing_W2_results)
-display_extracted_results("Concentration W2", concentration_W2_results)
-
-display_extracted_results("Intersection W2", intersection_W2_results)
-
-
-function extract_line_to_plot(skipto)
-
-    expected_costs = zeros(length(U))
-    sems = zeros(length(U))
-
-    for u_index in eachindex(U)
-
-        error_indices = Int[]
-
-        #for i in [1,2,3,8,9,10,11,12]
-                #_, _, _, values = extract_results(i, u_index)
-                #push!(error_indices, findall(<=(0.0), values)...)
-        #end
-        
-        costs, _, _, _ = extract_results(skipto, u_index)
-
-        costs[error_indices] .= missing
-
-        expected_costs[u_index] = mean(skipmissing(costs))
-        sems[u_index] = sem(skipmissing(costs))
-
-    end
+        end
 
     return expected_costs, sems
 
@@ -131,7 +103,7 @@ default(framestyle = :box,
         legendfont = legend_font)
 
 plt = plot(xscale = :log10, #yscale = :log10,
-            xlabel = "Extent of shift, \$u\$", 
+            xlabel = "Shift, \$u\$", 
             ylabel = "Expected cost (normalized)",)
 
 fillalpha = 0.1
@@ -181,7 +153,7 @@ plot!(U, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fill
         linestyle = :dash,
         label = nothing)
 
-ylims!((0.85, 1.5))
+ylims!((0.75, 1.5))
 xlims!((0.0001, 0.01))
 
 #plot!(legend_columns = 2)
@@ -200,77 +172,4 @@ plot!(legend = :topleft)
 
 display(plt)
 
-savefig(plt, "figures/to-discuss-1.pdf")
-
-
-
-
-
-
-function extract_histogram_to_plot(skipto, u_index)
-
-        expected_costs, _, _, objective_values = extract_results(skipto, u_index)
-
-        return 100*(expected_costs - objective_values)./(objective_values)
-
-end
-
-
-default() # Reset plot defaults.
-
-gr(size = (600,400))
-
-font_family = "Computer Modern"
-primary_font = Plots.font(font_family, pointsize = 17)
-secondary_font = Plots.font(font_family, pointsize = 11)
-legend_font = Plots.font(font_family, pointsize = 13)
-
-default(framestyle = :box,
-        grid = true,
-        #gridlinewidth = 1.0,
-        gridalpha = 0.075,
-        #minorgrid = true,
-        #minorgridlinewidth = 1.0, 
-        #minorgridalpha = 0.075,
-        #minorgridlinestyle = :dash,
-        tick_direction = :in,
-        #xminorticks = 0, 
-        #yminorticks = 0,
-        fontfamily = font_family,
-        guidefont = primary_font,
-        tickfont = secondary_font,
-        legendfont = legend_font)
-
-plt=plot(xlims=(-100,1000), ylabel="Frequency (normalized)", xlabel="Out-of-sample disappointment (%)")
-u_index = 9
-bins = 150
-#stephist!(extract_histogram_to_plot(9, u_index), color=palette(:tab10)[2], normalize=:pdf, label="Windowing",)
-#stephist!(extract_histogram_to_plot(10, u_index), color=palette(:tab10)[3], normalize=:pdf, fill=true, fillalpha=0.1, label="\$W_2\$ Smoothing")
-
-#stephist!(skipmissing(extract_histogram_to_plot(3, u_index)), bins=bins, color=palette(:tab10)[3], linestyle=:solid, normalize=:pdf, fill=true, fillalpha=0.1, label="SO Smoothing")
-#vline!([mean(extract_histogram_to_plot(9, u_index))], color=palette(:tab10)[2], label=nothing)
-#vline!([mean(extract_histogram_to_plot(10, u_index))], color=palette(:tab10)[3], label=nothing)
-#vspan!([-sem(skipmissing(extract_histogram_to_plot(3, u_index)))+mean(skipmissing(extract_histogram_to_plot(3, u_index))),sem(skipmissing(extract_histogram_to_plot(3, u_index)))+mean(skipmissing(extract_histogram_to_plot(3, u_index)))], color=palette(:tab10)[3], alpha=0.1, label=nothing)
-#vline!([mean(skipmissing(extract_histogram_to_plot(3, u_index)))], color=palette(:tab10)[3], linestyle=:solid, label=nothing)
-
-
-stephist!(skipmissing(extract_histogram_to_plot(11, u_index)), bins=bins, color=palette(:tab10)[4], linestyle=:dash, normalize=:pdf, fill=true, fillalpha=0.1, label="\$W_2\$ Concentration")
-#vline!([mean(extract_histogram_to_plot(9, u_index))], color=palette(:tab10)[2], label=nothing)
-#vline!([mean(extract_histogram_to_plot(10, u_index))], color=palette(:tab10)[3], label=nothing)
-vspan!([-sem(skipmissing(extract_histogram_to_plot(11, u_index)))+mean(skipmissing(extract_histogram_to_plot(11, u_index))),sem(skipmissing(extract_histogram_to_plot(11, u_index)))+mean(skipmissing(extract_histogram_to_plot(11, u_index)))], color=palette(:tab10)[4], alpha=0.1, label=nothing)
-vline!([mean(skipmissing(extract_histogram_to_plot(11, u_index)))], color=palette(:tab10)[4], linestyle=:dash, label=nothing)
-stephist!(skipmissing(extract_histogram_to_plot(12, u_index)), bins=bins, color=palette(:tab10)[5], linestyle=:dash, normalize=:pdf, fill=true, fillalpha=0.1, label="\$W_2\$ Intersections")
-vspan!([-sem(skipmissing(extract_histogram_to_plot(12, u_index)))+mean(skipmissing(extract_histogram_to_plot(12, u_index))),sem(skipmissing(extract_histogram_to_plot(12, u_index)))+mean(skipmissing(extract_histogram_to_plot(12, u_index)))], color=palette(:tab10)[5], alpha=0.1, label=nothing)
-vline!([mean(skipmissing(extract_histogram_to_plot(12, u_index)))], color=palette(:tab10)[5], linestyle=:dash, label=nothing)
-display(plt)
-
-#x = extract_histogram_to_plot(12, u_index)
-#min(x...)
-
-ints = identity.(skipmissing(extract_histogram_to_plot(11, u_index)))
-display(mean(ints[ints .>= 0]))
-
-ints = identity.(skipmissing(extract_histogram_to_plot(12, u_index)))
-display(mean(ints[ints .>= 0]))
-
-savefig(plt, "figures/to-discuss-3.pdf")
+#savefig(plt, "figures/to-discuss-1.pdf")
