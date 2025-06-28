@@ -7,7 +7,7 @@ using Plots, Measures
 
 number_of_jobs_per_u = 1000 # (Code assumes [number of] repetitions = 1.)
 
-U = [1e-4, 2.5e-4, 5e-4, 7.5e-4, 1e-3, 2.5e-3, 5e-3, 7.5e-3, 1e-2, 2.5e-2, 5e-2]
+U = [1e-4, 2.5e-4, 5e-4, 7.5e-4, 1e-3, 2.5e-3, 5e-3, 7.5e-3, 1e-2, 2.5e-2]#, 5e-2]
 
 history_length = 100
 ε = [0; LinRange(1e0,1e1,10); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9); LinRange(2e3,1e4,9); LinRange(2e4,1e5,9)]
@@ -53,13 +53,14 @@ function extract_ex_post_expected_cost(method_index, u_index)
 end
 
 
-function extract_train_test_expected_cost(method_index, u_index)
+function extract_train_test_objective_values_and_expected_costs(method_index, u_index)
 
         length_ambiguity_radii = length(ambiguity_radii[method_index])
         length_weight_parameters = length(weight_parameters[method_index])
 
-        training_costs = [zeros((length_ambiguity_radii,length_weight_parameters)) for _ in 1:number_of_jobs_per_u]
-        test_costs = [zeros((length_ambiguity_radii,length_weight_parameters)) for _ in 1:number_of_jobs_per_u]
+        training_average_costs = [zeros((length_ambiguity_radii,length_weight_parameters)) for _ in 1:number_of_jobs_per_u]
+        objective_values = [zeros((length_ambiguity_radii,length_weight_parameters)) for _ in 1:number_of_jobs_per_u]
+        test_expected_costs = [zeros((length_ambiguity_radii,length_weight_parameters)) for _ in 1:number_of_jobs_per_u]
         is_indice_missing = falses(number_of_jobs_per_u)
 
         skipto = sum(length(ambiguity_radii[i])*length(weight_parameters[i]) for i in 1:method_index-1; init=0)+1+1 # (Second +1 to ignore header)
@@ -70,11 +71,12 @@ function extract_train_test_expected_cost(method_index, u_index)
                 local results_file = CSV.File("newsvendor-data/$job_index.csv", header=false, skipto=skipto)
 
                 try
-                        local training_cost_data, doubling_count_data, test_cost_data = eachcol(stack([[row.Column6, row.Column7, row.Column9] for row in Iterators.take(results_file, take)])')
-                        training_cost_data[doubling_count_data .> 0] .= Inf
-                        training_costs[job+1] = reshape(training_cost_data, length_ambiguity_radii, length_weight_parameters)
+                        local training_average_cost_data, doubling_count_data, objective_values_data, test_expected_cost_data = eachcol(stack([[row.Column6, row.Column7, row.Column8, row.Column9] for row in Iterators.take(results_file, take)])')
+                        training_average_cost_data[doubling_count_data .> 0] .= Inf
+                        training_average_costs[job+1] = reshape(training_average_cost_data, length_ambiguity_radii, length_weight_parameters)
+                        objective_values[job+1] = reshape(objective_values_data, length_ambiguity_radii, length_weight_parameters)
 
-                        test_costs[job+1] = reshape(test_cost_data, length_ambiguity_radii, length_weight_parameters)
+                        test_expected_costs[job+1] = reshape(test_expected_cost_data, length_ambiguity_radii, length_weight_parameters)
 
                 catch
                         is_indice_missing[job+1] = true
@@ -82,27 +84,32 @@ function extract_train_test_expected_cost(method_index, u_index)
                 end
         end
 
-        training_costs = training_costs[.!is_indice_missing]
-        test_costs = test_costs[.!is_indice_missing]
+        training_average_costs = training_average_costs[.!is_indice_missing]
+        objective_values = objective_values[.!is_indice_missing]
+        test_expected_costs = test_expected_costs[.!is_indice_missing]
 
-        realised_costs = zeros(length(test_costs))
-        for i in eachindex(test_costs)
-                ambiguity_radius_index, weight_parameter_index = Tuple(argmin(training_costs[i]))
-                realised_costs[i] = test_costs[i][ambiguity_radius_index, weight_parameter_index]
+        realised_objective_values = zeros(length(test_expected_costs))
+        realised_costs = zeros(length(test_expected_costs))
+        for i in eachindex(test_expected_costs)
+                ambiguity_radius_index, weight_parameter_index = Tuple(argmin(training_average_costs[i]))
+                realised_objective_values[i] = objective_values[i][ambiguity_radius_index, weight_parameter_index]
+                realised_costs[i] = test_expected_costs[i][ambiguity_radius_index, weight_parameter_index]
         
         end
 
         #display(is_indice_missing)
         #display(realised_costs)
 
-        return mean(realised_costs), sem(realised_costs)
+        return realised_objective_values, realised_costs
 end
 
 
 8787
 
-#display(extract_ex_post_expected_cost(12, 5))
-#display(extract_train_test_expected_cost(12, 5))
+#display(extract_ex_post_expected_cost(7, 6))
+
+#display(extract_train_test_expected_cost(11, 6))
+#display(extract_train_test_expected_cost(12, 6))
 
 #throw = throw
 
@@ -117,7 +124,10 @@ function extract_line_to_plot(method_index)
         sems = zeros(length(U))
 
         for u_index in ProgressBar(eachindex(U))
-                expected_costs[u_index], sems[u_index] = extract_ex_post_expected_cost(method_index, u_index)
+                #expected_costs[u_index], sems[u_index] = extract_ex_post_expected_cost(method_index, u_index)
+                _, costs = extract_train_test_objective_values_and_expected_costs(method_index, u_index)
+                expected_costs[u_index] = mean(costs)
+                sems[u_index] = sem(costs)
                 #expected_costs[u_index], sems[u_index] = extract_train_test_expected_cost(method_index, u_index)
 
         end
@@ -128,7 +138,7 @@ end
 
 
 
-if true # Plot some
+if false # Plot some
 
         default() # Reset plot defaults.
 
@@ -137,7 +147,7 @@ if true # Plot some
         font_family = "Computer Modern"
         primary_font = Plots.font(font_family, pointsize = 17)
         secondary_font = Plots.font(font_family, pointsize = 11)
-        legend_font = Plots.font(font_family, pointsize = 13)
+        legend_font = Plots.font(font_family, pointsize = 15)
 
         default(framestyle = :box,
                 grid = true,
@@ -157,9 +167,10 @@ if true # Plot some
 
         plt = plot(xscale = :log10, #yscale = :log10,
                 xlabel = "Distribution shift, \$u\$", 
-                #ylabel = "Train/test expected cost",
-                ylabel = "Ex-post-optimal expected cost",
-                topmargin = 10pt)
+                ylabel = "Train/test expected cost",
+                #ylabel = "Ex-post-optimal expected cost",
+                #topmargin = 10pt,
+                )
 
         fillalpha = 0.1
 
@@ -326,3 +337,112 @@ if false # Plot all
         #savefig(plt, "figures/to-discuss-1.pdf")
 
 end
+
+
+
+
+function extract_objective_value_percentage_disappointments(method_index, u_index)
+
+        objective_values, expected_costs = extract_train_test_objective_values_and_expected_costs(method_index, u_index)
+
+        display(min(objective_values...))
+
+        return 100*(expected_costs - objective_values)./(objective_values)
+
+end
+
+
+default() # Reset plot defaults.
+
+gr(size = (600,400))
+
+font_family = "Computer Modern"
+primary_font = Plots.font(font_family, pointsize = 17)
+secondary_font = Plots.font(font_family, pointsize = 11)
+legend_font = Plots.font(font_family, pointsize = 15)
+
+default(framestyle = :box,
+        grid = true,
+        #gridlinewidth = 1.0,
+        gridalpha = 0.075,
+        #minorgrid = true,
+        #minorgridlinewidth = 1.0, 
+        #minorgridalpha = 0.075,
+        #minorgridlinestyle = :dash,
+        tick_direction = :in,
+        #xminorticks = 0, 
+        #yminorticks = 0,
+        fontfamily = font_family,
+        guidefont = primary_font,
+        tickfont = secondary_font,
+        legendfont = legend_font)
+
+plt = plot(
+        xlims=(-100,300), 
+        ylabel="Frequency (normalized)",
+        xlabel="Out-of-sample disappointment (%)",
+        xticks = ([-100,0,100,200,300], ["\$-100\$","\$0\$","\$100\$","\$200\$","\$≥300\$"]))
+u_index = 6
+bins = 30
+fillalpha = 0.1
+
+
+objective_value_disappointments = extract_objective_value_percentage_disappointments(12, u_index)
+positive_objective_value_disappointments = objective_value_disappointments[objective_value_disappointments .>= 0]
+objective_value_disappointments[objective_value_disappointments .>= 300] .= 300
+
+stephist!(objective_value_disappointments,
+        bins = bins,
+        color = palette(:tab10)[7],
+        linestyle = :dash,
+        normalize = :pdf,
+        fill = true,
+        fillalpha = fillalpha, 
+        label = "Intersections")
+
+vspan!([mean(positive_objective_value_disappointments)-sem(positive_objective_value_disappointments), mean(positive_objective_value_disappointments)+sem(positive_objective_value_disappointments)], 
+        color = palette(:tab10)[7],
+        alpha = fillalpha,
+        label = nothing)
+vline!([mean(positive_objective_value_disappointments)],
+        color = palette(:tab10)[7],
+        linestyle = :dash,
+        label = nothing)
+
+objective_value_disappointments = extract_objective_value_percentage_disappointments(11, u_index)
+positive_objective_value_disappointments = objective_value_disappointments[objective_value_disappointments .>= 0]
+objective_value_disappointments[objective_value_disappointments .>= 300] .= 300
+
+stephist!(objective_value_disappointments,
+        bins = bins,
+        color = palette(:tab10)[9],
+        linestyle = :dashdot,
+        normalize = :pdf,
+        fill = true,
+        fillalpha = fillalpha, 
+        label = "Concentration")
+
+vspan!([mean(positive_objective_value_disappointments)-sem(positive_objective_value_disappointments), mean(positive_objective_value_disappointments)+sem(positive_objective_value_disappointments)], 
+        color = palette(:tab10)[9],
+        alpha = fillalpha,
+        label = nothing)
+vline!([mean(positive_objective_value_disappointments)],
+        color = palette(:tab10)[9],
+        linestyle = :dash,
+        label = nothing)
+
+#stephist!(skipmissing(extract_histogram_to_plot(12, u_index)), bins=bins, color=palette(:tab10)[5], linestyle=:dash, normalize=:pdf, fill=true, fillalpha=0.1, label="\$W_2\$ Intersections")
+#vspan!([-sem(skipmissing(extract_histogram_to_plot(12, u_index)))+mean(skipmissing(extract_histogram_to_plot(12, u_index))),sem(skipmissing(extract_histogram_to_plot(12, u_index)))+mean(skipmissing(extract_histogram_to_plot(12, u_index)))], color=palette(:tab10)[5], alpha=0.1, label=nothing)
+#vline!([mean(skipmissing(extract_histogram_to_plot(12, u_index)))], color=palette(:tab10)[5], linestyle=:dash, label=nothing)
+display(plt)
+
+#x = extract_histogram_to_plot(12, u_index)
+#min(x...)
+
+#ints = identity.(skipmissing(extract_histogram_to_plot(11, u_index)))
+#display(mean(ints[ints .>= 0]))
+
+#ints = identity.(skipmissing(extract_histogram_to_plot(12, u_index)))
+#display(mean(ints[ints .>= 0]))
+
+#savefig(plt, "figures/to-discuss-3.pdf")
