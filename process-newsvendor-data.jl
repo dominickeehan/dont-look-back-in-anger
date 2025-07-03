@@ -147,7 +147,7 @@ if false # Plot some
         font_family = "Computer Modern"
         primary_font = Plots.font(font_family, pointsize = 17)
         secondary_font = Plots.font(font_family, pointsize = 11)
-        legend_font = Plots.font(font_family, pointsize = 15)
+        legend_font = Plots.font(font_family, pointsize = 13)
 
         default(framestyle = :box,
                 grid = true,
@@ -166,7 +166,7 @@ if false # Plot some
                 legendfont = legend_font)
 
         plt = plot(xscale = :log10, #yscale = :log10,
-                xlabel = "Distribution shift, \$u\$", 
+                xlabel = "Distribution shift parameter, \$u\$", 
                 ylabel = "Train/test expected cost",
                 #ylabel = "Ex-post-optimal expected cost",
                 #topmargin = 10pt,
@@ -178,18 +178,18 @@ if false # Plot some
 
         expected_costs, sems = extract_line_to_plot(1)
         plot!(U, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
-                color = palette(:tab10)[8],
-                linestyle = :dot,
-                #markershape = :diamond,
-                #markersize = 4,
-                #markerstrokewidth = 0,
+                color = palette(:tab10)[1],
+                linestyle = :solid,
+                markershape = :circle,
+                markersize = 4,
+                markerstrokewidth = 0,
                 label = "Naïve \$(ε=0)\$")
 
         expected_costs, sems = normalizer, normalizer_sems
         plot!(U, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
-                color = palette(:tab10)[1],
-                linestyle = :solid,
-                markershape = :circle,
+                color = palette(:tab10)[2],
+                linestyle = :dash,
+                markershape = :diamond,
                 markersize = 4,
                 markerstrokewidth = 0,
                 label = "Smoothing \$(ε=0)\$")
@@ -197,8 +197,8 @@ if false # Plot some
         expected_costs, sems = extract_line_to_plot(12)
         plot!(U, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
                 color = palette(:tab10)[7],
-                linestyle = :dash,
-                markershape = :diamond,
+                linestyle = :dashdot,
+                markershape = :pentagon,
                 markersize = 4,
                 markerstrokewidth = 0,
                 label = "Intersections")
@@ -206,9 +206,9 @@ if false # Plot some
         expected_costs, sems = extract_line_to_plot(11)
         plot!(U, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
                 color = palette(:tab10)[9],
-                linestyle = :dashdot,
-                markershape = :pentagon,
-                markersize = 4,
+                linestyle = :dot,
+                markershape = :star4,
+                markersize = 5,
                 markerstrokewidth = 0,
                 label = "Concentration")
 
@@ -231,7 +231,7 @@ if false # Plot some
 
         display(plt)
 
-        #savefig(plt, "figures/to-discuss-1.pdf")
+        savefig(plt, "figures/to-discuss-1.pdf")
 
 end
 
@@ -351,6 +351,18 @@ function extract_objective_value_percentage_disappointments(method_index, u_inde
 
 end
 
+u_index = 6
+objective_value_disappointments = extract_objective_value_percentage_disappointments(12, u_index)
+objective_value_disappointments = objective_value_disappointments[objective_value_disappointments .>= 0]
+
+
+#bin_locations = [1e1,2e1,3e1,4e1,5e1,6e1,7e1,8e1,9e1,1e2,2e2,3e2,4e2,5e2,6e2,7e2,8e2,9e2,1e3,2e3,3e3,4e3,5e3,6e3,7e3,8e3,9e3]
+
+for objective_value_disappointment_index in eachindex(objective_value_disappointments)
+        if objective_value_disappointments[objective_value_disappointment_index] <= 1
+                objective_value_disappointments[objective_value_disappointment_index] = 1.1
+        end
+end
 
 default() # Reset plot defaults.
 
@@ -359,7 +371,7 @@ gr(size = (600,400))
 font_family = "Computer Modern"
 primary_font = Plots.font(font_family, pointsize = 17)
 secondary_font = Plots.font(font_family, pointsize = 11)
-legend_font = Plots.font(font_family, pointsize = 15)
+legend_font = Plots.font(font_family, pointsize = 13)
 
 default(framestyle = :box,
         grid = true,
@@ -378,58 +390,67 @@ default(framestyle = :box,
         legendfont = legend_font)
 
 plt = plot(
-        xlims=(-100,300), 
+        #xlims=(0,1000),
+        #xscale = :log10,
+        #xaxis=(:log10, [1, :auto]),
         ylabel="Frequency (normalized)",
         xlabel="Out-of-sample disappointment (%)",
-        xticks = ([-100,0,100,200,300], ["\$-100\$","\$0\$","\$100\$","\$200\$","\$≥300\$"]))
-u_index = 6
-bins = 30
+        xticks = ([1,10,100,1000,10000])
+        )
+
+bins = LogRange(1,10000,100)
 fillalpha = 0.1
 
 
-objective_value_disappointments = extract_objective_value_percentage_disappointments(12, u_index)
-positive_objective_value_disappointments = objective_value_disappointments[objective_value_disappointments .>= 0]
-objective_value_disappointments[objective_value_disappointments .>= 300] .= 300
 
 stephist!(objective_value_disappointments,
-        bins = bins,
+        #bins = bins,
         color = palette(:tab10)[7],
-        linestyle = :dash,
-        normalize = :pdf,
-        fill = true,
-        fillalpha = fillalpha, 
-        label = "Intersections")
-
-vspan!([mean(positive_objective_value_disappointments)-sem(positive_objective_value_disappointments), mean(positive_objective_value_disappointments)+sem(positive_objective_value_disappointments)], 
-        color = palette(:tab10)[7],
-        alpha = fillalpha,
-        label = nothing)
-vline!([mean(positive_objective_value_disappointments)],
-        color = palette(:tab10)[7],
-        linestyle = :dash,
-        label = nothing)
-
-objective_value_disappointments = extract_objective_value_percentage_disappointments(11, u_index)
-positive_objective_value_disappointments = objective_value_disappointments[objective_value_disappointments .>= 0]
-objective_value_disappointments[objective_value_disappointments .>= 300] .= 300
-
-stephist!(objective_value_disappointments,
-        bins = bins,
-        color = palette(:tab10)[9],
         linestyle = :dashdot,
         normalize = :pdf,
         fill = true,
+        fillalpha = fillalpha,
+        #xscale=:log10, 
+        label = "Intersections")
+
+vspan!([mean(objective_value_disappointments)-sem(objective_value_disappointments), mean(objective_value_disappointments)+sem(objective_value_disappointments)], 
+        color = palette(:tab10)[7],
+        alpha = fillalpha,
+        label = nothing)
+vline!([mean(objective_value_disappointments)],
+        color = palette(:tab10)[7],
+        linestyle = :dashdot,
+        label = nothing)
+
+
+objective_value_disappointments = extract_objective_value_percentage_disappointments(11, u_index)
+objective_value_disappointments = objective_value_disappointments[objective_value_disappointments .>= 0]
+
+for objective_value_disappointment_index in eachindex(objective_value_disappointments)
+        if objective_value_disappointments[objective_value_disappointment_index] <= 1
+                objective_value_disappointments[objective_value_disappointment_index] = 1.1
+        end
+end
+
+stephist!(objective_value_disappointments,
+        #bins = bins,
+        color = palette(:tab10)[9],
+        linestyle = :dot,
+        normalize = :pdf,
+        fill = true,
+        #xscale=:log10, 
         fillalpha = fillalpha, 
         label = "Concentration")
 
-vspan!([mean(positive_objective_value_disappointments)-sem(positive_objective_value_disappointments), mean(positive_objective_value_disappointments)+sem(positive_objective_value_disappointments)], 
+vspan!([mean(objective_value_disappointments)-sem(objective_value_disappointments), mean(objective_value_disappointments)+sem(objective_value_disappointments)], 
         color = palette(:tab10)[9],
         alpha = fillalpha,
         label = nothing)
-vline!([mean(positive_objective_value_disappointments)],
+vline!([mean(objective_value_disappointments)],
         color = palette(:tab10)[9],
-        linestyle = :dash,
+        linestyle = :dot,
         label = nothing)
+
 
 #stephist!(skipmissing(extract_histogram_to_plot(12, u_index)), bins=bins, color=palette(:tab10)[5], linestyle=:dash, normalize=:pdf, fill=true, fillalpha=0.1, label="\$W_2\$ Intersections")
 #vspan!([-sem(skipmissing(extract_histogram_to_plot(12, u_index)))+mean(skipmissing(extract_histogram_to_plot(12, u_index))),sem(skipmissing(extract_histogram_to_plot(12, u_index)))+mean(skipmissing(extract_histogram_to_plot(12, u_index)))], color=palette(:tab10)[5], alpha=0.1, label=nothing)

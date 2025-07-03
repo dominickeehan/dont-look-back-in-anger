@@ -33,54 +33,130 @@ function in_W2_ball(P, ε, Q)
 
 end
 
-function in_W2_intersection(points, ε, ϱ, Q)
-
-    # Q := [points, weights] .
-
-    K = length(points)
-    n = length(Q[1])
-
-    for k in 1:K
-        if sqrt(sum(Q[2][j] * abs(points[k] - Q[1][j])^2 for j in 1:n)) > ε + (K-k+1)*ϱ
-            return 0 
-        
-        end
-    end
-
-    return 1
-
-end
-
 include("weights.jl")
 
 normalise(x) = x/sum(x)
 
 function mean_and_std(Q)
 
-    return sum(Q[2][i]*Q[1][i] for i in 1:length(Q[1])), skewness(Q[1], Weights(Q[2]))
+    return mean(Q[1], Weights(Q[2])), std(Q[1], Weights(Q[2]))
 
 end
 
-support = [-30,30]
+support = [-4,4]
 number_of_points = 10
 
-number_of_distributions = 40000
+number_of_distributions = 30000 # 10000
 
-plt = plot(xlims=(support[1],support[end]), ylims=(-2.5,2.5), xlabel="mean", ylabel="skewness")
+markersize = 8
 
-for ε in [15]
+ε = 1
 
-    ϱ = ε/10
+for ϱ in [ε/8, ε/4, ε/2]
 
-    P = [Vector(LinRange(-10,10,10)), W2_concentration_weights(10, ϱ/ε)]
+    P = [[-1,0,1], W2_concentration_weights(3, ϱ/ε)]
 
     Qs = [[zeros(number_of_points), zeros(number_of_points)] for _ in 1:number_of_distributions]
     Threads.@threads for i in ProgressBar(eachindex(Qs))
         local n = number_of_points
         local μ = rand(Uniform(support[1],support[end]))
-        local σ = rand(Uniform(0,40))
-        local shape = rand(Uniform(-40,40))
-        local points = rand(SkewNormal(μ, σ, shape), n)
+        local σ = rand(Uniform(0,3))
+        local points = rand(Normal(μ, σ), n)
+
+        Qs[i] = [points, 1/n*ones(n)]
+
+    end
+
+    plot_intersection_Qs = [zeros(3) for _ in eachindex(Qs)]
+    Threads.@threads for i in ProgressBar(eachindex(Qs))
+        plot_intersection_Qs[i] = [in_W2_ball([[P[1][j]],[1.0]],ε+(3-j+1)*ϱ,Qs[i]) for j in 1:3]
+
+    end
+
+    default() # Reset plot defaults.
+
+    gr(size = (600,400))
+
+    font_family = "Computer Modern"
+    primary_font = Plots.font(font_family, pointsize = 17)
+    secondary_font = Plots.font(font_family, pointsize = 11)
+    legend_font = Plots.font(font_family, pointsize = 15)
+
+    default(framestyle = :box,
+            grid = true,
+            #gridlinewidth = 1.0,
+            gridalpha = 0.075,
+            #minorgrid = true,
+            #minorgridlinewidth = 1.0, 
+            #minorgridalpha = 0.075,
+            #minorgridlinestyle = :dash,
+            tick_direction = :in,
+            xminorticks = 0, 
+            yminorticks = 0,
+            fontfamily = font_family,
+            guidefont = primary_font,
+            tickfont = secondary_font,
+            legendfont = legend_font)
+
+    plt = plot(xlims=(support[1],support[end]), ylims=(0,3), xlabel="Mean", ylabel="Standard deviation")
+
+    tab10_primary_colour = [227,119,194]/256
+
+    for i in ProgressBar(eachindex(Qs))
+
+        if sum(plot_intersection_Qs[i]) == 1
+            mean, std = mean_and_std(Qs[i])
+            scatter!([mean], [std], color=RGB(tab10_primary_colour[1]+0.1,tab10_primary_colour[2]+0.1,tab10_primary_colour[3]+0.1), markersize=markersize, markerstrokewidth=0.0, alpha=1, labels=nothing,)
+
+        end
+    end
+
+    for i in ProgressBar(eachindex(Qs))
+        if sum(plot_intersection_Qs[i]) == 2
+            mean, std = mean_and_std(Qs[i])
+            scatter!([mean], [std], color=RGB(tab10_primary_colour[1],tab10_primary_colour[2],tab10_primary_colour[3]), markersize=markersize, markerstrokewidth=0.0, alpha=1, labels=nothing,)
+
+        end
+    end
+
+    for i in ProgressBar(eachindex(Qs))
+        if sum(plot_intersection_Qs[i]) == 3
+            mean, std = mean_and_std(Qs[i])
+            scatter!([mean], [std], color=RGB(tab10_primary_colour[1]-0.1,tab10_primary_colour[2]-0.1,tab10_primary_colour[3]-0.1), markersize=markersize, markerstrokewidth=0.0, alpha=1, labels=nothing,)
+
+        end
+    end
+
+    scatter!([-1,0,1], [0,0,0], 
+                markersize = 6.0,
+                markershape = :utriangle,
+                markercolor = :black,#palette(:tab10)[8],
+                markerstrokecolor = :black,
+                markerstrokewidth = 0,#,0.5,
+                alpha=1, labels=nothing,)
+    annotate!(-1, 0, text(" \$\\xi_1\$", :black, :bottom, 16))
+    annotate!(0, 0, text(" \$\\xi_2\$", :black, :bottom, 16))
+    annotate!(1, 0, text(" \$\\xi_3\$", :black, :bottom, 16))
+
+    title!("\$\\varepsilon=$ε\$, \$\\varrho=$ϱ\$")
+
+    display(plt)
+
+end
+
+
+
+
+for ϱ in [ε/8, ε/4, ε/2]
+
+    P = [[-1,0,1], W2_concentration_weights(3, ϱ/ε)]
+
+    Qs = [[zeros(number_of_points), zeros(number_of_points)] for _ in 1:number_of_distributions]
+    Threads.@threads for i in ProgressBar(eachindex(Qs))
+        local n = number_of_points
+        local μ = rand(Uniform(support[1],support[end]))
+        local σ = rand(Uniform(0,3))
+        local points = rand(Normal(μ, σ), n)
 
         Qs[i] = [points, 1/n*ones(n)]
 
@@ -92,29 +168,57 @@ for ε in [15]
 
     end
 
-    plot_intersection_Qs = zeros(length(Qs))
-    Threads.@threads for i in ProgressBar(eachindex(Qs))
-        plot_intersection_Qs[i] = in_W2_intersection(P[1],ε,ϱ,Qs[i])
+    default() # Reset plot defaults.
 
-    end
+    gr(size = (600,400))
+
+    font_family = "Computer Modern"
+    primary_font = Plots.font(font_family, pointsize = 17)
+    secondary_font = Plots.font(font_family, pointsize = 11)
+    legend_font = Plots.font(font_family, pointsize = 15)
+
+    default(framestyle = :box,
+            grid = true,
+            #gridlinewidth = 1.0,
+            gridalpha = 0.075,
+            #minorgrid = true,
+            #minorgridlinewidth = 1.0, 
+            #minorgridalpha = 0.075,
+            #minorgridlinestyle = :dash,
+            tick_direction = :in,
+            xminorticks = 0, 
+            yminorticks = 0,
+            fontfamily = font_family,
+            guidefont = primary_font,
+            tickfont = secondary_font,
+            legendfont = legend_font)
+
+    plt = plot(xlims=(support[1],support[end]), ylims=(0,3), xlabel="Mean", ylabel="Standard deviation")
+
+    tab10_primary_colour = [188, 189, 34]/256
 
     for i in ProgressBar(eachindex(Qs))
         if plot_ball_Qs[i] == 1
-            mean, width = mean_and_std(Qs[i])
-            scatter!([mean], [width], color=:blue, markersize=3, markerstrokewidth=0.0, labels=nothing,)
+            mean, std = mean_and_std(Qs[i])
+            scatter!([mean], [std], color=RGB(tab10_primary_colour[1],tab10_primary_colour[2],tab10_primary_colour[3]), markersize=markersize, markerstrokewidth=0.0, labels=nothing,)
 
         end
-
-        if plot_intersection_Qs[i] == 1
-            mean, width = mean_and_std(Qs[i])
-            scatter!([mean], [width], color=:orange, markersize=3, markerstrokewidth=0.0, labels=nothing,)
-
-        end
-
     end
+
+    scatter!([-1,0,1], [0,0,0], 
+                markersize = 6.0,
+                markershape = :utriangle,
+                markercolor = :black,#palette(:tab10)[8],
+                markerstrokecolor = :black,
+                markerstrokewidth = 0,#,0.5,
+                alpha=1, labels=nothing,)
+    annotate!(-1, 0, text(" \$\\xi_1\$", :black, :bottom, 16))
+    annotate!(0, 0, text(" \$\\xi_2\$", :black, :bottom, 16))
+    annotate!(1, 0, text(" \$\\xi_3\$", :black, :bottom, 16))
+
+    title!("\$\\varepsilon=$ε\$, \$\\varrho=$ϱ\$")
+
+    display(plt)
+
 end
-
-
-
-display(plt)
 
