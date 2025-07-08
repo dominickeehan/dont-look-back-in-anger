@@ -353,14 +353,14 @@ end
 
 u_index = 6
 objective_value_disappointments = extract_objective_value_percentage_disappointments(12, u_index)
-objective_value_disappointments = objective_value_disappointments[objective_value_disappointments .>= 0]
+#objective_value_disappointments = objective_value_disappointments[objective_value_disappointments .>= 0]
 
 
 #bin_locations = [1e1,2e1,3e1,4e1,5e1,6e1,7e1,8e1,9e1,1e2,2e2,3e2,4e2,5e2,6e2,7e2,8e2,9e2,1e3,2e3,3e3,4e3,5e3,6e3,7e3,8e3,9e3]
 
 for objective_value_disappointment_index in eachindex(objective_value_disappointments)
         if objective_value_disappointments[objective_value_disappointment_index] <= 1
-                objective_value_disappointments[objective_value_disappointment_index] = 1.1
+                #objective_value_disappointments[objective_value_disappointment_index] = 1.1
         end
 end
 
@@ -390,21 +390,22 @@ default(framestyle = :box,
         legendfont = legend_font)
 
 plt = plot(
-        #xlims=(0,1000),
+        xlims=(-100,300),
         #xscale = :log10,
         #xaxis=(:log10, [1, :auto]),
         ylabel="Frequency (normalized)",
         xlabel="Out-of-sample disappointment (%)",
-        xticks = ([1,10,100,1000,10000])
+        #xticks = ([1,10,100,1000,10000])
         )
 
-bins = LogRange(1,10000,100)
+bins = LogRange(1,10000,10)
 fillalpha = 0.1
 
 
 
 stephist!(objective_value_disappointments,
         #bins = bins,
+        bins = 300,
         color = palette(:tab10)[7],
         linestyle = :dashdot,
         normalize = :pdf,
@@ -424,16 +425,17 @@ vline!([mean(objective_value_disappointments)],
 
 
 objective_value_disappointments = extract_objective_value_percentage_disappointments(11, u_index)
-objective_value_disappointments = objective_value_disappointments[objective_value_disappointments .>= 0]
+#objective_value_disappointments = objective_value_disappointments[objective_value_disappointments .>= 0]
 
 for objective_value_disappointment_index in eachindex(objective_value_disappointments)
         if objective_value_disappointments[objective_value_disappointment_index] <= 1
-                objective_value_disappointments[objective_value_disappointment_index] = 1.1
+                #objective_value_disappointments[objective_value_disappointment_index] = 1.1
         end
 end
 
 stephist!(objective_value_disappointments,
         #bins = bins,
+        bins = 100,
         color = palette(:tab10)[9],
         linestyle = :dot,
         normalize = :pdf,

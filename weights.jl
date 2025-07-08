@@ -114,3 +114,36 @@ function REMK_intersection_ball_radii(K, ε, ϱ╱ε)
     return [ε+(K-k+1)*ϱ for k in 1:K]
 
 end
+
+
+
+
+function Wp_concentration_weights(p, T, ϱ╱ε)
+
+    ε = 1000
+
+    ϱ = ϱ╱ε * ε
+
+    if ϱ == 0; weights = zeros(T); weights .= 1/T; return weights; end
+
+    if ϱ >= ε; weights = zeros(T); weights[T] = 1; return weights; end
+
+    Problem = Model(Ipoptimizer)
+
+    @variable(Problem, 1 >= w[t=1:T] >= 0)
+
+    @constraint(Problem, sum(w[t] for t in 1:T) == 1)
+    @constraint(Problem, sum(w[t]*(T-t+1)^p*ϱ^p for t in 1:T) <= ε^p)
+
+    @objective(Problem, Max, (1/(sum(w[t]^2 for t in 1:T)))*((ε-(sum(w[t]*(T-t+1)^p*ϱ^p for t in 1:T))^(1/p))^(2*p)))
+
+    optimize!(Problem)
+
+
+
+    weights = [max(value(w[t]),0) for t in 1:T]
+    weights = weights/sum(weights)
+
+    return weights
+
+end

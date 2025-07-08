@@ -46,13 +46,13 @@ end
 support = [-4,4]
 number_of_points = 10
 
-number_of_distributions = 30000 # 10000
+number_of_distributions = 20000 # 30000
 
-markersize = 8
+markersize = 10
 
 ε = 1
 
-for ϱ in [ε/8, ε/4, ε/2]
+for ϱ in [ε/2]
 
     P = [[-1,0,1], W2_concentration_weights(3, ϱ/ε)]
 
@@ -106,7 +106,7 @@ for ϱ in [ε/8, ε/4, ε/2]
 
         if sum(plot_intersection_Qs[i]) == 1
             mean, std = mean_and_std(Qs[i])
-            scatter!([mean], [std], color=RGB(tab10_primary_colour[1]+0.1,tab10_primary_colour[2]+0.1,tab10_primary_colour[3]+0.1), markersize=markersize, markerstrokewidth=0.0, alpha=1, labels=nothing,)
+            scatter!([mean], [std], color=RGB(min(tab10_primary_colour[1]+0.1,1.0),tab10_primary_colour[2]+0.1,tab10_primary_colour[3]+0.1), markersize=markersize, markerstrokewidth=0.0, alpha=1, labels=nothing,)
 
         end
     end
@@ -127,73 +127,26 @@ for ϱ in [ε/8, ε/4, ε/2]
         end
     end
 
-    scatter!([-1,0,1], [0,0,0], 
-                markersize = 6.0,
-                markershape = :utriangle,
-                markercolor = :black,#palette(:tab10)[8],
-                markerstrokecolor = :black,
-                markerstrokewidth = 0,#,0.5,
-                alpha=1, labels=nothing,)
-    annotate!(-1, 0, text(" \$\\xi_1\$", :black, :bottom, 16))
-    annotate!(0, 0, text(" \$\\xi_2\$", :black, :bottom, 16))
-    annotate!(1, 0, text(" \$\\xi_3\$", :black, :bottom, 16))
+    scatter!([-1], [-1], color=RGB(tab10_primary_colour[1]-0.1,tab10_primary_colour[2]-0.1,tab10_primary_colour[3]-0.1), markersize=markersize, markerstrokewidth=0.0, alpha=1, label="Intersections",)
 
-    title!("\$\\varepsilon=$ε\$, \$\\varrho=$ϱ\$")
+    #scatter!([-1,0,1], [0,0,0], 
+    #            markersize = 6.0,
+    #            markershape = :utriangle,
+    #            markercolor = :black,#palette(:tab10)[8],
+    #            markerstrokecolor = :black,
+    #            markerstrokewidth = 0,#,0.5,
+    #            alpha=1, labels=nothing,)
+    #annotate!(-1, 0, text(" \$\\xi_1\$", :black, :bottom, 16))
+    #annotate!(0, 0, text(" \$\\xi_2\$", :black, :bottom, 16))
+    #annotate!(1, 0, text(" \$\\xi_3\$", :black, :bottom, 16))
 
-    display(plt)
-
-end
-
-
-
-
-for ϱ in [ε/8, ε/4, ε/2]
-
-    P = [[-1,0,1], W2_concentration_weights(3, ϱ/ε)]
-
-    Qs = [[zeros(number_of_points), zeros(number_of_points)] for _ in 1:number_of_distributions]
-    Threads.@threads for i in ProgressBar(eachindex(Qs))
-        local n = number_of_points
-        local μ = rand(Uniform(support[1],support[end]))
-        local σ = rand(Uniform(0,3))
-        local points = rand(Normal(μ, σ), n)
-
-        Qs[i] = [points, 1/n*ones(n)]
-
-    end
+    #title!("\$\\varepsilon=$ε\$, \$\\varrho=$ϱ\$")
 
     plot_ball_Qs = zeros(length(Qs))
     Threads.@threads for i in ProgressBar(eachindex(Qs))
         plot_ball_Qs[i] = in_W2_ball(P,ε,Qs[i])
 
     end
-
-    default() # Reset plot defaults.
-
-    gr(size = (600,400))
-
-    font_family = "Computer Modern"
-    primary_font = Plots.font(font_family, pointsize = 17)
-    secondary_font = Plots.font(font_family, pointsize = 11)
-    legend_font = Plots.font(font_family, pointsize = 15)
-
-    default(framestyle = :box,
-            grid = true,
-            #gridlinewidth = 1.0,
-            gridalpha = 0.075,
-            #minorgrid = true,
-            #minorgridlinewidth = 1.0, 
-            #minorgridalpha = 0.075,
-            #minorgridlinestyle = :dash,
-            tick_direction = :in,
-            xminorticks = 0, 
-            yminorticks = 0,
-            fontfamily = font_family,
-            guidefont = primary_font,
-            tickfont = secondary_font,
-            legendfont = legend_font)
-
-    plt = plot(xlims=(support[1],support[end]), ylims=(0,3), xlabel="Mean", ylabel="Standard deviation")
 
     tab10_primary_colour = [188, 189, 34]/256
 
@@ -205,6 +158,8 @@ for ϱ in [ε/8, ε/4, ε/2]
         end
     end
 
+    scatter!([-1], [-1], color=RGB(tab10_primary_colour[1],tab10_primary_colour[2],tab10_primary_colour[3]), markersize=markersize, markerstrokewidth=0.0, alpha=1, label="Concentration",)
+
     scatter!([-1,0,1], [0,0,0], 
                 markersize = 6.0,
                 markershape = :utriangle,
@@ -216,9 +171,8 @@ for ϱ in [ε/8, ε/4, ε/2]
     annotate!(0, 0, text(" \$\\xi_2\$", :black, :bottom, 16))
     annotate!(1, 0, text(" \$\\xi_3\$", :black, :bottom, 16))
 
-    title!("\$\\varepsilon=$ε\$, \$\\varrho=$ϱ\$")
-
     display(plt)
+    savefig(plt, "figures/ambiguity-sets.pdf")
 
 end
 

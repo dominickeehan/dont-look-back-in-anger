@@ -9,6 +9,7 @@ GeomRange(a, b, n) = exp.(LinRange(log(a), log(b), n))
 
 ϱ╱ε = [[0]; GeomRange(1e-4,1e0,40)]
 
+#=
 plt = plot()
 for i in ϱ╱ε
         plot!(1:T, W1_concentration_weights(T, i), label = nothing, color = :black)
@@ -33,10 +34,14 @@ for i in [round.(Int, LinRange(1,10,10)); round.(Int, LinRange(12,30,10)); round
 end
 display(plt)
 
+=#
 
+ε = 75
 
+ϱ = 1
 
-#=
+linewidth = 1
+
 default() # Reset plot defaults.
 
 gr(size = (sqrt(6/10)*600,sqrt(6/10)*400))
@@ -44,7 +49,7 @@ gr(size = (sqrt(6/10)*600,sqrt(6/10)*400))
 font_family = "Computer Modern"
 primary_font = Plots.font(font_family, pointsize = 17)
 secondary_font = Plots.font(font_family, pointsize = 11)
-legend_font = Plots.font(font_family, pointsize = 15)
+legend_font = Plots.font(font_family, pointsize = 13)
 
 default(framestyle = :box,
         grid = true,
@@ -63,9 +68,9 @@ default(framestyle = :box,
         legendfont = legend_font)
 
 plt = plot(
-            xlabel = "\$t\$", 
-            ylabel = "\$w_t\$",
-            xticks = ([1, 25, 50, 75, 100]),
+            xlabel = "Time index, \$t\$", 
+            ylabel = "Weight, \$w_t\$",
+            xticks = ([0, 25, 50, 75, 100]),
             topmargin = 0pt, 
             rightmargin = 0pt,
             bottommargin = 3pt, 
@@ -73,17 +78,19 @@ plt = plot(
 
 linestyles = [:solid, :dash, :dashdot]
 
+tab10_primary_colour = [188, 189, 34]/256
+
 for p in 1:3
 
     plot!(1:T, 
-            concentration_weights(ϱ, ε, p), 
+            Wp_concentration_weights(p, T, ϱ/ε), 
             label = "\$p=$p\$",
-            color = palette(:tab10)[p],
+            color = RGB(tab10_primary_colour[1]-0.0*(p-1),tab10_primary_colour[2]-0.0*(p-1),max(tab10_primary_colour[3]-0.0*(p-1),0)),
             #markershape = :circle,
             #markersize = 2,
             #markerstrokewidth = 1,
             #markerstrokecolor = :black,
-            linewidth = 2,
+            linewidth = linewidth,
             linestyle = linestyles[p],
             alpha = 1)
 
@@ -105,7 +112,7 @@ gr(size = (sqrt(6/10)*600,sqrt(6/10)*400))
 font_family = "Computer Modern"
 primary_font = Plots.font(font_family, pointsize = 17)
 secondary_font = Plots.font(font_family, pointsize = 11)
-legend_font = Plots.font(font_family, pointsize = 15)
+legend_font = Plots.font(font_family, pointsize = 13)
 
 default(framestyle = :box,
         grid = true,
@@ -124,9 +131,9 @@ default(framestyle = :box,
         legendfont = legend_font)
 
 plt = plot(
-            xlabel = "\$t\$", 
-            ylabel = "\$w_t\$",
-            xticks = ([1, 25, 50, 75, 100]),
+            xlabel = "Time index, \$t\$", 
+            ylabel = "Weight, \$w_t\$",
+            xticks = ([0, 25, 50, 75, 100]),
             legend = :topleft,
             topmargin = 0pt, 
             rightmargin = 0pt,
@@ -134,27 +141,29 @@ plt = plot(
             leftmargin = 3pt)
 
 plot!(1:T, 
-        concentration_weights(ϱ, ε, 1), 
-        label = "Optimal",
-        color = palette(:tab10)[1],
-        linewidth = 2,
+        smoothing_weights(T, 3*ϱ/(ε+ϱ)), 
+        label = "Smoothing",
+        color = palette(:tab10)[2],
+        linewidth = linewidth,
         linestyle = :solid,
         alpha = 1)
 
 plot!(1:T, 
-        smoothing_weights(T, ε, 3*ϱ/(ε+ϱ)), 
-        label = "Smoothing",
-        color = palette(:tab10)[4],
-        linewidth = 2,
-        linestyle = :dashdotdot,
+        W1_concentration_weights(T, ϱ/ε), 
+        label = "Concentration",
+        color = palette(:tab10)[9],
+        linewidth = linewidth,
+        linestyle = :dash,
         alpha = 1)
+
+
 
         
 ylims!(yl)
 display(plt)
 
 savefig(plt, "figures/optimal-weights-and-smoothing-weights.pdf")
-=#
+
 
 
 
