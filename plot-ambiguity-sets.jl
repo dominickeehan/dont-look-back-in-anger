@@ -100,7 +100,7 @@ for ϱ in [ε/2]
 
     plt = plot(xlims=(support[1],support[end]), ylims=(0,3), xlabel="Mean", ylabel="Standard deviation")
 
-    tab10_primary_colour = [227,119,194]/256
+    tab10_primary_colour = [227,119,194]/255
 
     for i in ProgressBar(eachindex(Qs))
 
@@ -148,7 +148,7 @@ for ϱ in [ε/2]
 
     end
 
-    tab10_primary_colour = [188, 189, 34]/256
+    tab10_primary_colour = [188, 189, 34]/255
 
     for i in ProgressBar(eachindex(Qs))
         if plot_ball_Qs[i] == 1
