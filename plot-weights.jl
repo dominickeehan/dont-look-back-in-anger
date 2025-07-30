@@ -80,7 +80,7 @@ linestyles = [:solid, :dash, :dashdot]
 
 tab10_primary_colour = [188, 189, 34]/256
 
-for p in [1,2,3,4,10]#1:3
+for p in [1,2,3,4,5,6,7,8,9,10,11]#1:3
 
     plot!(1:T, 
             Wp_concentration_weights(p, T, ϱ/ε), 
@@ -92,7 +92,7 @@ for p in [1,2,3,4,10]#1:3
             #markerstrokecolor = :black,
             linewidth = linewidth,
             #linestyle = linestyles[p],
-            #legend = nothing,
+            legend = nothing,
             alpha = 1)
 
 end
