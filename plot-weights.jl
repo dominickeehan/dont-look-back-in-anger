@@ -38,7 +38,7 @@ display(plt)
 
 ε = 75
 
-ϱ = 1
+ϱ = 1 #1
 
 linewidth = 1
 
@@ -80,18 +80,19 @@ linestyles = [:solid, :dash, :dashdot]
 
 tab10_primary_colour = [188, 189, 34]/256
 
-for p in 1:3
+for p in [1,2,3,4,10]#1:3
 
     plot!(1:T, 
             Wp_concentration_weights(p, T, ϱ/ε), 
             label = "\$p=$p\$",
-            color = RGB(tab10_primary_colour[1]-0.0*(p-1),tab10_primary_colour[2]-0.0*(p-1),max(tab10_primary_colour[3]-0.0*(p-1),0)),
+            #color = RGB(tab10_primary_colour[1]-0.0*(p-1),tab10_primary_colour[2]-0.0*(p-1),max(tab10_primary_colour[3]-0.0*(p-1),0)),
             #markershape = :circle,
             #markersize = 2,
             #markerstrokewidth = 1,
             #markerstrokecolor = :black,
             linewidth = linewidth,
-            linestyle = linestyles[p],
+            #linestyle = linestyles[p],
+            #legend = nothing,
             alpha = 1)
 
 end
@@ -99,7 +100,7 @@ end
 display(plt)
 yl = ylims(plt)
 
-savefig(plt, "figures/optimal-weights-for-varying-p.pdf")
+#savefig(plt, "figures/optimal-weights-for-varying-p.pdf")
 
 
 
@@ -160,11 +161,12 @@ plot!(1:T,
 
         
 ylims!(yl)
-display(plt)
+#display(plt)
 
-savefig(plt, "figures/optimal-weights-and-smoothing-weights.pdf")
-
-
+#savefig(plt, "figures/optimal-weights-and-smoothing-weights.pdf")
 
 
 
+
+
+5
