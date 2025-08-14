@@ -4,7 +4,7 @@ using ProgressBars, IterTools
 include("weights.jl")
 include("newsvendor-optimizations.jl")
 
-repetitions = 1000
+repetitions = 100
 history_length = 100
 
 
@@ -25,11 +25,11 @@ end
 
 
 Random.seed!(42)
-u = 0.0025
+u = 5e-3 # [1e-4, 2.5e-4, 5e-4, 7.5e-4, 1e-3, 2.5e-3, 5e-3, 7.5e-3, 1e-2, 2.5e-2, 5e-2]
 shift_distribution = Uniform(-u,u)
 
 demand_sequences = [zeros(history_length) for _ in 1:repetitions]
-final_demand_probabilities = [zeros(10000) for _ in 1:repetitions]
+final_demand_probabilities = [zeros(1000) for _ in 1:repetitions]
 
 for repetition in 1:repetitions
     local demand_probability = initial_demand_probability
@@ -88,14 +88,15 @@ function parameter_fit(newsvendor_objective_value_and_order, ambiguity_radii, co
 
 end
 
-ε = [0; LinRange(1e0,1e1,10); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9); LinRange(2e3,1e4,9); LinRange(2e4,1e5,9)]
-s = [round.(Int, LinRange(1,10,10)); round.(Int, LinRange(12,30,10)); round.(Int, LinRange(33,60,10)); round.(Int, LinRange(64,100,10))]
+#ε = [0; LinRange(1e0,1e1,10); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9); LinRange(2e3,1e4,9); LinRange(2e4,1e5,9)]
+ε = [0; LinRange(1e0,1e1,10); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9);]
+#s = [round.(Int, LinRange(1,10,10)); round.(Int, LinRange(12,30,10)); round.(Int, LinRange(33,60,10)); round.(Int, LinRange(64,100,10))]
 
 LogRange(start, stop, len) = exp.(LinRange(log(start), log(stop), len))
 
-α = [0; LogRange(1e-4,1e0,39)]
-ϱ╱ε = [0; LogRange(1e-4,1e0,39)]
-
+#α = [0; LogRange(1e-4,1e0,39)]
+#ϱ╱ε = [0; LogRange(1e-4,1e0,39)]
+ϱ╱ε = [0; LinRange(1e-3,1e-2,10); LinRange(2e-2,1e-1,9); LinRange(2e-1,1e0,9);]
 
 #parameter_fit(SO_newsvendor_objective_value_and_order, [0], windowing_weights, [history_length])
 #parameter_fit(SO_newsvendor_objective_value_and_order, [0], smoothing_weights, α)
@@ -103,7 +104,7 @@ LogRange(start, stop, len) = exp.(LinRange(log(start), log(stop), len))
 #parameter_fit(W1_newsvendor_objective_value_and_order, ε, windowing_weights, [history_length])
 #parameter_fit(W1_newsvendor_objective_value_and_order, ε, windowing_weights, s)
 #parameter_fit(W1_newsvendor_objective_value_and_order, ε, smoothing_weights, α)
-parameter_fit(W1_newsvendor_objective_value_and_order, ε, W1_concentration_weights, ϱ╱ε)
+#parameter_fit(W1_newsvendor_objective_value_and_order, ε, W1_concentration_weights, ϱ╱ε)
 
 #parameter_fit(W1_newsvendor_objective_value_and_order, 0, windowing_weights, s)
 #parameter_fit(W1_newsvendor_objective_value_and_order, 0, smoothing_weights, α)
@@ -112,9 +113,11 @@ parameter_fit(W1_newsvendor_objective_value_and_order, ε, W1_concentration_weig
 #parameter_fit(W2_newsvendor_objective_value_and_order, ε, windowing_weights, [history_length])
 #parameter_fit(W2_newsvendor_objective_value_and_order, ε, windowing_weights, s)
 #parameter_fit(W2_newsvendor_objective_value_and_order, ε, smoothing_weights, α)
-#parameter_fit(W2_newsvendor_objective_value_and_order, ε, W2_concentration_weights, ϱ╱ε)
+parameter_fit(W2_newsvendor_objective_value_and_order, ε, W2_concentration_weights, ϱ╱ε)
 
-ε = [LinRange(1e2,1e3,10); LinRange(2e3,1e4,9); LinRange(2e4,1e5,9); LinRange(2e5,1e6,9); LinRange(2e6,1e7,9)]
-ϱ╱ε = [0; LogRange(1e-4,1e2,39)]
+#ε = [LinRange(1e2,1e3,10); LinRange(2e3,1e4,9); LinRange(2e4,1e5,9); LinRange(2e5,1e6,9); LinRange(2e6,1e7,9)]
+ε = [LinRange(1e1,1e2,10); LinRange(2e2,1e3,9); LinRange(2e3,1e4,9);]
+#ϱ╱ε = [0; LogRange(1e-4,1e2,39)]
+ϱ╱ε = [0; LinRange(1e-3,1e-2,10); LinRange(2e-2,1e-1,9); LinRange(2e-1,1e0,9);]
 
-#parameter_fit(REMK_intersection_W2_newsvendor_objective_value_and_order, ε, REMK_intersection_weights, ϱ╱ε)
+parameter_fit(REMK_intersection_W2_newsvendor_objective_value_and_order, ε, REMK_intersection_weights, ϱ╱ε)

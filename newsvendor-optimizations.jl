@@ -154,7 +154,7 @@ function W2_newsvendor_objective_value_and_order(ε, demands, weights, doubling_
         end
     end
 
-    @objective(Problem, Min, ε*λ + weights'*γ)
+    @objective(Problem, Min, (ε^2)*λ + weights'*γ)
 
     optimize!(Problem)
 
@@ -214,7 +214,7 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
         end
     end
 
-    @objective(Problem, Min, sum(ball_radii[k]*λ[k] for k in 1:K) + sum(γ[k] for k in 1:K))
+    @objective(Problem, Min, sum((ball_radii[k]^2)*λ[k] for k in 1:K) + sum(γ[k] for k in 1:K))
 
     optimize!(Problem)
 
