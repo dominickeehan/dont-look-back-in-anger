@@ -38,7 +38,7 @@ Ipoptimizer = optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0)
 
 function W1_concentration_weights(T, ϱ╱ε)
 
-    ε = 1000
+    ε = 100
 
     ϱ = ϱ╱ε * ε
 
@@ -69,7 +69,7 @@ end
 
 function W2_concentration_weights(T, ϱ╱ε)
 
-    ε = 1000
+    ε = 100
 
     ϱ = ϱ╱ε * ε
 
