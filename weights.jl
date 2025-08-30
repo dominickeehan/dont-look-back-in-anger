@@ -120,7 +120,7 @@ end
 
 function Wp_concentration_weights(p, T, ϱ╱ε)
 
-    ε = 1000
+    ε = 100
 
     ϱ = ϱ╱ε * ε
 

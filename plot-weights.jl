@@ -5,7 +5,6 @@ include("weights.jl")
 T = 100
 
 ε = 75
-
 ρ = 1
 
 default() # Reset plot defaults.
@@ -70,7 +69,7 @@ plot!(1:T,
         linestyle = :solid,
         alpha = 1,
         fill = (0, 0.1, palette(:tab10)[1]),
-        fillalpha = 0.1,
+        fillalpha = 0.033,
         )
 
 plot!(1:T, 
@@ -81,7 +80,7 @@ plot!(1:T,
         linestyle = :dash,
         alpha = 1,
         fill = (0, 0.1, palette(:tab10)[7]),
-        fillalpha = 0.1,)
+        fillalpha = 0.033,)
 
 plot!(1:T, 
         W1_concentration_weights(T, ρ/ε), 
@@ -91,15 +90,14 @@ plot!(1:T,
         linestyle = :dashdot,
         alpha = 1,
         fill = (0, 0.1, palette(:tab10)[9]),
-        fillalpha = 0.1,)
+        fillalpha = 0.033,)
 
 xlims!((-2,102))
 yl = ylims(plt)
 ylims!((0,yl[2]))
-display(plt)
-#yl = ylims(plt)
+#display(plt)
 
-savefig(plt, "figures/weights-for-p=1.pdf")
+#savefig(plt, "figures/weights-for-p=1.pdf")
 
 
 
@@ -141,23 +139,66 @@ plt = plot(
             bottommargin = 6pt, 
             leftmargin = 6pt)
 
+ε = 100
+ρ = 1
+
 plot!(1:T, 
-        W2_concentration_weights(T, ρ/(sqrt(5)*ε)), 
-        label = "Optimal",
-        color = palette(:tab10)[9],
+        Wp_concentration_weights(1, T, ρ/(ε)),#W2_concentration_weights(T, ρ/(2*ε)), 
+        label = "\$p=1\$",
+        color = palette(:tab10)[1],
+        linewidth = linewidth,
+        linestyle = :solid,
+        alpha = 1,
+        fill = (0, 0.1, palette(:tab10)[1]),
+        fillalpha = 0.02,)
+
+plot!(1:T, 
+        Wp_concentration_weights(2, T, ρ/(2*ε)),#W2_concentration_weights(T, ρ/(2*ε)), 
+        label = "\$p=2\$",
+        color = palette(:tab10)[2],
+        linewidth = linewidth,
+        linestyle = :dash,
+        alpha = 1,
+        fill = (0, 0.1, palette(:tab10)[2]),
+        fillalpha = 0.02,)
+
+plot!(1:T, 
+        Wp_concentration_weights(3, T, ρ/(3*ε)), 
+        label = "\$p=3\$",
+        color = palette(:tab10)[3],
         linewidth = linewidth,
         linestyle = :dashdot,
         alpha = 1,
-        fill = (0, 0.1, palette(:tab10)[9]),
-        fillalpha = 0.1,)
+        fill = (0, 0.1, palette(:tab10)[3]),
+        fillalpha = 0.02,)
+
+plot!(1:T, 
+        Wp_concentration_weights(4, T, ρ/(4*ε)), 
+        label = "\$p=4\$",
+        color = palette(:tab10)[4],
+        linewidth = linewidth,
+        linestyle = :dashdotdot,
+        alpha = 1,
+        fill = (0, 0.1, palette(:tab10)[4]),
+        fillalpha = 0.02,)
+
+plot!(1:T, 
+        Wp_concentration_weights(5, T, ρ/(5*ε)), 
+        label = "\$p=5\$",
+        color = palette(:tab10)[5],
+        linewidth = linewidth,
+        linestyle = :dot,
+        alpha = 1,
+        fill = (0, 0.1, palette(:tab10)[5]),
+        fillalpha = 0.02,)
 
 xlims!((-2,102))
-#yl = ylims(plt)
+yl = ylims(plt)
 ylims!((0,yl[2]))
 display(plt)
 #yl = ylims(plt)
 
-savefig(plt, "figures/weights-for-p=2.pdf")
+savefig(plt, "figures/weights-for-p=1,2,3,4,5.pdf")
 
 
 
