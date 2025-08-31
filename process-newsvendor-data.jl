@@ -142,12 +142,9 @@ if true # Plot some
 
         default() # Reset plot defaults.
 
-        gr(size = (600,400))
+        gr(size = (275+6,183+6).*sqrt(3))
 
-        font_family = "Computer Modern"
-        primary_font = Plots.font(font_family, pointsize = 17)
-        secondary_font = Plots.font(font_family, pointsize = 11)
-        legend_font = Plots.font(font_family, pointsize = 13)
+        fontfamily = "Computer Modern"
 
         default(framestyle = :box,
                 grid = true,
@@ -160,16 +157,19 @@ if true # Plot some
                 tick_direction = :in,
                 xminorticks = 9, 
                 yminorticks = 0,
-                fontfamily = font_family,
-                guidefont = primary_font,
-                tickfont = secondary_font,
-                legendfont = legend_font)
+                fontfamily = fontfamily,
+                guidefont = Plots.font(fontfamily, pointsize = 12),
+                legendfont = Plots.font(fontfamily, pointsize = 11),
+                tickfont = Plots.font(fontfamily, pointsize = 10))
 
         plt = plot(xscale = :log10, #yscale = :log10,
-                xlabel = "Distribution shift parameter, \$u\$", 
-                ylabel = "Train/test expected cost",
+                xlabel = "Distribution shift parameter, \$ρ′\$", 
+                ylabel = "Expected cost",
                 #ylabel = "Ex-post-optimal expected cost",
-                #topmargin = 10pt,
+                topmargin = 0pt,
+                leftmargin = 6pt,
+                bottommargin = 6pt,
+                rightmargin = 0pt,
                 )
 
         fillalpha = 0.1
@@ -235,7 +235,7 @@ if true # Plot some
 
         display(plt)
 
-        savefig(plt, "figures/to-discuss-1.pdf")
+        savefig(plt, "figures/train-test-expected-cost.pdf")
 
 end
 
