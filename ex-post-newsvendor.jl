@@ -4,7 +4,7 @@ using ProgressBars, IterTools
 include("weights.jl")
 include("newsvendor-optimizations.jl")
 
-repetitions = 100
+repetitions = 10
 history_length = 100
 
 
@@ -120,4 +120,4 @@ parameter_fit(W2_newsvendor_objective_value_and_order, ε, W2_concentration_weig
 #ϱ╱ε = [0; LogRange(1e-4,1e2,39)]
 ϱ╱ε = [0; LinRange(1e-3,1e-2,10); LinRange(2e-2,1e-1,9); LinRange(2e-1,1e0,9);]
 
-parameter_fit(REMK_intersection_W2_newsvendor_objective_value_and_order, ε, REMK_intersection_weights, ϱ╱ε)
+#parameter_fit(REMK_intersection_W2_newsvendor_objective_value_and_order, ε, REMK_intersection_weights, ϱ╱ε)
