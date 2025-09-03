@@ -38,7 +38,7 @@ Ipoptimizer = optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0)
 
 function W1_concentration_weights(T, ϱ╱ε)
 
-    ε = 100
+    ε = 10
 
     ϱ = ϱ╱ε * ε
 
@@ -57,7 +57,7 @@ function W1_concentration_weights(T, ϱ╱ε)
     @objective(Problem, Max, (1/(sum(w[t]^2 for t in 1:T)))*(ε-(sum(w[t]*(T-t+1)*ϱ for t in 1:T)))^2)
 
     optimize!(Problem)
-
+    #print(is_solved_and_feasible(Problem)) # Passes and solution looks good on my machine for ε = 10.
 
     weights = [max(value(w[t]),0) for t in 1:T]
     weights = weights/sum(weights)
@@ -69,7 +69,7 @@ end
 
 function W2_concentration_weights(T, ϱ╱ε)
 
-    ε = 100
+    ε = 10
 
     ϱ = ϱ╱ε * ε
 
@@ -90,8 +90,7 @@ function W2_concentration_weights(T, ϱ╱ε)
     @objective(Problem, Max, (1/(sum(w[t]^2 for t in 1:T)))*((ε-(sum(w[t]*(T-t+1)^p*ϱ^p for t in 1:T))^(1/p))^(2*p)))
 
     optimize!(Problem)
-
-
+    #print(is_solved_and_feasible(Problem)) # Passes and solution looks good on my machine for ε = 10.
 
     weights = [max(value(w[t]),0) for t in 1:T]
     weights = weights/sum(weights)
@@ -120,7 +119,7 @@ end
 
 function Wp_concentration_weights(p, T, ϱ╱ε)
 
-    ε = 100
+    ε = 10
 
     ϱ = ϱ╱ε * ε
 
@@ -138,7 +137,7 @@ function Wp_concentration_weights(p, T, ϱ╱ε)
     @objective(Problem, Max, (1/(sum(w[t]^2 for t in 1:T)))*((ε-(sum(w[t]*(T-t+1)^p*ϱ^p for t in 1:T))^(1/p))^(2*p)))
 
     optimize!(Problem)
-
+    #print(is_solved_and_feasible(Problem)) # Passes and solution looks good on my machine for ε = 10.
 
 
     weights = [max(value(w[t]),0) for t in 1:T]

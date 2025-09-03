@@ -7,7 +7,7 @@ T = 100
 ε = 75
 ρ = 1
 
-#=
+
 default() # Reset plot defaults.
 
 gr(size = (275+6,183+6).*sqrt(3))
@@ -201,7 +201,7 @@ display(plt)
 
 savefig(plt, "figures/weights-for-p=1,2,3,4,5.pdf")
 
-=#
+
 
 
 
@@ -210,9 +210,6 @@ savefig(plt, "figures/weights-for-p=1,2,3,4,5.pdf")
 
 
 GeomRange(a, b, n) = exp.(LinRange(log(a), log(b), n))
-
-ρ╱ε = [[0]; GeomRange(1e-4,1e0,30)]
-
 
 plt = plot()
 for i in [round.(Int, LinRange(1,10,10)); round.(Int, LinRange(12,30,10)); round.(Int, LinRange(33,60,10)); round.(Int, LinRange(64,100,10));]
@@ -227,12 +224,13 @@ end
 display(plt)
 
 
+ρ╱ε = [[0]; GeomRange(1e-3,1e0,29)]
+
 plt = plot()
 for i in ρ╱ε
     plot!(1:T, W1_concentration_weights(T, i), label = nothing, color = :black)
 end
 display(plt)
-
 
 plt = plot()
 for i in ρ╱ε
