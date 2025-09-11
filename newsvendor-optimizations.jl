@@ -3,7 +3,7 @@ using JuMP, MathOptInterface, Gurobi
 
 D = 10000 # Number of consumers.
 
-weight_tolerance = 0 # For very unbalanced weights a low tolerance causes near infeasibility.
+weight_tolerance = 0
 
 Cu = 4 # Per-unit underage cost.
 Co = 1 # Per-unit overage cost.
@@ -34,7 +34,7 @@ function SO_newsvendor_objective_value_and_order(_, demands, weights, doubling_c
 
     @variables(Problem, begin
                             D >= order >= 0
-                                 s[t=1:T] >= 0 # Reduntant in terms of formulation but helps computationally.
+                                 s[t=1:T]
                         end)
 
     for t in 1:T
@@ -81,10 +81,10 @@ function W1_newsvendor_objective_value_and_order(ε, demands, weights, doubling_
 
     @variables(Problem, begin
                             D >= order >= 0
-                                 λ >= 0 # Reduntant in terms of formulation but helps computationally.
-                                 s[t=1:T] >= 0 # Reduntant in terms of formulation but helps computationally.
+                                 λ
+                                 s[t=1:T]
                                  γ[t=1:T,i=1:2,j=1:2] >= 0
-                                 z[t=1:T,i=1:2] >= 0 # Reduntant in terms of formulation but helps computationally.
+                                 z[t=1:T,i=1:2]
                         end)
 
     for t in 1:T
@@ -98,7 +98,7 @@ function W1_newsvendor_objective_value_and_order(ε, demands, weights, doubling_
         end
     end
 
-    @objective(Problem, Min, ε*λ + weights'*s)
+    @objective(Problem, Min, (ε^2)*λ + weights'*s)
 
     optimize!(Problem)
 
@@ -189,7 +189,7 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
                                 γ[k=1:K]
                                 z[i=1:2,j=1:2] >= 0
                                 w[i=1:2,k=1:K]
-                                s[i=1:2,k=1:K] >= 0 # Reduntant in terms of formulation but helps computationally.
+                                s[i=1:2,k=1:K]
                         end)
 
     for i in 1:2
@@ -230,3 +230,5 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
     end
 end
 
+#W2_newsvendor_objective_value_and_order(10000, [900, 1000, 1100], [1/3, 1/3, 1/3], 0)
+#REMK_intersection_W2_newsvendor_objective_value_and_order(10000, [900, 1000, 1100], [0], 0)

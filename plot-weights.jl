@@ -209,22 +209,23 @@ savefig(plt, "figures/weights-for-p=1,2,3,4,5.pdf")
 
 
 
-GeomRange(a, b, n) = exp.(LinRange(log(a), log(b), n))
+LogRange(a, b, n) = exp.(LinRange(log(a), log(b), n))
 
 plt = plot()
-for i in [round.(Int, LinRange(1,10,10)); round.(Int, LinRange(12,30,10)); round.(Int, LinRange(33,60,10)); round.(Int, LinRange(64,100,10));]
-    plot!(1:T, windowing_weights(T, i), label = nothing, color = :black)
+#for i in [round.(Int, LinRange(1,10,10)); round.(Int, LinRange(12,30,10)); round.(Int, LinRange(33,60,10)); round.(Int, LinRange(64,100,10));]
+for i in [unique(round.(Int, LogRange(1,100,40)));]
+        plot!(1:T, windowing_weights(T, i), label = nothing, color = :black)
 end
 display(plt)
 
 plt = plot()
-for i in [[0]; GeomRange(1e-4,1e0,30)]
+for i in [[0]; LogRange(1e-4,1e0,40)]
     plot!(1:T, smoothing_weights(T, i), label = nothing, color = :black)
 end
 display(plt)
 
 
-ρ╱ε = [[0]; GeomRange(1e-3,1e0,29)]
+ρ╱ε = [[0]; LogRange(1e-4,1e0,40)]
 
 plt = plot()
 for i in ρ╱ε
@@ -238,6 +239,12 @@ for i in ρ╱ε
 end
 display(plt)
 
+#plt = plot(1:T, W1_concentration_weights(T, 0), label = nothing, color = :black)
+#plot!(1:T, W1_concentration_weights(T, 1e-4), label = nothing, color = :black)
+#display(plt)
 
+#plt = plot(1:T, W2_concentration_weights(T, 0), label = nothing, color = :black)
+#plot!(1:T, W2_concentration_weights(T, 1e-4), label = nothing, color = :black)
+#display(plt)
 
 

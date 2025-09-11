@@ -43,7 +43,7 @@ function expected_newsvendor_cost(order, demand_probability)
 
 end
 
-U = [1e-4, 2.5e-4, 5e-4, 7.5e-4, 1e-3, 2.5e-3, 5e-3, 7.5e-3, 1e-2, 2.5e-2, 5e-2]
+U = [1e-4, 2.5e-4, 5e-4, 7.5e-4, 1e-3, 2.5e-3, 5e-3, 7.5e-3, 1e-2, 2.5e-2]
 
 Random.seed!(job_number%1000)
 
@@ -150,13 +150,13 @@ function train_and_test(method, newsvendor_objective_value_and_order, ambiguity_
     
 end
 
-ε = [0; LinRange(1e0,1e1,10); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9); LinRange(2e3,1e4,9); LinRange(2e4,1e5,9)]
-s = [round.(Int, LinRange(1,10,10)); round.(Int, LinRange(12,30,10)); round.(Int, LinRange(33,60,10)); round.(Int, LinRange(64,100,10))]
+ε = [0; LinRange(1e-1,1e0,10); LinRange(2e0,1e1,9); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9);]
 
 LogRange(start, stop, len) = exp.(LinRange(log(start), log(stop), len))
 
-α = [0; LogRange(1e-4,1e0,39)]
-ϱ╱ε = [0; LogRange(1e-4,1e0,39)]
+s = unique(round.(Int, LogRange(1,100,40)))
+α = [0; LogRange(1e-4,1e0,40)]
+ϱ╱ε = [0; LogRange(1e-4,1e0,40)]
 
 println("SO...")
 
@@ -178,11 +178,12 @@ train_and_test("W2 Windowing", W2_newsvendor_objective_value_and_order, ε, wind
 train_and_test("W2 Smoothing", W2_newsvendor_objective_value_and_order, ε, smoothing_weights, α)
 train_and_test("W2 Concentration", W2_newsvendor_objective_value_and_order, ε, W2_concentration_weights, ϱ╱ε)
 
-ε = [LinRange(1e2,1e3,10); LinRange(2e3,1e4,9); LinRange(2e4,1e5,9); LinRange(2e5,1e6,9); LinRange(2e6,1e7,9)]
-ϱ╱ε = [0; LogRange(1e-4,1e2,39)]
+ε = [LinRange(1e0,1e1,10); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9); LinRange(2e3,1e4,9);]
+ϱ╱ε = [0; LogRange(1e-4,1e2,40)]
 
 println("Intersections...")
 
 train_and_test("W2 Intersections", REMK_intersection_W2_newsvendor_objective_value_and_order, ε, REMK_intersection_weights, ϱ╱ε)
 
 close(results_file)
+

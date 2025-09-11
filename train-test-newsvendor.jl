@@ -4,7 +4,7 @@ using ProgressBars, IterTools
 include("weights.jl")
 include("newsvendor-optimizations.jl")
 
-repetitions = 30
+repetitions = 1
 history_length = 30
 
 
@@ -24,12 +24,12 @@ function expected_newsvendor_cost(order, demand_probability)
 end
 
 
-Random.seed!(44)
+#Random.seed!(42)
 u = 2.5e-3 # [1e-4, 2.5e-4, 5e-4, 7.5e-4, 1e-3, 2.5e-3, 5e-3, 7.5e-3, 1e-2, 2.5e-2]
 shift_distribution = Uniform(-u,u)
 
 demand_sequences = [zeros(history_length) for _ in 1:repetitions]
-final_demand_probabilities = [zeros(10000) for _ in 1:repetitions]
+final_demand_probabilities = [zeros(1000) for _ in 1:repetitions]
 
 for repetition in 1:repetitions
     local demand_probability = initial_demand_probability
@@ -89,6 +89,7 @@ function parameter_fit(newsvendor_objective_value_and_order, ambiguity_radii, co
 end
 
 #ε = [0; LinRange(1e0,1e1,10); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9); LinRange(2e3,1e4,9); LinRange(2e4,1e5,9)]
+#ε = [0; LinRange(1e0,1e1,10); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9);]
 ε = [0; LinRange(1e-1,1e0,10); LinRange(2e0,1e1,9); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9);]
 s = unique(round.(Int, LogRange(1,100,40)))
 
@@ -115,6 +116,7 @@ parameter_fit(W2_newsvendor_objective_value_and_order, ε, windowing_weights, s)
 parameter_fit(W2_newsvendor_objective_value_and_order, ε, W2_concentration_weights, ϱ╱ε)
 
 #ε = [LinRange(1e2,1e3,10); LinRange(2e3,1e4,9); LinRange(2e4,1e5,9); LinRange(2e5,1e6,9); LinRange(2e6,1e7,9)]
+#ε = [LinRange(1e1,1e2,10); LinRange(2e2,1e3,9); LinRange(2e3,1e4,9);]
 ε = [LinRange(1e0,1e1,10); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9); LinRange(2e3,1e4,9);]
 ϱ╱ε = [0; LogRange(1e-4,1e2,40)]
 
