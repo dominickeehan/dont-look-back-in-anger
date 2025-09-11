@@ -98,7 +98,7 @@ function W1_newsvendor_objective_value_and_order(ε, demands, weights, doubling_
         end
     end
 
-    @objective(Problem, Min, (ε^2)*λ + weights'*s)
+    @objective(Problem, Min, (ε^1)*λ + weights'*s)
 
     optimize!(Problem)
 
