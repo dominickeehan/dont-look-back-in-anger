@@ -1,7 +1,108 @@
 using Random, Distributions, Statistics, StatsBase
 using JuMP, Gurobi
-using Plots
+using Plots, Measures
 using ProgressBars
+
+
+
+
+
+
+
+
+default() # Reset plot defaults.
+
+gr(size = (275+6,183+6).*sqrt(3))
+
+fontfamily = "Computer Modern"
+
+default(framestyle = :box,
+        grid = true,
+        #gridlinewidth = 1.0,
+        gridalpha = 0.075,
+        #minorgrid = true,
+        #minorgridlinewidth = 1.0, 
+        #minorgridalpha = 0.075,
+        #minorgridlinestyle = :dash,
+        tick_direction = :in,
+        xminorticks = 0, 
+        yminorticks = 0,
+        fontfamily = fontfamily,
+        guidefont = Plots.font(fontfamily, pointsize = 12),
+        legendfont = Plots.font(fontfamily, pointsize = 11),
+        tickfont = Plots.font(fontfamily, pointsize = 10))
+
+
+plt = plot(xlims=(-4,4),
+           ylims=(0,3),
+           xlabel="Mean", 
+           ylabel="Standard deviation",
+           topmargin = 0pt, 
+           rightmargin = 0pt,
+           bottommargin = 6pt, 
+           leftmargin = 6pt)
+
+function ellipse_coords(a, b, n, xc, yc)
+    """
+    Generate coordinates of an upright ellipse starting from the bottommost point,
+    proceeding clockwise.
+
+    Arguments:
+    - a: semi-major axis (horizontal radius)
+    - b: semi-minor axis (vertical radius)
+    - n: number of points (default 200)
+    - xc, yc: center coordinates (default 0,0)
+
+    Returns:
+    - x, y: vectors of coordinates
+    """
+    # start from -π/2 so first point is bottom, step negative for clockwise
+    t = range(-π/2, -5π/2; length=n)
+
+    x = xc .+ a .* cos.(t)
+    y = yc .+ b .* sin.(t)
+
+    return x, y
+end
+
+
+    tab10_primary_colour = [227,119,194]/255
+
+    n = 100
+    ycoords, _ = ellipse_coords(2.5^2,2,n,-1,0.1)
+    nonnegative_ycoord_indices = ycoords .>= 0
+    ycoords = ycoords[nonnegative_ycoord_indices]
+    n = length(ycoords)
+
+    plot!(LinRange(-3.5,1,n), zeros(n), fillrange = ycoords, fillalpha = 0.1, fillcolor = tab10_primary_colour, label = "label")
+
+    #scatter!([-1], [-1], color=RGB(tab10_primary_colour[1]-0.1,tab10_primary_colour[2]-0.1,tab10_primary_colour[3]-0.1), markersize=markersize, markerstrokewidth=0.0, alpha=1, label="Intersections",)
+
+    tab10_primary_colour = [188, 189, 34]/255
+
+    #scatter!([-1], [-1], color=RGB(tab10_primary_colour[1],tab10_primary_colour[2],tab10_primary_colour[3]), markersize=markersize, markerstrokewidth=0.0, alpha=1, label="Concentration",)
+
+    scatter!([-1,0,1], [0,0,0], 
+                markersize = 6.0,
+                markershape = :utriangle,
+                markercolor = :black,#palette(:tab10)[8],
+                markerstrokecolor = :black,
+                markerstrokewidth = 0,#,0.5,
+                alpha=1, labels=nothing,)
+    annotate!(-1, 0, text(" \$\\xi_1\$", :black, :bottom, 11))
+    annotate!(0, 0, text(" \$\\xi_2\$", :black, :bottom, 11))
+    annotate!(1, 0, text(" \$\\xi_3\$", :black, :bottom, 11))
+
+    display(plt)
+    #savefig(plt, "figures/ambiguity-sets.pdf")
+
+
+throw=throw
+
+
+
+
+
 
 Random.seed!(42)
 
@@ -46,7 +147,7 @@ end
 support = [-4,4]
 number_of_points = 10
 
-number_of_distributions = 20000 # 30000
+number_of_distributions = 2000 # 30000
 
 markersize = 10
 
