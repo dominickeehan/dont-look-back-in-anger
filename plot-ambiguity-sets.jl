@@ -6,10 +6,6 @@ using ProgressBars
 
 
 
-
-
-
-
 default() # Reset plot defaults.
 
 gr(size = (275+6,183+6).*sqrt(3))
@@ -42,39 +38,74 @@ plt = plot(xlims=(-4,4),
            bottommargin = 6pt, 
            leftmargin = 6pt)
 
-function ellipse_coords(a, b, n, xc, yc)
-    """
-    Generate coordinates of an upright ellipse starting from the bottommost point,
-    proceeding clockwise.
+function nonnegative_ellipse_coords(horizontal_radius, vertical_radius, x_centre, y_centre)
 
-    Arguments:
-    - a: semi-major axis (horizontal radius)
-    - b: semi-minor axis (vertical radius)
-    - n: number of points (default 200)
-    - xc, yc: center coordinates (default 0,0)
+    t = range(1.5*π, -0.5*π; length=300)
 
-    Returns:
-    - x, y: vectors of coordinates
-    """
-    # start from -π/2 so first point is bottom, step negative for clockwise
-    t = range(-π/2, -5π/2; length=n)
-
-    x = xc .+ a .* cos.(t)
-    y = yc .+ b .* sin.(t)
+    x = x_centre .+ horizontal_radius .* cos.(t)
+    y = y_centre .+ vertical_radius .* sin.(t)
+    
+    negative_y_indices = y .< 0
+    y[negative_y_indices] .= 0
 
     return x, y
+
 end
 
+    linewidth = 1.5
+    fillalpha = 0.25
 
-    tab10_primary_colour = [227,119,194]/255
+    x_coords, y_coords = nonnegative_ellipse_coords(2.7,2.5,-1,0.1)
+    plot!(x_coords,
+          y_coords,
+          color = palette(:tab10)[7],
+          linewidth = linewidth,
+          linestyle = :solid,
+          alpha = 1,
+          label = nothing,
+          fill = (0, fillalpha, palette(:tab10)[7]))
 
-    n = 100
-    ycoords, _ = ellipse_coords(2.5^2,2,n,-1,0.1)
-    nonnegative_ycoord_indices = ycoords .>= 0
-    ycoords = ycoords[nonnegative_ycoord_indices]
-    n = length(ycoords)
+    
+    x_coords, y_coords = nonnegative_ellipse_coords(2.2,2.1,0,0)
+    plot!(x_coords,
+          y_coords,
+          color = palette(:tab10)[7],
+          linewidth = linewidth,
+          linestyle = :solid,
+          alpha = 1,
+          label = nothing,
+          fill = (0, fillalpha, palette(:tab10)[7]))
 
-    plot!(LinRange(-3.5,1,n), zeros(n), fillrange = ycoords, fillalpha = 0.1, fillcolor = tab10_primary_colour, label = "label")
+    x_coords, y_coords = nonnegative_ellipse_coords(1.5,1.5,1,0.1)
+    plot!(x_coords,
+          y_coords,
+          color = palette(:tab10)[7],
+          linewidth = linewidth,
+          linestyle = :solid,
+          alpha = 1,
+          label = nothing,
+          fill = (0, fillalpha, palette(:tab10)[7]))
+
+    x_coords, y_coords = nonnegative_ellipse_coords(1,1,-1,-1)
+    plot!(x_coords,
+          y_coords,
+          color = palette(:tab10)[7],
+          linewidth = linewidth,
+          linestyle = :solid,
+          alpha = 1,
+          label = "Intersections",
+          fill = (0, 2*fillalpha, palette(:tab10)[7]))
+
+    x_coords, y_coords = nonnegative_ellipse_coords(1.1,1,1,0.1)
+    plot!(x_coords,
+          y_coords,
+          color = palette(:tab10)[9],
+          linewidth = linewidth,
+          linestyle = :solid,
+          alpha = 1,
+          label = "Weighted",
+          fill = (0, 2*fillalpha, palette(:tab10)[9]))
+
 
     #scatter!([-1], [-1], color=RGB(tab10_primary_colour[1]-0.1,tab10_primary_colour[2]-0.1,tab10_primary_colour[3]-0.1), markersize=markersize, markerstrokewidth=0.0, alpha=1, label="Intersections",)
 

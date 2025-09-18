@@ -151,7 +151,7 @@ plot!(1:T,
         linestyle = :solid,
         alpha = 1,
         fill = (0, 0.1, palette(:tab10)[1]),
-        fillalpha = 0.02,)
+        fillalpha = 0.02,) # this is not alpha
 
 plot!(1:T, 
         Wp_concentration_weights(2, T, ρ/(2*ε)),#W2_concentration_weights(T, ρ/(2*ε)), 
