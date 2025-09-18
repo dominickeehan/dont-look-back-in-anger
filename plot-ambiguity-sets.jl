@@ -40,7 +40,7 @@ plt = plot(xlims=(-4,4),
 
 function nonnegative_ellipse_coords(horizontal_radius, vertical_radius, x_centre, y_centre)
 
-    t = range(1.5*π, -0.5*π; length=300)
+    t = range(1.5*π, -0.5*π; length=800)
 
     x = x_centre .+ horizontal_radius .* cos.(t)
     y = y_centre .+ vertical_radius .* sin.(t)
@@ -52,59 +52,109 @@ function nonnegative_ellipse_coords(horizontal_radius, vertical_radius, x_centre
 
 end
 
-    linewidth = 1.5
-    fillalpha = 0.25
+
+
+    linewidth = 1
+    alpha = 1
+    fillalpha = 0.2
 
     x_coords, y_coords = nonnegative_ellipse_coords(2.7,2.5,-1,0.1)
     plot!(x_coords,
           y_coords,
-          color = palette(:tab10)[7],
-          linewidth = linewidth,
+          color = palette(:tab10)[1],
+          linewidth = 0,
           linestyle = :solid,
-          alpha = 1,
+          alpha = 0,
           label = nothing,
-          fill = (0, fillalpha, palette(:tab10)[7]))
+          fill = (0, fillalpha, palette(:tab10)[1]))
 
     
     x_coords, y_coords = nonnegative_ellipse_coords(2.2,2.1,0,0)
     plot!(x_coords,
           y_coords,
-          color = palette(:tab10)[7],
-          linewidth = linewidth,
+          color = palette(:tab10)[1],
+          linewidth = 0,
           linestyle = :solid,
-          alpha = 1,
+          alpha = 0,
           label = nothing,
-          fill = (0, fillalpha, palette(:tab10)[7]))
+          fill = (0, fillalpha, palette(:tab10)[1]))
 
     x_coords, y_coords = nonnegative_ellipse_coords(1.5,1.5,1,0.1)
     plot!(x_coords,
           y_coords,
-          color = palette(:tab10)[7],
+          color = palette(:tab10)[1],
+          linewidth = 0,
+          linestyle = :solid,
+          alpha = 0,
+          label = nothing,
+          fill = (0, fillalpha, palette(:tab10)[1]))
+
+function nonnegative_intersected_ellipse_coords(horizontal_radii, vertical_radii, x_centres, y_centres)
+
+    x_coords, y_coords = nonnegative_ellipse_coords(horizontal_radii[1],vertical_radii[1],x_centres[1],y_centres[1]) 
+
+    for i in eachindex(x_coords)
+        if i ∈ [1,200]∪[601,800] # Negative quadrant so take negative root.
+            try
+                y_coords[i] = min(y_coords[i], y_centres[2] - vertical_radii[2]*sqrt(1-((x_coords[i]-x_centres[2])/horizontal_radii[2])^2))
+
+            catch # If outside shared x domain.
+                y_coords[i] = -99
+
+            end
+
+        else # Positive quadrant so take positive root.
+            try
+                y_coords[i] = min(y_coords[i], y_centres[2] + vertical_radii[2]*sqrt(1-((x_coords[i]-x_centres[2])/horizontal_radii[2])^2))
+
+            catch # If outside shared x domain.
+                y_coords[i] = -99
+
+            end
+        end
+    end
+
+    in_shared_x_domain_y_coords_indices = y_coords .!= -99
+    y_coords = y_coords[in_shared_x_domain_y_coords_indices]
+    x_coords = x_coords[in_shared_x_domain_y_coords_indices]
+
+    negative_y_coords_indices = y_coords .< 0
+    y_coords[negative_y_coords_indices] .= 0
+
+    return x_coords, y_coords
+
+end
+
+    #x_coords, y_coords = nonnegative_intersected_ellipse_coords([2.7,1.5],[2.5,1.5],[-1,1],[0.1,0.1])
+    x_coords, y_coords = nonnegative_intersected_ellipse_coords([1.5,2.7],[1.5,2.5],[1,-1],[0.1,0.1])
+
+    plot!(x_coords,
+          y_coords,
+          color = palette(:tab10)[1],
           linewidth = linewidth,
           linestyle = :solid,
           alpha = 1,
-          label = nothing,
-          fill = (0, fillalpha, palette(:tab10)[7]))
+          label = nothing)
 
     x_coords, y_coords = nonnegative_ellipse_coords(1,1,-1,-1)
     plot!(x_coords,
           y_coords,
-          color = palette(:tab10)[7],
+          color = palette(:tab10)[1],
           linewidth = linewidth,
           linestyle = :solid,
-          alpha = 1,
+          alpha = alpha,
           label = "Intersections",
-          fill = (0, 2*fillalpha, palette(:tab10)[7]))
+          fill = (0, 2*fillalpha, palette(:tab10)[1]))
 
     x_coords, y_coords = nonnegative_ellipse_coords(1.1,1,1,0.1)
     plot!(x_coords,
           y_coords,
-          color = palette(:tab10)[9],
+          color = palette(:tab10)[2],
           linewidth = linewidth,
-          linestyle = :solid,
-          alpha = 1,
+          linestyle = :dash,
+          alpha = alpha,
           label = "Weighted",
-          fill = (0, 2*fillalpha, palette(:tab10)[9]))
+          fill = (0, 2*fillalpha, palette(:tab10)[2]))
 
 
     #scatter!([-1], [-1], color=RGB(tab10_primary_colour[1]-0.1,tab10_primary_colour[2]-0.1,tab10_primary_colour[3]-0.1), markersize=markersize, markerstrokewidth=0.0, alpha=1, label="Intersections",)
@@ -120,12 +170,12 @@ end
                 markerstrokecolor = :black,
                 markerstrokewidth = 0,#,0.5,
                 alpha=1, labels=nothing,)
-    annotate!(-1, 0, text(" \$\\xi_1\$", :black, :bottom, 11))
-    annotate!(0, 0, text(" \$\\xi_2\$", :black, :bottom, 11))
-    annotate!(1, 0, text(" \$\\xi_3\$", :black, :bottom, 11))
+    annotate!(-1, 0, text(" \$\\xi_1\$", :black, :bottom, 12))
+    annotate!(0, 0, text(" \$\\xi_2\$", :black, :bottom, 12))
+    annotate!(1, 0, text(" \$\\xi_3\$", :black, :bottom, 12))
 
     display(plt)
-    #savefig(plt, "figures/ambiguity-sets.pdf")
+    savefig(plt, "figures/ambiguity-sets.pdf")
 
 
 throw=throw
