@@ -185,7 +185,7 @@ if true # Plot some
                 markershape = :circle,
                 markersize = 4,
                 markerstrokewidth = 0,
-                label = "Naïve \$(ε=0)\$")
+                label = "Unweighted (\$ε=0\$)")#"Naïve \$(ε=0)\$")
 
         expected_costs, sems = normalizer, normalizer_sems
         plot!(U, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
@@ -194,7 +194,7 @@ if true # Plot some
                 markershape = :diamond,
                 markersize = 4,
                 markerstrokewidth = 0,
-                label = "Smoothing \$(ε=0)\$")
+                label = "Smoothing (\$ε=0\$)")
 
         #expected_costs, sems = extract_line_to_plot(12)
         expected_costs, sems = ([46.89051102710592, 46.80519746412745, 48.30955329059213, 49.236172128682085, 50.743627230150715, 58.98498313090304, 74.87442886743092, 95.12314854477603, 114.74273519275445, 251.2954419201019], [0.29108574867941117, 0.2835947321255175, 0.3206981891435156, 0.3526277354988551, 0.38707587432146157, 0.5935867108376222, 0.7922520951319628, 1.0227371406000576, 1.0886611582078976, 2.980690218127019])
@@ -214,30 +214,192 @@ if true # Plot some
                 markershape = :star4,
                 markersize = 5,
                 markerstrokewidth = 0,
-                label = "Concentration")
+                label = "Weighted")
 
         ylims!((0.7, 1.3))
         xlims!((U[1], U[end]))
 
-        #plot!(legend_columns = 2)
-        #plot!([0,-1], [-1,-1], linestyle = :solid, color = :white, label = " ")
+        display(plt)
 
-        #plot!([0,-1], [-1,-1], linestyle = :solid, color = :black, label = "SO")
-        #plot!([0,-1], [-1,-1], linestyle = :dash, color = :black, label = "\$W_2\$")
+        #savefig(plt, "figures/train-test-expected-cost.pdf")
 
-        #scatter!([0,-1], [-1,-1], markershape = :circle, markerstrokecolor = palette(:tab10)[1], color = palette(:tab10)[1], label = "Naïve")
-        #scatter!([0,-1], [-1,-1], markershape = :circle, markerstrokecolor = palette(:tab10)[2], color = palette(:tab10)[2], label = "Windowing")
-        #scatter!([0,-1], [-1,-1], markershape = :circle, markerstrokecolor = palette(:tab10)[3], color = palette(:tab10)[3], label = "Smoothing")
-        #scatter!([0,-1], [-1,-1], markershape = :circle, markerstrokecolor = palette(:tab10)[4], color = palette(:tab10)[4], label = "Concentration")
-        #scatter!([0,-1], [-1,-1], markershape = :circle, markerstrokecolor = palette(:tab10)[5], color = palette(:tab10)[5], label = "Intersection")
+end
 
-        #plot!(legend = :topleft)
+
+if true # Plot some
+
+        default() # Reset plot defaults.
+
+        gr(size = (275+6,183+6).*sqrt(3))
+
+        fontfamily = "Computer Modern"
+
+        default(framestyle = :box,
+                grid = true,
+                #gridlinewidth = 1.0,
+                gridalpha = 0.075,
+                minorgrid = true,
+                #minorgridlinewidth = 1.0, 
+                minorgridalpha = 0.075,
+                minorgridlinestyle = :dash,
+                tick_direction = :in,
+                xminorticks = 9, 
+                yminorticks = 0,
+                fontfamily = fontfamily,
+                guidefont = Plots.font(fontfamily, pointsize = 12),
+                legendfont = Plots.font(fontfamily, pointsize = 11),
+                tickfont = Plots.font(fontfamily, pointsize = 10))
+
+        plt = plot(xscale = :log10, #yscale = :log10,
+                xlabel = "Distribution shift parameter, \$ρ′\$", 
+                ylabel = "Expected cost",
+                #ylabel = "Ex-post-optimal expected cost",
+                topmargin = 0pt,
+                leftmargin = 6pt,
+                bottommargin = 6pt,
+                rightmargin = 0pt,
+                )
+
+        fillalpha = 0.1
+
+        normalizer, normalizer_sems = extract_line_to_plot(5)
+
+        expected_costs, sems = normalizer, normalizer_sems
+        plot!(U, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
+                color = palette(:tab10)[1],
+                linestyle = :solid,
+                markershape = :circle,
+                markersize = 4,
+                markerstrokewidth = 0,
+                label = "Windowing (\$W_1\$)")
+
+        expected_costs, sems = extract_line_to_plot(6)
+        plot!(U, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
+                color = palette(:tab10)[2],
+                linestyle = :dash,
+                markershape = :diamond,
+                markersize = 4,
+                markerstrokewidth = 0,
+                label = "Smoothing (\$W_1\$)")
+
+        expected_costs, sems = extract_line_to_plot(7)
+        plot!(U, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
+                color = palette(:tab10)[3],
+                linestyle = :dashdot,
+                markershape = :pentagon,
+                markersize = 4,
+                markerstrokewidth = 0,
+                label = "Weighted (\$W_1\$)")
+
+        #ylims!((0.7, 1.3))
+        #xlims!((U[1], U[end]))
 
         display(plt)
 
-        savefig(plt, "figures/train-test-expected-cost.pdf")
+end
+
+
+
+if true # Plot some
+
+        default() # Reset plot defaults.
+
+        gr(size = (275+6,183+6).*sqrt(3))
+
+        fontfamily = "Computer Modern"
+
+        default(framestyle = :box,
+                grid = true,
+                #gridlinewidth = 1.0,
+                gridalpha = 0.075,
+                minorgrid = true,
+                #minorgridlinewidth = 1.0, 
+                minorgridalpha = 0.075,
+                minorgridlinestyle = :dash,
+                tick_direction = :in,
+                xminorticks = 9, 
+                yminorticks = 0,
+                fontfamily = fontfamily,
+                guidefont = Plots.font(fontfamily, pointsize = 12),
+                legendfont = Plots.font(fontfamily, pointsize = 11),
+                tickfont = Plots.font(fontfamily, pointsize = 10))
+
+        plt = plot(xscale = :log10, #yscale = :log10,
+                xlabel = "Distribution shift parameter, \$ρ′\$", 
+                ylabel = "Expected cost",
+                #ylabel = "Ex-post-optimal expected cost",
+                topmargin = 0pt,
+                leftmargin = 6pt,
+                bottommargin = 6pt,
+                rightmargin = 0pt,
+                )
+
+        fillalpha = 0.1
+
+        normalizer, normalizer_sems = extract_line_to_plot(9)
+
+        expected_costs, sems = normalizer, normalizer_sems
+        plot!(U, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
+                color = palette(:tab10)[1],
+                linestyle = :solid,
+                markershape = :circle,
+                markersize = 4,
+                markerstrokewidth = 0,
+                label = "Windowing (\$W_2\$)")
+
+        expected_costs, sems = extract_line_to_plot(10)
+        plot!(U, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
+                color = palette(:tab10)[2],
+                linestyle = :dash,
+                markershape = :diamond,
+                markersize = 4,
+                markerstrokewidth = 0,
+                label = "Smoothing (\$W_2\$)")
+
+        expected_costs, sems = extract_line_to_plot(11)
+        plot!(U, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
+                color = palette(:tab10)[3],
+                linestyle = :dashdot,
+                markershape = :pentagon,
+                markersize = 4,
+                markerstrokewidth = 0,
+                label = "Weighted (\$W_2\$)")
+
+        #ylims!((0.7, 1.3))
+        #xlims!((U[1], U[end]))
+
+        display(plt)
 
 end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 if false # Plot all
 
