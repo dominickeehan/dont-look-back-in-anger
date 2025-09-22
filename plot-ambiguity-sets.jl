@@ -4,8 +4,6 @@ using Plots, Measures
 using ProgressBars
 
 
-
-
 default() # Reset plot defaults.
 
 gr(size = (275+6,183+6).*sqrt(3))
@@ -28,19 +26,20 @@ default(framestyle = :box,
         legendfont = Plots.font(fontfamily, pointsize = 11),
         tickfont = Plots.font(fontfamily, pointsize = 10))
 
+plt = plot(xlims=(-3,3),
+            ylims=(0,2),
+            xlabel="Mean", 
+            ylabel="Standard deviation",
+            topmargin = 0pt, 
+            rightmargin = 0pt,
+            bottommargin = 6pt, 
+            leftmargin = 6pt)
 
-plt = plot(xlims=(-4,4),
-           ylims=(0,3),
-           xlabel="Mean", 
-           ylabel="Standard deviation",
-           topmargin = 0pt, 
-           rightmargin = 0pt,
-           bottommargin = 6pt, 
-           leftmargin = 6pt)
+function nonnegative_ellipse_coords(ellipse_parameters)
 
-function nonnegative_ellipse_coords(horizontal_radius, vertical_radius, x_centre, y_centre)
+    horizontal_radius, vertical_radius, x_centre, y_centre = ellipse_parameters
 
-    t = range(1.5*π, -0.5*π; length=800)
+    t = range(1.5*π, -0.5*π; length=1000)
 
     x = x_centre .+ horizontal_radius .* cos.(t)
     y = y_centre .+ vertical_radius .* sin.(t)
@@ -52,51 +51,55 @@ function nonnegative_ellipse_coords(horizontal_radius, vertical_radius, x_centre
 
 end
 
-
+    intersection_ellipse_1 = [1.75,1.75,-1,0] # Width, height, x, y. 
+    intersection_ellipse_2 = [1.5,1.5,0,0]
+    intersection_ellipse_3 = [1.25,1.25,1,0]
+    weighted_ellipse = [1,1,0.85,0.25]
 
     linewidth = 1
     alpha = 1
     fillalpha = 0.2
 
-    x_coords, y_coords = nonnegative_ellipse_coords(2.7,2.5,-1,0.1)
+    x_coords, y_coords = nonnegative_ellipse_coords(intersection_ellipse_1)
     plot!(x_coords,
-          y_coords,
-          color = palette(:tab10)[1],
-          linewidth = 0,
-          linestyle = :solid,
-          alpha = 0,
-          label = nothing,
-          fill = (0, fillalpha, palette(:tab10)[1]))
+            y_coords,
+            color = palette(:tab10)[1],
+            linewidth = 0,
+            linestyle = :solid,
+            alpha = 0,
+            label = nothing,
+            fill = (0, fillalpha, palette(:tab10)[1]))
 
-    
-    x_coords, y_coords = nonnegative_ellipse_coords(2.2,2.1,0,0)
+    x_coords, y_coords = nonnegative_ellipse_coords(intersection_ellipse_2)
     plot!(x_coords,
-          y_coords,
-          color = palette(:tab10)[1],
-          linewidth = 0,
-          linestyle = :solid,
-          alpha = 0,
-          label = nothing,
-          fill = (0, fillalpha, palette(:tab10)[1]))
+            y_coords,
+            color = palette(:tab10)[1],
+            linewidth = 0,
+            linestyle = :solid,
+            alpha = 0,
+            label = nothing,
+            fill = (0, fillalpha, palette(:tab10)[1]))
 
-    x_coords, y_coords = nonnegative_ellipse_coords(1.5,1.5,1,0.1)
+    x_coords, y_coords = nonnegative_ellipse_coords(intersection_ellipse_3)
     plot!(x_coords,
-          y_coords,
-          color = palette(:tab10)[1],
-          linewidth = 0,
-          linestyle = :solid,
-          alpha = 0,
-          label = nothing,
-          fill = (0, fillalpha, palette(:tab10)[1]))
+            y_coords,
+            color = palette(:tab10)[1],
+            linewidth = 0,
+            linestyle = :solid,
+            alpha = 0,
+            label = nothing,
+            fill = (0, fillalpha, palette(:tab10)[1]))
 
-function nonnegative_intersected_ellipse_coords(horizontal_radii, vertical_radii, x_centres, y_centres)
+function nonnegative_intersected_ellipse_coords(ellipse_1_parameters, ellipse_2_parameters)
 
-    x_coords, y_coords = nonnegative_ellipse_coords(horizontal_radii[1],vertical_radii[1],x_centres[1],y_centres[1]) 
+    horizontal_radius_2, vertical_radius_2, x_centre_2, y_centre_2 = ellipse_2_parameters
+
+    x_coords, y_coords = nonnegative_ellipse_coords(ellipse_1_parameters) 
 
     for i in eachindex(x_coords)
-        if i ∈ [1,200]∪[601,800] # Negative quadrant so take negative root.
+        if i ∈ [1,250]∪[751,1000] # Negative quadrant so take negative root.
             try
-                y_coords[i] = min(y_coords[i], y_centres[2] - vertical_radii[2]*sqrt(1-((x_coords[i]-x_centres[2])/horizontal_radii[2])^2))
+                y_coords[i] = min(y_coords[i], y_centre_2 - vertical_radius_2*sqrt(1-((x_coords[i]-x_centre_2)/horizontal_radius_2)^2))
 
             catch # If outside shared x domain.
                 y_coords[i] = -99
@@ -105,7 +108,7 @@ function nonnegative_intersected_ellipse_coords(horizontal_radii, vertical_radii
 
         else # Positive quadrant so take positive root.
             try
-                y_coords[i] = min(y_coords[i], y_centres[2] + vertical_radii[2]*sqrt(1-((x_coords[i]-x_centres[2])/horizontal_radii[2])^2))
+                y_coords[i] = min(y_coords[i], y_centre_2 + vertical_radius_2*sqrt(1-((x_coords[i]-x_centre_2)/horizontal_radius_2)^2))
 
             catch # If outside shared x domain.
                 y_coords[i] = -99
@@ -121,55 +124,47 @@ function nonnegative_intersected_ellipse_coords(horizontal_radii, vertical_radii
     negative_y_coords_indices = y_coords .< 0
     y_coords[negative_y_coords_indices] .= 0
 
-    return x_coords, y_coords
+    return [x_coords[1]; x_coords], [0; y_coords] # Prepend to cover intial gap.
 
 end
 
-    #x_coords, y_coords = nonnegative_intersected_ellipse_coords([2.7,1.5],[2.5,1.5],[-1,1],[0.1,0.1])
-    x_coords, y_coords = nonnegative_intersected_ellipse_coords([1.5,2.7],[1.5,2.5],[1,-1],[0.1,0.1])
-
+    x_coords, y_coords = nonnegative_intersected_ellipse_coords(intersection_ellipse_1, intersection_ellipse_3)
     plot!(x_coords,
-          y_coords,
-          color = palette(:tab10)[1],
-          linewidth = linewidth,
-          linestyle = :solid,
-          alpha = 1,
-          label = nothing)
+            y_coords,
+            color = palette(:tab10)[1],
+            linewidth = linewidth,
+            linestyle = :solid,
+            alpha = 1,
+            label = nothing)
 
-    x_coords, y_coords = nonnegative_ellipse_coords(1,1,-1,-1)
+    x_coords, y_coords = nonnegative_ellipse_coords([1,1,-1,-1])
     plot!(x_coords,
-          y_coords,
-          color = palette(:tab10)[1],
-          linewidth = linewidth,
-          linestyle = :solid,
-          alpha = alpha,
-          label = "Intersections",
-          fill = (0, 2*fillalpha, palette(:tab10)[1]))
+            y_coords,
+            color = palette(:tab10)[1],
+            linewidth = linewidth,
+            linestyle = :solid,
+            alpha = alpha,
+            label = "Intersection",
+            fill = (0, 2*fillalpha, palette(:tab10)[1]))
 
-    x_coords, y_coords = nonnegative_ellipse_coords(1.1,1,1,0.1)
+    x_coords, y_coords = nonnegative_ellipse_coords(weighted_ellipse)
     plot!(x_coords,
-          y_coords,
-          color = palette(:tab10)[2],
-          linewidth = linewidth,
-          linestyle = :dash,
-          alpha = alpha,
-          label = "Weighted",
-          fill = (0, 2*fillalpha, palette(:tab10)[2]))
-
-
-    #scatter!([-1], [-1], color=RGB(tab10_primary_colour[1]-0.1,tab10_primary_colour[2]-0.1,tab10_primary_colour[3]-0.1), markersize=markersize, markerstrokewidth=0.0, alpha=1, label="Intersections",)
-
-    tab10_primary_colour = [188, 189, 34]/255
-
-    #scatter!([-1], [-1], color=RGB(tab10_primary_colour[1],tab10_primary_colour[2],tab10_primary_colour[3]), markersize=markersize, markerstrokewidth=0.0, alpha=1, label="Concentration",)
+            y_coords,
+            color = palette(:tab10)[2],
+            linewidth = linewidth,
+            linestyle = :dash,
+            alpha = alpha,
+            label = "Weighted",
+            fill = (0, 2*fillalpha, palette(:tab10)[2]))
 
     scatter!([-1,0,1], [0,0,0], 
                 markersize = 6.0,
                 markershape = :utriangle,
-                markercolor = :black,#palette(:tab10)[8],
+                markercolor = :black,
                 markerstrokecolor = :black,
-                markerstrokewidth = 0,#,0.5,
-                alpha=1, labels=nothing,)
+                markerstrokewidth = 0,
+                alpha = 1, 
+                labels = nothing,)
     annotate!(-1, 0, text(" \$\\xi_1\$", :black, :bottom, 12))
     annotate!(0, 0, text(" \$\\xi_2\$", :black, :bottom, 12))
     annotate!(1, 0, text(" \$\\xi_3\$", :black, :bottom, 12))
@@ -178,71 +173,71 @@ end
     savefig(plt, "figures/ambiguity-sets.pdf")
 
 
-throw=throw
 
+if false
 
+    Random.seed!(42)
 
+    env = Gurobi.Env()
+    GRBsetintparam(env, "OutputFlag", 0)
+    Linear_Optimizer = optimizer_with_attributes(() -> Gurobi.Optimizer(env))
 
+    function in_W2_ball(P, ε, Q)
 
+        # P, Q := [points, weights] .
 
-Random.seed!(42)
+        m = length(P[1])
+        n = length(Q[1])
 
-env = Gurobi.Env()
-GRBsetintparam(env, "OutputFlag", 0)
-Linear_Optimizer = optimizer_with_attributes(() -> Gurobi.Optimizer(env))
+        d = [abs(ξ - ζ)^2 for ξ in P[1], ζ in Q[1]]
 
-function in_W2_ball(P, ε, Q)
+        model = Model(Linear_Optimizer)
 
-    # P, Q := [points, weights] .
+        @variable(model, γ[1:m, 1:n] >= 0)
 
-    m = length(P[1])
-    n = length(Q[1])
+        @constraint(model, [i=1:m], sum(γ[i,j] for j in 1:n) == P[2][i])
+        @constraint(model, [j=1:n], sum(γ[i,j] for i in 1:m) == Q[2][j])
 
-    d = [abs(ξ - ζ)^2 for ξ in P[1], ζ in Q[1]]
+        @objective(model, Min, sum(γ[i,j] * d[i,j] for i in 1:m, j in 1:n))
 
-    model = Model(Linear_Optimizer)
+        optimize!(model)
 
-    @variable(model, γ[1:m, 1:n] >= 0)
+        try; return ifelse((objective_value(model)^(1/2)) <= ε, 1, 0); catch; return 0; end
 
-    @constraint(model, [i=1:m], sum(γ[i,j] for j in 1:n) == P[2][i])
-    @constraint(model, [j=1:n], sum(γ[i,j] for i in 1:m) == Q[2][j])
+    end
 
-    @objective(model, Min, sum(γ[i,j] * d[i,j] for i in 1:m, j in 1:n))
+    include("weights.jl")
 
-    optimize!(model)
+    normalise(x) = x/sum(x)
 
-    try; return ifelse(sqrt(objective_value(model)) <= ε, 1, 0); catch; return 0; end
+    function mean_and_std(Q)
 
-end
+        return mean(Q[1], Weights(Q[2])), std(Q[1], Weights(Q[2]))
 
-include("weights.jl")
+    end
 
-normalise(x) = x/sum(x)
+    support = [-3,3]
+    height = 2
+    samples = [-1,0,1]
 
-function mean_and_std(Q)
+    number_of_points = 100
+    number_of_distributions = 50000 # 30000
 
-    return mean(Q[1], Weights(Q[2])), std(Q[1], Weights(Q[2]))
+    markersize = 3
 
-end
+    ε = 1
 
-support = [-4,4]
-number_of_points = 10
+    ϱ = 1/4
 
-number_of_distributions = 2000 # 30000
+    P = [samples, W2_concentration_weights(3, ϱ/ε)]
 
-markersize = 10
-
-ε = 1
-
-for ϱ in [ε/2]
-
-    P = [[-1,0,1], W2_concentration_weights(3, ϱ/ε)]
+    display(P)
 
     Qs = [[zeros(number_of_points), zeros(number_of_points)] for _ in 1:number_of_distributions]
     Threads.@threads for i in ProgressBar(eachindex(Qs))
         local n = number_of_points
         local μ = rand(Uniform(support[1],support[end]))
-        local σ = rand(Uniform(0,3))
+        local σ = rand(Uniform(0,height))
         local points = rand(Normal(μ, σ), n)
 
         Qs[i] = [points, 1/n*ones(n)]
@@ -257,12 +252,12 @@ for ϱ in [ε/2]
 
     default() # Reset plot defaults.
 
-    gr(size = (600,400))
+    gr(size = (275+6,183+6).*sqrt(3))
 
     font_family = "Computer Modern"
-    primary_font = Plots.font(font_family, pointsize = 17)
-    secondary_font = Plots.font(font_family, pointsize = 11)
-    legend_font = Plots.font(font_family, pointsize = 15)
+    primary_font = Plots.font(font_family, pointsize = 12)
+    secondary_font = Plots.font(font_family, pointsize = 10)
+    legend_font = Plots.font(font_family, pointsize = 11)
 
     default(framestyle = :box,
             grid = true,
@@ -280,7 +275,14 @@ for ϱ in [ε/2]
             tickfont = secondary_font,
             legendfont = legend_font)
 
-    plt = plot(xlims=(support[1],support[end]), ylims=(0,3), xlabel="Mean", ylabel="Standard deviation")
+    plt = plot(xlims=(support[1],support[end]), 
+                ylims=(0,height), 
+                xlabel="Mean", 
+                ylabel="Standard deviation",           
+                topmargin = 0pt, 
+                rightmargin = 0pt,
+                bottommargin = 6pt, 
+                leftmargin = 6pt)
 
     tab10_primary_colour = [227,119,194]/255
 
@@ -309,20 +311,95 @@ for ϱ in [ε/2]
         end
     end
 
-    scatter!([-1], [-1], color=RGB(tab10_primary_colour[1]-0.1,tab10_primary_colour[2]-0.1,tab10_primary_colour[3]-0.1), markersize=markersize, markerstrokewidth=0.0, alpha=1, label="Intersections",)
+    scatter!([-1], [-1], color=RGB(tab10_primary_colour[1]-0.1,tab10_primary_colour[2]-0.1,tab10_primary_colour[3]-0.1), markersize=markersize, markerstrokewidth=0.0, alpha=1, label="Intersection",)
 
-    #scatter!([-1,0,1], [0,0,0], 
-    #            markersize = 6.0,
-    #            markershape = :utriangle,
-    #            markercolor = :black,#palette(:tab10)[8],
-    #            markerstrokecolor = :black,
-    #            markerstrokewidth = 0,#,0.5,
-    #            alpha=1, labels=nothing,)
-    #annotate!(-1, 0, text(" \$\\xi_1\$", :black, :bottom, 16))
-    #annotate!(0, 0, text(" \$\\xi_2\$", :black, :bottom, 16))
-    #annotate!(1, 0, text(" \$\\xi_3\$", :black, :bottom, 16))
+    scatter!(samples, [0,0,0], 
+                markersize = 6.0,
+                markershape = :utriangle,
+                markercolor = :black,#palette(:tab10)[8],
+                markerstrokecolor = :black,
+                markerstrokewidth = 0,#,0.5,
+                alpha=1, labels=nothing,)
+    annotate!(samples[1], 0, text(" \$\\xi_1\$", :black, :bottom, 12))
+    annotate!(samples[2], 0, text(" \$\\xi_2\$", :black, :bottom, 12))
+    annotate!(samples[3], 0, text(" \$\\xi_3\$", :black, :bottom, 12))
 
-    #title!("\$\\varepsilon=$ε\$, \$\\varrho=$ϱ\$")
+    display(plt)
+    savefig(plt, "figures/ambiguity-sets-data-1.pdf")
+
+    default() # Reset plot defaults.
+
+    gr(size = (275+6,183+6).*sqrt(3))
+
+    font_family = "Computer Modern"
+    primary_font = Plots.font(font_family, pointsize = 12)
+    secondary_font = Plots.font(font_family, pointsize = 10)
+    legend_font = Plots.font(font_family, pointsize = 11)
+
+    default(framestyle = :box,
+            grid = true,
+            #gridlinewidth = 1.0,
+            gridalpha = 0.075,
+            #minorgrid = true,
+            #minorgridlinewidth = 1.0, 
+            #minorgridalpha = 0.075,
+            #minorgridlinestyle = :dash,
+            tick_direction = :in,
+            xminorticks = 0, 
+            yminorticks = 0,
+            fontfamily = font_family,
+            guidefont = primary_font,
+            tickfont = secondary_font,
+            legendfont = legend_font)
+
+    plt = plot(xlims=(support[1],support[end]), 
+                ylims=(0,height), 
+                xlabel="Mean", 
+                ylabel="Standard deviation",
+                topmargin = 0pt, 
+                rightmargin = 0pt,
+                bottommargin = 6pt, 
+                leftmargin = 6pt)
+
+
+    tab10_primary_colour = [227,119,194]/255
+
+    for i in ProgressBar(eachindex(Qs))
+
+        if sum(plot_intersection_Qs[i]) == 1
+            mean, std = mean_and_std(Qs[i])
+            scatter!([mean], [std], color=RGB(min(tab10_primary_colour[1]+0.1,1.0),tab10_primary_colour[2]+0.1,tab10_primary_colour[3]+0.1), markersize=markersize, markerstrokewidth=0.0, alpha=1, labels=nothing,)
+
+        end
+    end
+
+    for i in ProgressBar(eachindex(Qs))
+        if sum(plot_intersection_Qs[i]) == 2
+            mean, std = mean_and_std(Qs[i])
+            scatter!([mean], [std], color=RGB(tab10_primary_colour[1],tab10_primary_colour[2],tab10_primary_colour[3]), markersize=markersize, markerstrokewidth=0.0, alpha=1, labels=nothing,)
+
+        end
+    end
+
+    for i in ProgressBar(eachindex(Qs))
+        if sum(plot_intersection_Qs[i]) == 3
+            mean, std = mean_and_std(Qs[i])
+            scatter!([mean], [std], 
+                        color = RGB(tab10_primary_colour[1]-0.1,tab10_primary_colour[2]-0.1,tab10_primary_colour[3]-0.1), 
+                        markersize = markersize, 
+                        markerstrokewidth = 0.0, 
+                        alpha = 1, 
+                        labels = nothing,)
+
+        end
+    end
+
+    scatter!([-1], [-1], 
+                color = RGB(tab10_primary_colour[1]-0.1,tab10_primary_colour[2]-0.1,tab10_primary_colour[3]-0.1), 
+                markersize = markersize, 
+                markerstrokewidth = 0.0, 
+                alpha = 1,
+                label = "Intersection")
 
     plot_ball_Qs = zeros(length(Qs))
     Threads.@threads for i in ProgressBar(eachindex(Qs))
@@ -335,26 +412,35 @@ for ϱ in [ε/2]
     for i in ProgressBar(eachindex(Qs))
         if plot_ball_Qs[i] == 1
             mean, std = mean_and_std(Qs[i])
-            scatter!([mean], [std], color=RGB(tab10_primary_colour[1],tab10_primary_colour[2],tab10_primary_colour[3]), markersize=markersize, markerstrokewidth=0.0, labels=nothing,)
+            scatter!([mean], [std], 
+                        color = RGB(tab10_primary_colour[1],tab10_primary_colour[2],tab10_primary_colour[3]), 
+                        markersize = markersize, 
+                        markerstrokewidth = 0.0, 
+                        labels = nothing,)
 
         end
     end
 
-    scatter!([-1], [-1], color=RGB(tab10_primary_colour[1],tab10_primary_colour[2],tab10_primary_colour[3]), markersize=markersize, markerstrokewidth=0.0, alpha=1, label="Concentration",)
+    scatter!([-1], [-1], 
+                color = RGB(tab10_primary_colour[1],tab10_primary_colour[2],tab10_primary_colour[3]), 
+                markersize = markersize, 
+                markerstrokewidth = 0.0, 
+                alpha = 1, 
+                label = "Weighted")
 
-    scatter!([-1,0,1], [0,0,0], 
+    scatter!(samples, [0,0,0], 
                 markersize = 6.0,
                 markershape = :utriangle,
-                markercolor = :black,#palette(:tab10)[8],
+                markercolor = :black,
                 markerstrokecolor = :black,
-                markerstrokewidth = 0,#,0.5,
-                alpha=1, labels=nothing,)
-    annotate!(-1, 0, text(" \$\\xi_1\$", :black, :bottom, 16))
-    annotate!(0, 0, text(" \$\\xi_2\$", :black, :bottom, 16))
-    annotate!(1, 0, text(" \$\\xi_3\$", :black, :bottom, 16))
+                markerstrokewidth = 0,
+                alpha = 1, 
+                labels = nothing)
+    annotate!(samples[1], 0, text(" \$\\xi_1\$", :black, :bottom, 12))
+    annotate!(samples[2], 0, text(" \$\\xi_2\$", :black, :bottom, 12))
+    annotate!(samples[3], 0, text(" \$\\xi_3\$", :black, :bottom, 12))
 
     display(plt)
-    savefig(plt, "figures/ambiguity-sets.pdf")
+    savefig(plt, "figures/ambiguity-sets-data-2.pdf")
 
 end
-
