@@ -3,4 +3,4 @@
 #PBS -l walltime=7:59:59
 
 cd $HOME/Dominic
-julia newsvendor-train-and-test.jl
+julia generate-train-test-newsvendor-data.jl
