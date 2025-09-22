@@ -220,8 +220,8 @@ if true
     height = 2
     samples = [-1,0,1]
 
-    number_of_points = 100
-    number_of_distributions = 20000 # 30000
+    number_of_points = 30
+    number_of_distributions = 1000 # 30000
 
     markersize = 3
 
@@ -238,8 +238,7 @@ if true
         local n = number_of_points
         local μ = rand(Uniform(support[1],support[end]))
         local σ = rand(Uniform(0,height))
-        #local points = rand(Normal(μ, σ), n)
-        local points = rand(Uniform(μ-sqrt(3)*σ, μ+sqrt(3)*σ), n)
+        local points = rand(Normal(μ, σ), n)
 
         Qs[i] = [points, 1/n*ones(n)]
 
@@ -326,7 +325,7 @@ if true
     annotate!(samples[3], 0, text(" \$\\xi_3\$", :black, :bottom, 12))
 
     display(plt)
-    savefig(plt, "figures/ambiguity-sets-data-1.pdf")
+    #savefig(plt, "figures/ambiguity-sets-data-1.pdf")
 
     default() # Reset plot defaults.
 
@@ -442,6 +441,6 @@ if true
     annotate!(samples[3], 0, text(" \$\\xi_3\$", :black, :bottom, 12))
 
     display(plt)
-    savefig(plt, "figures/ambiguity-sets-data-2.pdf")
+    #savefig(plt, "figures/ambiguity-sets-data-2.pdf")
 
 end
