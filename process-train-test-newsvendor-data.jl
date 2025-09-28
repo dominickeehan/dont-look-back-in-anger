@@ -10,48 +10,14 @@ number_of_jobs_per_u = 1000 # (Code assumes [number of] repetitions = 1.)
 U = [1e-4, 2.5e-4, 5e-4, 7.5e-4, 1e-3, 2.5e-3, 5e-3, 7.5e-3, 1e-2, 2.5e-2]#, 5e-2]
 
 history_length = 100
-ε = [0; LinRange(1e0,1e1,10); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9); LinRange(2e3,1e4,9); LinRange(2e4,1e5,9)]
-s = [round.(Int, LinRange(1,10,10)); round.(Int, LinRange(12,30,10)); round.(Int, LinRange(33,60,10)); round.(Int, LinRange(64,100,10))]
+ε = [0; LinRange(1e-1,1e0,10); LinRange(2e0,1e1,9); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9);]
 LogRange(start, stop, len) = exp.(LinRange(log(start), log(stop), len))
-α = [0; LogRange(1e-4,1e0,39)]
-ϱ╱ε = [0; LogRange(1e-4,1e0,39)]
+s = unique(round.(Int, LogRange(1,100,40)))
+α = [0; LogRange(1e-4,1e0,40)]
+ϱ╱ε = [0; LogRange(1e-4,1e0,40)]
 
-ambiguity_radii = [[0], [0], [0], ε, ε, ε, ε, ε, ε, ε, ε, ε[2:end]]
-weight_parameters = [[history_length], s, α, [history_length], s, α, ϱ╱ε, [history_length], s, α, ϱ╱ε, ϱ╱ε,]
-
-function extract_ex_post_expected_cost(method_index, u_index)
-
-        length_ambiguity_radii = length(ambiguity_radii[method_index])
-        length_weight_parameters = length(weight_parameters[method_index])
-
-        costs = [zeros((length_ambiguity_radii,length_weight_parameters)) for _ in 1:number_of_jobs_per_u]
-        is_indice_missing = falses(number_of_jobs_per_u)
-
-        skipto = sum(length(ambiguity_radii[i])*length(weight_parameters[i]) for i in 1:method_index-1; init=0)+1+1 # (Second +1 to ignore header)
-        take = length_ambiguity_radii*length_weight_parameters       
-
-        Threads.@threads for job in 0:number_of_jobs_per_u-1
-                local job_index = 999*(u_index-1)+job
-                local results_file = CSV.File("newsvendor-data/$job_index.csv", header=false, skipto=skipto)
-
-                try
-                        local data = [row.Column9 for row in Iterators.take(results_file, take)]
-                        costs[job+1] = reshape(data, length_weight_parameters, length_ambiguity_radii)'
-
-                catch
-                        is_indice_missing[job+1] = true
-
-                end
-        end
-
-        costs = costs[.!is_indice_missing]
-
-        ambiguity_radius_index, weight_parameter_index = Tuple(argmin(mean(costs)))
-        minimal_costs = [costs[i][ambiguity_radius_index, weight_parameter_index] for i in eachindex(costs)]
-
-        return mean(minimal_costs), sem(minimal_costs)
-end
-
+ambiguity_radii = [[0], [0], [0], ε, ε, ε, ε, ε, ε, ε, ε, [LinRange(1e0,1e1,10); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9); LinRange(2e3,1e4,9);]]
+weight_parameters = [[history_length], s, α, [history_length], s, α, ϱ╱ε, [history_length], s, α, ϱ╱ε, [0; LogRange(1e-4,1e2,40)],]
 
 function extract_train_test_objective_values_and_expected_costs(method_index, u_index)
 
@@ -68,11 +34,17 @@ function extract_train_test_objective_values_and_expected_costs(method_index, u_
 
         Threads.@threads for job in 0:number_of_jobs_per_u-1
                 local job_index = 999*(u_index-1)+job
-                local results_file = CSV.File("newsvendor-data/$job_index.csv", header=false, skipto=skipto)
+                local results_file = CSV.File("newsvendor-data/27-09-25/$job_index.csv", header=false, skipto=skipto)
 
                 try
                         local training_average_cost_data, doubling_count_data, objective_values_data, test_expected_cost_data = eachcol(stack([[row.Column6, row.Column7, row.Column8, row.Column9] for row in Iterators.take(results_file, take)])')
-                        training_average_cost_data[doubling_count_data .> 0] .= Inf
+                        
+                        # Exclude solver issue runs for intersection.
+                        # training_average_cost_data[doubling_count_data .> 0] .= Inf
+                        replace!(training_average_cost_data, NaN => Inf)
+                        replace!(test_expected_cost_data, NaN => Inf)
+                        training_average_cost_data[test_expected_cost_data .> 1000] .= Inf
+                        
                         training_average_costs[job+1] = reshape(training_average_cost_data, length_ambiguity_radii, length_weight_parameters)
                         objective_values[job+1] = reshape(objective_values_data, length_ambiguity_radii, length_weight_parameters)
 
@@ -109,7 +81,7 @@ end
 #display(extract_ex_post_expected_cost(7, 6))
 
 #display(extract_train_test_expected_cost(11, 6))
-#display(extract_train_test_expected_cost(12, 6))
+#println(max.(extract_train_test_objective_values_and_expected_costs(12, 10)[2]...))
 
 #throw = throw
 
@@ -174,11 +146,11 @@ if true # Plot some
 
         fillalpha = 0.1
 
-        #normalizer, normalizer_sems = extract_line_to_plot(3)
-        normalizer, normalizer_sems = ([44.26806163356526, 44.64146019375224, 46.13589474158781, 47.525224406621035, 49.08395635413206, 59.58361944242603, 78.41465537013588, 100.69684593517886, 123.44445692049854, 286.5123360179635], [0.17301248629485963, 0.14035162893571035, 0.20718777959226034, 0.25339042491472796, 0.3188825171200088, 0.6107547117132267, 0.9607704724500018, 1.1541477711047032, 1.1628728450528392, 2.5615479953270617])
+        normalizer, normalizer_sems = extract_line_to_plot(3)
+        #normalizer, normalizer_sems = ([44.26806163356526, 44.64146019375224, 46.13589474158781, 47.525224406621035, 49.08395635413206, 59.58361944242603, 78.41465537013588, 100.69684593517886, 123.44445692049854, 286.5123360179635], [0.17301248629485963, 0.14035162893571035, 0.20718777959226034, 0.25339042491472796, 0.3188825171200088, 0.6107547117132267, 0.9607704724500018, 1.1541477711047032, 1.1628728450528392, 2.5615479953270617])
 
-        #expected_costs, sems = extract_line_to_plot(1)
-        expected_costs, sems = ([42.87706459429235, 44.15192191800951, 48.696929122988024, 54.87609383271609, 62.12184696064479, 118.80083147295987, 221.84701431183333, 324.42588950149303, 421.5265380821383, 910.5999275648368], [0.035739709058672756, 0.0871007407128359, 0.26949057371472923, 0.4907668747550239, 0.7592103227692515, 2.556446110715032, 5.275165716325518, 8.05787966599145, 10.250560159689947, 27.70619993027752])
+        expected_costs, sems = extract_line_to_plot(1)
+        #expected_costs, sems = ([42.87706459429235, 44.15192191800951, 48.696929122988024, 54.87609383271609, 62.12184696064479, 118.80083147295987, 221.84701431183333, 324.42588950149303, 421.5265380821383, 910.5999275648368], [0.035739709058672756, 0.0871007407128359, 0.26949057371472923, 0.4907668747550239, 0.7592103227692515, 2.556446110715032, 5.275165716325518, 8.05787966599145, 10.250560159689947, 27.70619993027752])
         plot!(U, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
                 color = palette(:tab10)[1],
                 linestyle = :solid,
@@ -196,18 +168,18 @@ if true # Plot some
                 markerstrokewidth = 0,
                 label = "Smoothing (\$ε=0\$)")
 
-        #expected_costs, sems = extract_line_to_plot(12)
-        expected_costs, sems = ([46.89051102710592, 46.80519746412745, 48.30955329059213, 49.236172128682085, 50.743627230150715, 58.98498313090304, 74.87442886743092, 95.12314854477603, 114.74273519275445, 251.2954419201019], [0.29108574867941117, 0.2835947321255175, 0.3206981891435156, 0.3526277354988551, 0.38707587432146157, 0.5935867108376222, 0.7922520951319628, 1.0227371406000576, 1.0886611582078976, 2.980690218127019])
+        expected_costs, sems = extract_line_to_plot(12)
+        #expected_costs, sems = ([46.89051102710592, 46.80519746412745, 48.30955329059213, 49.236172128682085, 50.743627230150715, 58.98498313090304, 74.87442886743092, 95.12314854477603, 114.74273519275445, 251.2954419201019], [0.29108574867941117, 0.2835947321255175, 0.3206981891435156, 0.3526277354988551, 0.38707587432146157, 0.5935867108376222, 0.7922520951319628, 1.0227371406000576, 1.0886611582078976, 2.980690218127019])
         plot!(U, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
                 color = palette(:tab10)[7],
                 linestyle = :dashdot,
                 markershape = :pentagon,
                 markersize = 4,
                 markerstrokewidth = 0,
-                label = "Intersections")
+                label = "Intersection")
 
-        #expected_costs, sems = extract_line_to_plot(11)
-        expected_costs, sems = ([45.2325160911206, 45.54197932949779, 46.85240850735009, 48.14695798234909, 50.14248888792851, 59.42027868613782, 75.71901229647328, 91.18038137728956, 106.92100639840483, 220.3178730325334], [0.20454258559584673, 0.20452832287244888, 0.24755559634011573, 0.2780938338579865, 0.3854379322096642, 0.5606726981653295, 0.7534178905852787, 0.8071049341061514, 0.7781022250013478, 1.5216141465892843])
+        expected_costs, sems = extract_line_to_plot(11)
+        #expected_costs, sems = ([45.2325160911206, 45.54197932949779, 46.85240850735009, 48.14695798234909, 50.14248888792851, 59.42027868613782, 75.71901229647328, 91.18038137728956, 106.92100639840483, 220.3178730325334], [0.20454258559584673, 0.20452832287244888, 0.24755559634011573, 0.2780938338579865, 0.3854379322096642, 0.5606726981653295, 0.7534178905852787, 0.8071049341061514, 0.7781022250013478, 1.5216141465892843])
         plot!(U, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
                 color = palette(:tab10)[9],
                 linestyle = :dot,
@@ -221,12 +193,12 @@ if true # Plot some
 
         display(plt)
 
-        #savefig(plt, "figures/train-test-expected-cost.pdf")
+        savefig(plt, "figures/train-test-expected-cost.pdf")
 
 end
 
 
-if true # Plot some
+if false # Plot some
 
         default() # Reset plot defaults.
 
@@ -300,7 +272,7 @@ end
 
 
 
-if true # Plot some
+if false # Plot some
 
         default() # Reset plot defaults.
 
