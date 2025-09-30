@@ -156,7 +156,7 @@ LogRange(start, stop, len) = exp.(LinRange(log(start), log(stop), len))
 
 s = unique(round.(Int, LogRange(1,100,40)))
 α = [0; LogRange(1e-4,1e0,40)]
-ϱ╱ε = [0; LogRange(1e-4,1e0,40)]
+ρ╱ε = [0; LogRange(1e-4,1e0,40)]
 
 println("SO...")
 
@@ -169,21 +169,21 @@ println("W1...")
 train_and_test("W1 Naive", W1_newsvendor_objective_value_and_order, ε, windowing_weights, [history_length])
 train_and_test("W1 Windowing", W1_newsvendor_objective_value_and_order, ε, windowing_weights, s)
 train_and_test("W1 Smoothing", W1_newsvendor_objective_value_and_order, ε, smoothing_weights, α)
-train_and_test("W1 Concentration", W1_newsvendor_objective_value_and_order, ε, W1_concentration_weights, ϱ╱ε)
+train_and_test("W1 Concentration", W1_newsvendor_objective_value_and_order, ε, W1_concentration_weights, ρ╱ε)
 
 println("W2...")
 
 train_and_test("W2 Naive", W2_newsvendor_objective_value_and_order, ε, windowing_weights, [history_length])
 train_and_test("W2 Windowing", W2_newsvendor_objective_value_and_order, ε, windowing_weights, s)
 train_and_test("W2 Smoothing", W2_newsvendor_objective_value_and_order, ε, smoothing_weights, α)
-train_and_test("W2 Concentration", W2_newsvendor_objective_value_and_order, ε, W2_concentration_weights, ϱ╱ε)
+train_and_test("W2 Concentration", W2_newsvendor_objective_value_and_order, ε, W2_concentration_weights, ρ╱ε)
 
 ε = [LinRange(1e0,1e1,10); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9); LinRange(2e3,1e4,9);]
-ϱ╱ε = [0; LogRange(1e-4,1e2,40)]
+ρ╱ε = [0; LogRange(1e-4,1e2,40)]
 
 println("Intersections...")
 
-train_and_test("W2 Intersections", REMK_intersection_W2_newsvendor_objective_value_and_order, ε, REMK_intersection_weights, ϱ╱ε)
+train_and_test("W2 Intersections", REMK_intersection_W2_newsvendor_objective_value_and_order, ε, REMK_intersection_weights, ρ╱ε)
 
 close(results_file)
 

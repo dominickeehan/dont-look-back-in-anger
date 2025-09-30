@@ -69,9 +69,7 @@ plot!(1:T,
         linewidth = linewidth,
         linestyle = :solid,
         alpha = 1,
-        fill = (0, 0.1, palette(:tab10)[1]),
-        fillalpha = 0.033,
-        )
+        fill = (0, 0.1, palette(:tab10)[1]))
 
 plot!(1:T, 
         smoothing_weights(T, 3/((ε/ρ)+1)), 
@@ -80,8 +78,7 @@ plot!(1:T,
         linewidth = linewidth,
         linestyle = :dash,
         alpha = 1,
-        fill = (0, 0.1, palette(:tab10)[7]),
-        fillalpha = 0.033,)
+        fill = (0, 0.1, palette(:tab10)[7]))
 
 plot!(1:T, 
         W1_concentration_weights(T, ρ/ε), 
@@ -90,8 +87,7 @@ plot!(1:T,
         linewidth = linewidth,
         linestyle = :dashdot,
         alpha = 1,
-        fill = (0, 0.1, palette(:tab10)[9]),
-        fillalpha = 0.033,)
+        fill = (0, 0.1, palette(:tab10)[9]))
 
 xlims!((-2,102))
 yl = ylims(plt)
@@ -150,8 +146,7 @@ plot!(1:T,
         linewidth = linewidth,
         linestyle = :solid,
         alpha = 1,
-        fill = (0, 0.1, palette(:tab10)[1]),
-        fillalpha = 0.02,) # this is not alpha
+        fill = (0, 0.1, palette(:tab10)[1]))
 
 plot!(1:T, 
         Wp_concentration_weights(2, T, ρ/(2*ε)),#W2_concentration_weights(T, ρ/(2*ε)), 
@@ -160,8 +155,7 @@ plot!(1:T,
         linewidth = linewidth,
         linestyle = :dash,
         alpha = 1,
-        fill = (0, 0.1, palette(:tab10)[2]),
-        fillalpha = 0.02,)
+        fill = (0, 0.1, palette(:tab10)[2]))
 
 plot!(1:T, 
         Wp_concentration_weights(3, T, ρ/(3*ε)), 
@@ -170,8 +164,7 @@ plot!(1:T,
         linewidth = linewidth,
         linestyle = :dashdot,
         alpha = 1,
-        fill = (0, 0.1, palette(:tab10)[3]),
-        fillalpha = 0.02,)
+        fill = (0, 0.1, palette(:tab10)[3]))
 
 plot!(1:T, 
         Wp_concentration_weights(4, T, ρ/(4*ε)), 
@@ -180,8 +173,7 @@ plot!(1:T,
         linewidth = linewidth,
         linestyle = :dashdotdot,
         alpha = 1,
-        fill = (0, 0.1, palette(:tab10)[4]),
-        fillalpha = 0.02,)
+        fill = (0, 0.1, palette(:tab10)[4]))
 
 plot!(1:T, 
         Wp_concentration_weights(5, T, ρ/(5*ε)), 
@@ -190,8 +182,7 @@ plot!(1:T,
         linewidth = linewidth,
         linestyle = :dot,
         alpha = 1,
-        fill = (0, 0.1, palette(:tab10)[5]),
-        fillalpha = 0.02,)
+        fill = (0, 0.1, palette(:tab10)[5]))
 
 xlims!((-2,102))
 yl = ylims(plt)

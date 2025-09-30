@@ -184,11 +184,11 @@ end
     end
 
     display(plt)
-    savefig(plt, "figures/ambiguity-sets.pdf")
+#    savefig(plt, "figures/ambiguity-sets.pdf")
 
 
 
-if false
+if true
 
     p = 2
 
@@ -230,19 +230,19 @@ if false
 
     end
 
-    Ξ = [0,5]
-    max_σ = 3
+    Ξ = [-1,6]
+    max_σ = 4
     samples = [1,2,3,4]
 
     number_of_points = 100
-    number_of_distributions = 20000 # 30000
+    number_of_distributions = 10000 # 30000
 
     markersize = 4
 
-    weighted_ε = 1
-    weighted_ρ = 1/10
+    weighted_ε = 2
+    weighted_ρ = 1/2
 
-    scale_radii = 2
+    scale_radii = 1
     intersection_ε = scale_radii*weighted_ε
     intersection_ρ = scale_radii*weighted_ρ
 
@@ -321,7 +321,7 @@ if false
         end
     end
 
-    # intersection_color = pink .- length(samples)*color_increment
+    intersection_color = pink .- length(samples)*color_increment
     scatter!([-1], [-1], 
                 color = RGB(intersection_color[1],intersection_color[2],intersection_color[3]),
                 markersize = markersize, 
@@ -343,7 +343,7 @@ if false
     end
 
     display(plt)
-    savefig(plt, "figures/ambiguity-sets-data-1.pdf")
+#    savefig(plt, "figures/ambiguity-sets-data-1.pdf")
 
     default() # Reset plot defaults.
 
@@ -420,6 +420,6 @@ if false
     end
 
     display(plt)
-    savefig(plt, "figures/ambiguity-sets-data-2.pdf")
+#    savefig(plt, "figures/ambiguity-sets-data-2.pdf")
 
 end

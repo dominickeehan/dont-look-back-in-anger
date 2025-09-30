@@ -227,9 +227,9 @@ if true
 
     ε = 1
 
-    ϱ = 1/4
+    ρ = 1/4
 
-    P = [samples, W2_concentration_weights(3, ϱ/ε)]
+    P = [samples, W2_concentration_weights(3, ρ/ε)]
 
     display(P)
 
@@ -247,7 +247,7 @@ if true
 
     plot_intersection_Qs = [zeros(3) for _ in eachindex(Qs)]
     Threads.@threads for i in ProgressBar(eachindex(Qs))
-        plot_intersection_Qs[i] = [in_W2_ball([[P[1][j]],[1.0]],ε+(3-j+1)*ϱ,Qs[i]) for j in 1:3]
+        plot_intersection_Qs[i] = [in_W2_ball([[P[1][j]],[1.0]],ε+(3-j+1)*ρ,Qs[i]) for j in 1:3]
 
     end
 

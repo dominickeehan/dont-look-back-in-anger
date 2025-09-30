@@ -14,10 +14,10 @@ history_length = 100
 LogRange(start, stop, len) = exp.(LinRange(log(start), log(stop), len))
 s = unique(round.(Int, LogRange(1,100,40)))
 α = [0; LogRange(1e-4,1e0,40)]
-ϱ╱ε = [0; LogRange(1e-4,1e0,40)]
+ρ╱ε = [0; LogRange(1e-4,1e0,40)]
 
 ambiguity_radii = [[0], [0], [0], ε, ε, ε, ε, ε, ε, ε, ε, [LinRange(1e0,1e1,10); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9); LinRange(2e3,1e4,9);]]
-weight_parameters = [[history_length], s, α, [history_length], s, α, ϱ╱ε, [history_length], s, α, ϱ╱ε, [0; LogRange(1e-4,1e2,40)],]
+weight_parameters = [[history_length], s, α, [history_length], s, α, ρ╱ε, [history_length], s, α, ρ╱ε, [0; LogRange(1e-4,1e2,40)],]
 
 function extract_train_test_objective_values_and_expected_costs(method_index, u_index)
 

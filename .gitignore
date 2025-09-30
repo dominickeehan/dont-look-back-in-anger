@@ -9,6 +9,7 @@
 
 results/
 newsvendor-data/
+drifting-newsvendor-data/
 
 *.csv
 
