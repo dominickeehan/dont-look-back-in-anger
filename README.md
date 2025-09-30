@@ -15,7 +15,7 @@ A number of Julia packages are required. They can be added by commanding:
 
 `using Pkg, Pkg.add("JuMP, ......")`.*
 
-*Note that a (proprietary) license for Gurobi is also required; see https://www.gurobi.com/solutions/licensing/. The paper uses Gurobi 1XXXX.0
+*Note that a license for the Gurobi solver is also required; see https://www.gurobi.com/solutions/licensing/. The paper uses Gurobi 1XXXX.0
 
 ## Reproducing Output from the Paper
 You can reproduce Figure 1 by running the script "plot-ambiguity-sets.jl".
