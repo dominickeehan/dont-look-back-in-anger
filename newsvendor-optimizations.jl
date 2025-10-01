@@ -1,7 +1,7 @@
 using Statistics, StatsBase
 using JuMP, MathOptInterface, Gurobi
 
-initial_demand_probability = 0.1
+initial_demand_probability = 0.01
 D = 10000 # Number of consumers.
 
 nonzero_weight_tolerance = 0
@@ -166,7 +166,8 @@ function W2_newsvendor_objective_value_and_order(ε, demands, weights, doubling_
     
     catch
         return W2_newsvendor_objective_value_and_order(2*ε, demands, weights, doubling_count+1)
-    
+        #return Inf, D, 1
+
     end
 end
 
