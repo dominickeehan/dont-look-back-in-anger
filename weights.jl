@@ -34,7 +34,7 @@ using JuMP, Ipopt
 
 Ipoptimizer = optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0)
 
-function W1_concentration_weights(T, ρ╱ε)
+function W1_weights(T, ρ╱ε)
 
     ε = 10
 
@@ -65,7 +65,7 @@ function W1_concentration_weights(T, ρ╱ε)
 end
 
 
-function W2_concentration_weights(T, ρ╱ε)
+function W2_weights(T, ρ╱ε)
 
     ε = 10
 
@@ -115,7 +115,7 @@ end
 
 
 
-function Wp_concentration_weights(p, T, ρ╱ε)
+function Wp_weights(p, T, ρ╱ε)
 
     ε = 10
 

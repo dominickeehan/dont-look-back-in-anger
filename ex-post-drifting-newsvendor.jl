@@ -4,12 +4,8 @@ using ProgressBars, IterTools
 include("weights.jl")
 include("newsvendor-optimizations.jl")
 
-repetitions = 100
-history_length = 30
-
-
-initial_demand_probability = 0.1 # 0.1
-
+repetitions = 10
+history_length = 70
 
 function expected_newsvendor_cost(order, demand_probability)
 
@@ -23,9 +19,8 @@ function expected_newsvendor_cost(order, demand_probability)
 
 end
 
-
 Random.seed!(42)
-u = 1e-2 # [1e-4, 2.5e-4, 5e-4, 7.5e-4, 1e-3, 2.5e-3, 5e-3, 7.5e-3, 1e-2, 2.5e-2]
+u = 2.5e-3 # [1e-4, 2.5e-4, 5e-4, 7.5e-4, 1e-3, 2.5e-3, 5e-3, 7.5e-3, 1e-2, 2.5e-2]
 shift_distribution = Uniform(-u,u)
 
 demand_sequences = [zeros(history_length) for _ in 1:repetitions]
@@ -49,7 +44,6 @@ for repetition in 1:repetitions
     end
 end
 
-
 function parameter_fit(newsvendor_objective_value_and_order, ambiguity_radii, compute_weights, weight_parameters)
 
     costs = [zeros((length(ambiguity_radii),length(weight_parameters))) for _ in 1:repetitions]
@@ -60,6 +54,7 @@ function parameter_fit(newsvendor_objective_value_and_order, ambiguity_radii, co
     println("Precomputing weights...")
     Threads.@threads for weight_parameter_index in ProgressBar(eachindex(weight_parameters))
         precomputed_weights[weight_parameter_index] = compute_weights(history_length, weight_parameters[weight_parameter_index])
+
     end
 
     println("Parameter fitting...")
@@ -76,15 +71,21 @@ function parameter_fit(newsvendor_objective_value_and_order, ambiguity_radii, co
         end
     end
 
+    display(compute_weights)
+
     ambiguity_radius_index, weight_parameter_index = Tuple(argmin(mean(costs)))
     minimal_costs = [costs[repetition][ambiguity_radius_index, weight_parameter_index] for repetition in 1:repetitions]
-
     μ = mean(minimal_costs)
     σ = sem(minimal_costs)
-    display("$μ ± $σ")
+    println("Ex-post minimal average cost: $μ ± $σ")
     
-    display([ambiguity_radii[ambiguity_radius_index], weight_parameters[weight_parameter_index]])
-    display(mean([doubling_count[repetition][ambiguity_radius_index, weight_parameter_index] for repetition in 1:repetitions]))
+    optimal_ambiguity_radius = ambiguity_radii[ambiguity_radius_index]
+    optimal_weight_parameter = weight_parameters[weight_parameter_index]
+    println("Optimal ambiguity radius: $optimal_ambiguity_radius")
+    println("Optimal weight parameter: $optimal_weight_parameter")
+
+    optimal_doubling_count = mean([doubling_count[repetition][ambiguity_radius_index, weight_parameter_index] for repetition in 1:repetitions])
+    println("Optimal doubling count: $optimal_doubling_count")
 
 end
 
@@ -102,19 +103,19 @@ s = unique(round.(Int, LogRange(1,100,40)))
 #parameter_fit(W1_newsvendor_objective_value_and_order, ε, windowing_weights, [history_length])
 #parameter_fit(W1_newsvendor_objective_value_and_order, ε, windowing_weights, s)
 #parameter_fit(W1_newsvendor_objective_value_and_order, ε, smoothing_weights, α)
-parameter_fit(W1_newsvendor_objective_value_and_order, ε, W1_concentration_weights, ρ╱ε)
+#parameter_fit(W1_newsvendor_objective_value_and_order, ε, W1_weights, ρ╱ε)
 
 #parameter_fit(W1_newsvendor_objective_value_and_order, 0, windowing_weights, s)
 #parameter_fit(W1_newsvendor_objective_value_and_order, 0, smoothing_weights, α)
-#parameter_fit(W1_newsvendor_objective_value_and_order, 0, W1_concentration_weights, ρ╱ε)
+#parameter_fit(W1_newsvendor_objective_value_and_order, 0, W1_weights, ρ╱ε)
 
 #parameter_fit(W2_newsvendor_objective_value_and_order, ε, windowing_weights, [history_length])
 #parameter_fit(W2_newsvendor_objective_value_and_order, ε, windowing_weights, s)
 #parameter_fit(W2_newsvendor_objective_value_and_order, ε, smoothing_weights, α)
-parameter_fit(W2_newsvendor_objective_value_and_order, ε, W2_concentration_weights, ρ╱ε)
+parameter_fit(W2_newsvendor_objective_value_and_order, ε, W2_weights, ρ╱ε)
 
 ε = [LinRange(1e0,1e1,10); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9); LinRange(2e3,1e4,9);]
-ρ╱ε = [0; LogRange(1e-4,1e2,40)]
+ρ╱ε = [0; LogRange(1e-4,1e0,40)]
 
 parameter_fit(REMK_intersection_W2_newsvendor_objective_value_and_order, ε, REMK_intersection_weights, ρ╱ε)
 
