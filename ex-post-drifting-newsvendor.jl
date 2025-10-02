@@ -5,7 +5,7 @@ include("weights.jl")
 include("newsvendor-optimizations.jl")
 
 repetitions = 100
-history_length = 70
+history_length = 30
 
 function expected_newsvendor_cost(order, demand_probability)
 
@@ -20,9 +20,9 @@ function expected_newsvendor_cost(order, demand_probability)
 end
 
 Random.seed!(42)
-#ρ′ = 2.5e-3 # [1e-4, 2.5e-4, 5e-4, 7.5e-4, 1e-3, 2.5e-3, 5e-3, 7.5e-3, 1e-2, 2.5e-2]
-ρ′ = 1e-3 # [1e-4, 1e-3, 1e-2]
-shift_distribution = Uniform(-ρ′,ρ′)
+ρ′ = 2.5e-2 # [1e-4, 2.5e-4, 5e-4, 7.5e-4, 1e-3, 2.5e-3, 5e-3, 7.5e-3, 1e-2, 2.5e-2]
+#ρ′ = 1e-3 # [1e-4, 1e-3, 1e-2]
+drift_distribution = Uniform(-ρ′,ρ′)
 
 demand_sequences = [zeros(history_length) for _ in 1:repetitions]
 final_demand_probabilities = [zeros(1000) for _ in 1:repetitions]
@@ -34,11 +34,11 @@ for repetition in 1:repetitions
         demand_sequences[repetition][t] = rand(Binomial(D, demand_probability))
         
         if t < history_length
-            demand_probability = min(max(demand_probability + rand(shift_distribution), 0), 1)
+            demand_probability = min(max(demand_probability + rand(drift_distribution), 0), 1)
 
         else
             for i in eachindex(final_demand_probabilities[repetition])
-                final_demand_probabilities[repetition][i] = min(max(demand_probability + rand(shift_distribution), 0), 1)
+                final_demand_probabilities[repetition][i] = min(max(demand_probability + rand(drift_distribution), 0), 1)
         
             end
         end
@@ -115,9 +115,10 @@ parameter_fit(SO_newsvendor_objective_value_and_order, [0], smoothing_weights, �
 #parameter_fit(W2_newsvendor_objective_value_and_order, ε, windowing_weights, [history_length])
 #parameter_fit(W2_newsvendor_objective_value_and_order, ε, windowing_weights, s)
 #parameter_fit(W2_newsvendor_objective_value_and_order, ε, smoothing_weights, α)
-parameter_fit(W2_newsvendor_objective_value_and_order, ε, W2_weights, ρ╱ε)
+#parameter_fit(W2_newsvendor_objective_value_and_order, ε, W2_weights, ρ╱ε)
 
-ε = [LinRange(1e-1,1e0,10); LinRange(2e0,1e1,9); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9);]
+#ε = [LinRange(1e-1,1e0,10); LinRange(2e0,1e1,9); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9);]
+ε = [LinRange(2e0,1e1,9); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9);]
 ρ╱ε = [0; LogRange(1e-4,1e0,30)]
 
 parameter_fit(REMK_intersection_W2_newsvendor_objective_value_and_order, ε, REMK_intersection_weights, ρ╱ε)

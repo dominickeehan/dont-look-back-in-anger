@@ -24,7 +24,7 @@ function extract_train_test_objective_values_and_expected_costs(method_index, u_
         length_ambiguity_radii = length(ambiguity_radii[method_index])
         length_weight_parameters = length(weight_parameters[method_index])
 
-        training_average_costs = [zeros((length_ambiguity_radii,length_weight_parameters)) for _ in 1:number_of_jobs_per_u]
+        train_average_costs = [zeros((length_ambiguity_radii,length_weight_parameters)) for _ in 1:number_of_jobs_per_u]
         objective_values = [zeros((length_ambiguity_radii,length_weight_parameters)) for _ in 1:number_of_jobs_per_u]
         test_expected_costs = [zeros((length_ambiguity_radii,length_weight_parameters)) for _ in 1:number_of_jobs_per_u]
         is_indice_missing = falses(number_of_jobs_per_u)
@@ -34,18 +34,18 @@ function extract_train_test_objective_values_and_expected_costs(method_index, u_
 
         Threads.@threads for job in 0:number_of_jobs_per_u-1
                 local job_index = 999*(u_index-1)+job
-                local results_file = CSV.File("newsvendor-data/27-09-25/$job_index.csv", header=false, skipto=skipto)
+                local results_file = CSV.File("drifting-newsvendor-data/27-09-25/$job_index.csv", header=false, skipto=skipto)
 
                 try
-                        local training_average_cost_data, doubling_count_data, objective_values_data, test_expected_cost_data = eachcol(stack([[row.Column6, row.Column7, row.Column8, row.Column9] for row in Iterators.take(results_file, take)])')
+                        local train_average_cost_data, doubling_count_data, objective_values_data, test_expected_cost_data = eachcol(stack([[row.Column6, row.Column7, row.Column8, row.Column9] for row in Iterators.take(results_file, take)])')
                         
                         # Exclude solver issue runs for intersection.
-                        # training_average_cost_data[doubling_count_data .> 0] .= Inf
-                        replace!(training_average_cost_data, NaN => Inf)
+                        # train_average_cost_data[doubling_count_data .> 0] .= Inf
+                        replace!(train_average_cost_data, NaN => Inf)
                         replace!(test_expected_cost_data, NaN => Inf)
-                        training_average_cost_data[test_expected_cost_data .> 1000] .= Inf
+                        #train_average_cost_data[test_expected_cost_data .> 1000] .= Inf
                         
-                        training_average_costs[job+1] = reshape(training_average_cost_data, length_ambiguity_radii, length_weight_parameters)
+                        train_average_costs[job+1] = reshape(train_average_cost_data, length_ambiguity_radii, length_weight_parameters)
                         objective_values[job+1] = reshape(objective_values_data, length_ambiguity_radii, length_weight_parameters)
 
                         test_expected_costs[job+1] = reshape(test_expected_cost_data, length_ambiguity_radii, length_weight_parameters)
@@ -56,14 +56,14 @@ function extract_train_test_objective_values_and_expected_costs(method_index, u_
                 end
         end
 
-        training_average_costs = training_average_costs[.!is_indice_missing]
+        train_average_costs = train_average_costs[.!is_indice_missing]
         objective_values = objective_values[.!is_indice_missing]
         test_expected_costs = test_expected_costs[.!is_indice_missing]
 
         realised_objective_values = zeros(length(test_expected_costs))
         realised_costs = zeros(length(test_expected_costs))
         for i in eachindex(test_expected_costs)
-                ambiguity_radius_index, weight_parameter_index = Tuple(argmin(training_average_costs[i]))
+                ambiguity_radius_index, weight_parameter_index = Tuple(argmin(train_average_costs[i]))
                 realised_objective_values[i] = objective_values[i][ambiguity_radius_index, weight_parameter_index]
                 realised_costs[i] = test_expected_costs[i][ambiguity_radius_index, weight_parameter_index]
         
@@ -135,7 +135,7 @@ if true # Plot some
                 tickfont = Plots.font(fontfamily, pointsize = 10))
 
         plt = plot(xscale = :log10, #yscale = :log10,
-                xlabel = "Distribution shift parameter, \$ρ′\$", 
+                xlabel = "Drift parameter, \$ρ′\$", 
                 ylabel = "Expected cost",
                 #ylabel = "Ex-post-optimal expected cost",
                 topmargin = 0pt,
@@ -223,7 +223,7 @@ if false # Plot some
                 tickfont = Plots.font(fontfamily, pointsize = 10))
 
         plt = plot(xscale = :log10, #yscale = :log10,
-                xlabel = "Distribution shift parameter, \$ρ′\$", 
+                xlabel = "Distribution drift parameter, \$ρ′\$", 
                 ylabel = "Expected cost",
                 #ylabel = "Ex-post-optimal expected cost",
                 topmargin = 0pt,
@@ -297,7 +297,7 @@ if false # Plot some
                 tickfont = Plots.font(fontfamily, pointsize = 10))
 
         plt = plot(xscale = :log10, #yscale = :log10,
-                xlabel = "Distribution shift parameter, \$ρ′\$", 
+                xlabel = "Distribution drift parameter, \$ρ′\$", 
                 ylabel = "Expected cost",
                 #ylabel = "Ex-post-optimal expected cost",
                 topmargin = 0pt,

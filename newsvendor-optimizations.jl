@@ -1,7 +1,7 @@
 using Statistics, StatsBase
 using JuMP, MathOptInterface, Gurobi
 
-initial_demand_probability = 0.01
+initial_demand_probability = 0.1
 D = 10000 # Number of consumers.
 
 nonzero_weight_tolerance = 0

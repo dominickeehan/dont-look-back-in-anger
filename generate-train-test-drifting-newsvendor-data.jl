@@ -19,7 +19,7 @@ open("$job_number.csv", "w") do file; end
 
 results_file = open("$job_number.csv", "a")
 
-println(results_file, "shift size, repetition, method, ambiguity radius, weight parameter, average training cost, doubling count, objective value, expected cost, time elapsed")
+println(results_file, "drift size, repetition, method, ambiguity radius, weight parameter, average training cost, doubling count, objective value, expected cost, time elapsed")
 
 repetitions = 1 # (1000 total jobs for each u ∈ U.)
 history_length = 100 # 100
@@ -49,7 +49,7 @@ Random.seed!(job_number%1000)
 
 u = U[ceil(Int,(job_number+1)/1000)]
 
-shift_distribution = Uniform(-u,u)
+drift_distribution = Uniform(-u,u)
 
 demand_sequences = [zeros(history_length) for _ in 1:repetitions]
 final_demand_probabilities = [zeros(10000) for _ in 1:repetitions]
@@ -61,11 +61,11 @@ for repetition in 1:repetitions
         demand_sequences[repetition][t] = rand(Binomial(D, demand_probability))
         
         if t < history_length
-            demand_probability = min(max(demand_probability + rand(shift_distribution), 0), 1)
+            demand_probability = min(max(demand_probability + rand(drift_distribution), 0), 1)
 
         else
             for i in eachindex(final_demand_probabilities[repetition])
-                final_demand_probabilities[repetition][i] = min(max(demand_probability + rand(shift_distribution), 0), 1)
+                final_demand_probabilities[repetition][i] = min(max(demand_probability + rand(drift_distribution), 0), 1)
             
             end
         end
