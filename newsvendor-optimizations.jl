@@ -191,7 +191,7 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
                                 γ[k=1:K]
                                 z[i=1:2,j=1:2] >= 0
                                 w[i=1:2,k=1:K]
-                                s[i=1:2,k=1:K] >= 0
+                                s[i=1:2,k=1:K] #>= 0
                         end)
 
     for i in 1:2

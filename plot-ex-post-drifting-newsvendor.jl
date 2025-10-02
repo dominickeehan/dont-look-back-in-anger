@@ -4,8 +4,8 @@ using ProgressBars, IterTools
 include("weights.jl")
 include("newsvendor-optimizations.jl")
 
-repetitions = 1 #100
-history_length = 50
+repetitions = 200
+history_length = 60
 
 function expected_newsvendor_cost(order, demand_probability)
 
@@ -141,7 +141,8 @@ default(framestyle = :box,
 plt = plot(xscale = :log10, #yscale = :log10,
             xlabel = "Drift parameter, \$ρ′\$", 
             ylabel = "Ex-post minimal expected cost",
-            title = "\$s ≥ 0\$",
+            #title = "\$p_1\$\$ = $initial_demand_probability\$, \$s ≥ 0\$",
+            title = "\$p_1\$\$ = $initial_demand_probability\$, \$s > -∞\$",
             topmargin = 6pt,
             leftmargin = 6pt,
             bottommargin = 6pt,
