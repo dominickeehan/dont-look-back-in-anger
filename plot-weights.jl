@@ -127,10 +127,12 @@ if true
                 tickfont = Plots.font(fontfamily, pointsize = 10))
 
         linewidth = 1
+        alpha = 0.05
+        color = palette(:tab10)[1]
 
         plt = plot(
                 xlabel = "Time index, \$t\$", 
-                ylabel = "Weight, \$w_t\$",
+                ylabel = "Observation weight, \$w_t\$",
                 xticks = ([0, 25, 50, 75, 100]),
                 topmargin = 0pt, 
                 rightmargin = 0pt,
@@ -143,47 +145,47 @@ if true
         plot!(1:T, 
                 Wp_weights(1, T, ρ/(ε)),#W2_weights(T, ρ/(2*ε)), 
                 label = "\$p=1\$",
-                color = palette(:tab10)[1],
+                color = color,
                 linewidth = linewidth,
                 linestyle = :solid,
                 alpha = 1,
-                fill = (0, 0.1, palette(:tab10)[1]))
+                fill = (0, alpha, color))
 
         plot!(1:T, 
                 Wp_weights(2, T, ρ/(2*ε)),#W2_weights(T, ρ/(2*ε)), 
                 label = "\$p=2\$",
-                color = palette(:tab10)[1],
+                color = color,
                 linewidth = linewidth,
                 linestyle = :dash,
                 alpha = 1,
-                fill = (0, 0.1, palette(:tab10)[1]))
+                fill = (0, alpha, color))
 
         plot!(1:T, 
                 Wp_weights(3, T, ρ/(3*ε)), 
                 label = "\$p=3\$",
-                color = palette(:tab10)[1],
+                color = color,
                 linewidth = linewidth,
                 linestyle = :dashdot,
                 alpha = 1,
-                fill = (0, 0.1, palette(:tab10)[1]))
+                fill = (0, alpha, color))
 
         plot!(1:T, 
                 Wp_weights(4, T, ρ/(4*ε)), 
                 label = "\$p=4\$",
-                color = palette(:tab10)[1],
+                color = color,
                 linewidth = linewidth,
                 linestyle = :dashdotdot,
                 alpha = 1,
-                fill = (0, 0.1, palette(:tab10)[1]))
+                fill = (0, alpha, color))
 
         plot!(1:T, 
                 Wp_weights(5, T, ρ/(5*ε)), 
                 label = "\$p=5\$",
-                color = palette(:tab10)[1],
+                color = color,
                 linewidth = linewidth,
                 linestyle = :dot,
                 alpha = 1,
-                fill = (0, 0.1, palette(:tab10)[1]))
+                fill = (0, alpha, color))
 
         xlims!((-2,102))
         yl = ylims(plt)
