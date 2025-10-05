@@ -4,8 +4,8 @@ using ProgressBars, IterTools
 include("weights.jl")
 include("newsvendor-optimizations.jl")
 
-repetitions = 200
-history_length = 60
+repetitions = 30 # 200
+history_length = 10 # 60
 
 function expected_newsvendor_cost(order, demand_probability)
 
@@ -19,7 +19,15 @@ function expected_newsvendor_cost(order, demand_probability)
 
 end
 
-drifts = [1e-4, 1e-3, 1e-2]
+#drifts = [1e-4, 1e-3, 1e-2]
+
+drifts = [2.5e-2]
+#drifts = [1e-4, 4e-4, 1e-3, 4e-3, 1e-2, 2e-2, 3e-2, 4e-2, 1e-1]
+
+#drifts = [1e-4, 4e-4, 1e-3, 4e-3, 1e-2, 4e-2, 1e-1]
+#drifts = [1e-4, 1e-3, 1e-2, 1e-1]
+#drifts = [1e-5, 1e-4, 1e-3, 1e-2, 1e-1]
+#drifts = [1e-5, 4e-5, 1e-4, 4e-4, 1e-3, 4e-3, 1e-2, 4e-2, 1e-1]
 
 function line_to_plot(newsvendor_objective_value_and_order, ambiguity_radii, compute_weights, weight_parameters)
 
@@ -107,91 +115,189 @@ end
 LogRange(start, stop, len) = exp.(LinRange(log(start), log(stop), len))
 
 ε = [0; LinRange(1e0,1e1,10); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9);]
+s = unique(round.(Int, LogRange(1,history_length,30)))
 α = [0; LogRange(1e-4,1e0,30)]
 ρ╱ε = [0; LogRange(1e-4,1e0,30)]
 
-intersection_ε = [LinRange(1e0,1e1,10); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9);]
+#intersection_ε = [LinRange(1e0,1e1,10); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9);]
+intersection_ε = [LinRange(1e1,1e2,10); LinRange(2e2,1e3,9); LinRange(2e3,1e4,9);]
+#intersection_ε = [LinRange(1e1,1e2,10); LinRange(2e2,1e3,9);]
 intersection_ρ╱ε = [0; LogRange(1e-4,1e0,30)]
+#intersection_ρ╱ε = [0; LogRange(1e-4,1e2,30)]
+
+#line_to_plot(REMK_intersection_W2_newsvendor_objective_value_and_order, intersection_ε, REMK_intersection_weights, intersection_ρ╱ε)
+
+if true
+
+    using Plots, Measures
+
+    default() # Reset plot defaults.
+
+    gr(size = (275+8,183+6+6).*sqrt(3))
+
+    fontfamily = "Computer Modern"
+
+    default(framestyle = :box,
+            grid = true,
+            #gridlinewidth = 1.0,
+            gridalpha = 0.075,
+            minorgrid = true,
+            #minorgridlinewidth = 1.0, 
+            minorgridalpha = 0.075,
+            minorgridlinestyle = :dash,
+            tick_direction = :in,
+            xminorticks = 9, 
+            yminorticks = 0,
+            fontfamily = fontfamily,
+            guidefont = Plots.font(fontfamily, pointsize = 12),
+            legendfont = Plots.font(fontfamily, pointsize = 9),
+            tickfont = Plots.font(fontfamily, pointsize = 10))
+
+    plt = plot(xscale = :log10, #yscale = :log10,
+                xlabel = "Drift parameter, \$ρ′\$", 
+                ylabel = "Ex-post optimal average\ncost (normalized)",
+                title = "\$Ξ = [0,$D]\$, \$p_1\$\$ = $initial_demand_probability\$, \$T = $history_length\$",
+                #title = "\$p_1\$\$ = $initial_demand_probability\$, \$s ≥ 0\$",
+                #title = "\$p_1\$\$ = $initial_demand_probability\$, \$s > -∞\$",
+                topmargin = 6pt,
+                leftmargin = 6pt,
+                bottommargin = 6pt,
+                rightmargin = 0pt,
+                legend = :bottomleft,
+                )
+
+    fillalpha = 0.1
+
+    normalizer, normalizer_sems = line_to_plot(SO_newsvendor_objective_value_and_order, [0], smoothing_weights, α)
+    expected_costs, sems = line_to_plot(SO_newsvendor_objective_value_and_order, [0], windowing_weights, [history_length])
+
+    plot!(drifts, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
+            color = palette(:tab10)[1],
+            linestyle = :solid,
+            markershape = :circle,
+            markersize = 4,
+            markerstrokewidth = 0,
+            label = "Unweighted (\$ε=0\$)")
+
+    expected_costs, sems = normalizer, normalizer_sems
+    plot!(drifts, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
+            color = palette(:tab10)[2],
+            linestyle = :dash,
+            markershape = :diamond,
+            markersize = 4,
+            markerstrokewidth = 0,
+            label = "Smoothing (\$ε=0\$)")
+
+    expected_costs, sems = line_to_plot(REMK_intersection_W2_newsvendor_objective_value_and_order, intersection_ε, REMK_intersection_weights, intersection_ρ╱ε)
+    plot!(drifts, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
+            color = palette(:tab10)[7],
+            linestyle = :dashdot,
+            markershape = :pentagon,
+            markersize = 4,
+            markerstrokewidth = 0,
+            label = "Intersection")
+
+    expected_costs, sems = line_to_plot(W2_newsvendor_objective_value_and_order, ε, W2_weights, ρ╱ε)
+    plot!(drifts, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
+            color = palette(:tab10)[9],
+            linestyle = :dot,
+            markershape = :star4,
+            markersize = 6,
+            markerstrokewidth = 0,
+            label = "Weighted")
+
+    ylims!((0.7, 1.3))
+    xlims!((drifts[1], drifts[end]))
+
+    display(plt)
+end
 
 
-using Plots, Measures
 
-default() # Reset plot defaults.
 
-gr(size = (275+6,183+6+6).*sqrt(3))
 
-fontfamily = "Computer Modern"
 
-default(framestyle = :box,
-        grid = true,
-        #gridlinewidth = 1.0,
-        gridalpha = 0.075,
-        minorgrid = true,
-        #minorgridlinewidth = 1.0, 
-        minorgridalpha = 0.075,
-        minorgridlinestyle = :dash,
-        tick_direction = :in,
-        xminorticks = 9, 
-        yminorticks = 0,
-        fontfamily = fontfamily,
-        guidefont = Plots.font(fontfamily, pointsize = 12),
-        legendfont = Plots.font(fontfamily, pointsize = 9),
-        tickfont = Plots.font(fontfamily, pointsize = 10))
 
-plt = plot(xscale = :log10, #yscale = :log10,
-            xlabel = "Drift parameter, \$ρ′\$", 
-            ylabel = "Ex-post minimal expected cost",
-            #title = "\$p_1\$\$ = $initial_demand_probability\$, \$s ≥ 0\$",
-            title = "\$p_1\$\$ = $initial_demand_probability\$, \$s > -∞\$",
-            topmargin = 6pt,
-            leftmargin = 6pt,
-            bottommargin = 6pt,
-            rightmargin = 0pt,
-            legend = :topright,
-            )
+if false
 
-fillalpha = 0.1
+    using Plots, Measures
 
-normalizer, normalizer_sems = line_to_plot(SO_newsvendor_objective_value_and_order, [0], smoothing_weights, α)
-expected_costs, sems = line_to_plot(SO_newsvendor_objective_value_and_order, [0], windowing_weights, [history_length])
+    default() # Reset plot defaults.
 
-plot!(drifts, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
-        color = palette(:tab10)[1],
-        linestyle = :solid,
-        markershape = :circle,
-        markersize = 4,
-        markerstrokewidth = 0,
-        label = "Unweighted (\$ε=0\$)")
+    gr(size = (275+6,183+6+6).*sqrt(3))
 
-expected_costs, sems = normalizer, normalizer_sems
-plot!(drifts, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
-        color = palette(:tab10)[2],
-        linestyle = :dash,
-        markershape = :diamond,
-        markersize = 4,
-        markerstrokewidth = 0,
-        label = "Smoothing (\$ε=0\$)")
+    fontfamily = "Computer Modern"
 
-expected_costs, sems = line_to_plot(REMK_intersection_W2_newsvendor_objective_value_and_order, intersection_ε, REMK_intersection_weights, intersection_ρ╱ε)
-plot!(drifts, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
-        color = palette(:tab10)[7],
-        linestyle = :dashdot,
-        markershape = :pentagon,
-        markersize = 4,
-        markerstrokewidth = 0,
-        label = "Intersection")
+    default(framestyle = :box,
+            grid = true,
+            #gridlinewidth = 1.0,
+            gridalpha = 0.075,
+            minorgrid = true,
+            #minorgridlinewidth = 1.0, 
+            minorgridalpha = 0.075,
+            minorgridlinestyle = :dash,
+            tick_direction = :in,
+            xminorticks = 9, 
+            yminorticks = 0,
+            fontfamily = fontfamily,
+            guidefont = Plots.font(fontfamily, pointsize = 12),
+            legendfont = Plots.font(fontfamily, pointsize = 9),
+            tickfont = Plots.font(fontfamily, pointsize = 10))
 
-expected_costs, sems = line_to_plot(W2_newsvendor_objective_value_and_order, ε, W2_weights, ρ╱ε)
-plot!(drifts, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
-        color = palette(:tab10)[9],
-        linestyle = :dot,
-        markershape = :star4,
-        markersize = 6,
-        markerstrokewidth = 0,
-        label = "Weighted")
+    plt = plot(xscale = :log10, #yscale = :log10,
+                xlabel = "Drift parameter, \$ρ′\$", 
+                ylabel = "Ex-post optimal average cost (normalized)",
+                title = "\$ε = 0\$",
+                topmargin = 6pt,
+                leftmargin = 6pt,
+                bottommargin = 6pt,
+                rightmargin = 0pt,
+                legend = :topright,
+                )
 
-ylims!((0.7, 1.3))
-xlims!((drifts[1], drifts[end]))
+    fillalpha = 0.1
 
-display(plt)
+    normalizer, normalizer_sems = line_to_plot(SO_newsvendor_objective_value_and_order, [0], smoothing_weights, α)
+    expected_costs, sems = line_to_plot(SO_newsvendor_objective_value_and_order, [0], windowing_weights, s)
 
+    plot!(drifts, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
+            color = palette(:tab10)[1],
+            linestyle = :solid,
+            markershape = :circle,
+            markersize = 4,
+            markerstrokewidth = 0,
+            label = "Windowing")
+
+    expected_costs, sems = normalizer, normalizer_sems
+    plot!(drifts, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
+            color = palette(:tab10)[2],
+            linestyle = :dash,
+            markershape = :diamond,
+            markersize = 4,
+            markerstrokewidth = 0,
+            label = "Smoothing")
+
+
+    expected_costs, sems = line_to_plot(SO_newsvendor_objective_value_and_order, [0], W1_weights, ρ╱ε)
+    plot!(drifts, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
+            color = palette(:tab10)[7],
+            linestyle = :dashdot,
+            markershape = :pentagon,
+            markersize = 4,
+            markerstrokewidth = 0,
+            label = "Weighted (\$p=1\$)")
+
+    expected_costs, sems = line_to_plot(SO_newsvendor_objective_value_and_order, [0], W2_weights, ρ╱ε)
+    plot!(drifts, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
+            color = palette(:tab10)[9],
+            linestyle = :dot,
+            markershape = :star4,
+            markersize = 6,
+            markerstrokewidth = 0,
+            label = "Weighted (\$p=2\$)")
+
+    ylims!((0.9, 1.1))
+    xlims!((drifts[1], drifts[end]))
+
+    display(plt)
+end
