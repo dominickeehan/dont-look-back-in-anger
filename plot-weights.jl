@@ -2,199 +2,65 @@ using Plots, Measures
 
 include("weights.jl")
 
+default() # Reset plot defaults.
+
+gr(size = (275+6,183+6).*sqrt(3))
+fontfamily = "Computer Modern"
+default(framestyle = :box,
+        grid = true,
+        #gridlinewidth = 1.0,
+        gridalpha = 0.075,
+        #minorgrid = true,
+        #minorgridlinewidth = 1.0, 
+        #minorgridalpha = 0.075,
+        #minorgridlinestyle = :dash,
+        tick_direction = :in,
+        xminorticks = 0, 
+        yminorticks = 0,
+        fontfamily = fontfamily,
+        guidefont = Plots.font(fontfamily, pointsize = 12),
+        legendfont = Plots.font(fontfamily, pointsize = 11),
+        tickfont = Plots.font(fontfamily, pointsize = 10))
+
+plt = plot(
+        xlabel = "Time index, \$t\$", 
+        ylabel = "Observation weight, \$w_t\$",
+        xticks = ([0, 25, 50, 75, 100]),
+        topmargin = 0pt, 
+        rightmargin = 0pt,
+        bottommargin = 6pt, 
+        leftmargin = 6pt)
+
+ε = 100
+ρ = 1
 T = 100
+P = [1,2,3,4,5]
 
-if false
+linewidth = 1
+colors = cgrad([palette(:tab10)[1], palette(:tab10)[2]], P[end])
+linestyles = [:solid, :dash, :dashdot, :dashdotdot, :dot]
+alpha = 0.05
 
-        ε = 75
-        ρ = 1
-
-        default() # Reset plot defaults.
-
-        gr(size = (275+6,183+6).*sqrt(3))
-
-        fontfamily = "Computer Modern"
-
-        default(framestyle = :box,
-                grid = true,
-                #gridlinewidth = 1.0,
-                gridalpha = 0.075,
-                #minorgrid = true,
-                #minorgridlinewidth = 1.0, 
-                #minorgridalpha = 0.075,
-                #minorgridlinestyle = :dash,
-                tick_direction = :in,
-                xminorticks = 0, 
-                yminorticks = 0,
-                fontfamily = fontfamily,
-                guidefont = Plots.font(fontfamily, pointsize = 12),
-                legendfont = Plots.font(fontfamily, pointsize = 11),
-                tickfont = Plots.font(fontfamily, pointsize = 10))
-
-        linewidth = 1
-
-        plt = plot(
-                xlabel = "Time index, \$t\$", 
-                ylabel = "Weight, \$w_t\$",
-                xticks = ([0, 25, 50, 75, 100]),
-                topmargin = 0pt, 
-                rightmargin = 0pt,
-                bottommargin = 6pt, 
-                leftmargin = 6pt)
-
-        true_objective_value(t, ε, ρ) = t * ((max(ε - (0.5)*(t+1)*ρ, 0)^2.0))
-
-        function formula_for_optimal_window_size(T, ε, ρ)
-        unprojected_formula = (1.0/(3.0)) * (2.0*(ε/ρ) - 1.0)
-        
-        projected_floor_formula = max(min(floor(unprojected_formula), T), 1)
-        objective_projected_floor_formula = true_objective_value(projected_floor_formula, ε, ρ)
-
-        projected_ceil_formula = max(min(ceil(unprojected_formula), T), 1)
-        objective_projected_ceil_formula = true_objective_value(projected_ceil_formula, ε, ρ)
-
-        if objective_projected_floor_formula >= objective_projected_ceil_formula
-
-                return projected_floor_formula
-        else
-
-                return projected_ceil_formula
-        end
-        end
-
+for p in P
         plot!(1:T, 
-                windowing_weights(T, round(Int, formula_for_optimal_window_size(T, ε, ρ))),
-                seriestype = :steppre,
-                label = "Windowing",
-                color = palette(:tab10)[1],
+                Wp_weights(p, T, ρ/(p*ε)),
+                label = "\$p=$p\$",
+                color = colors[p],
                 linewidth = linewidth,
-                linestyle = :solid,
+                linestyle = linestyles[p],
                 alpha = 1,
-                fill = (0, 0.1, palette(:tab10)[1]))
-
-        plot!(1:T, 
-                smoothing_weights(T, 3/((ε/ρ)+1)), 
-                label = "Smoothing",
-                color = palette(:tab10)[7],
-                linewidth = linewidth,
-                linestyle = :dash,
-                alpha = 1,
-                fill = (0, 0.1, palette(:tab10)[7]))
-
-        plot!(1:T, 
-                W1_weights(T, ρ/ε), 
-                label = "Optimal",
-                color = palette(:tab10)[9],
-                linewidth = linewidth,
-                linestyle = :dashdot,
-                alpha = 1,
-                fill = (0, 0.1, palette(:tab10)[9]))
-
-        xlims!((-2,102))
-        yl = ylims(plt)
-        ylims!((0,yl[2]))
-        #display(plt)
-
-        #savefig(plt, "figures/weights-for-p=1.pdf")
+                fill = (0, alpha, colors[p]))
 
 end
 
+xlims!((-2,102))
+yl = ylims(plt)
+ylims!((0,yl[2]))
+display(plt)
+
+savefig(plt, "figures/weights-for-p.pdf")
 
 
-
-if true
-
-        default() # Reset plot defaults.
-
-        gr(size = (275+6,183+6).*sqrt(3))
-
-        fontfamily = "Computer Modern"
-
-        default(framestyle = :box,
-                grid = true,
-                #gridlinewidth = 1.0,
-                gridalpha = 0.075,
-                #minorgrid = true,
-                #minorgridlinewidth = 1.0, 
-                #minorgridalpha = 0.075,
-                #minorgridlinestyle = :dash,
-                tick_direction = :in,
-                xminorticks = 0, 
-                yminorticks = 0,
-                fontfamily = fontfamily,
-                guidefont = Plots.font(fontfamily, pointsize = 12),
-                legendfont = Plots.font(fontfamily, pointsize = 11),
-                tickfont = Plots.font(fontfamily, pointsize = 10))
-
-        linewidth = 1
-        alpha = 0.05
-        color = palette(:tab10)[1]
-
-        plt = plot(
-                xlabel = "Time index, \$t\$", 
-                ylabel = "Observation weight, \$w_t\$",
-                xticks = ([0, 25, 50, 75, 100]),
-                topmargin = 0pt, 
-                rightmargin = 0pt,
-                bottommargin = 6pt, 
-                leftmargin = 6pt)
-
-        ε = 100
-        ρ = 1
-
-        plot!(1:T, 
-                Wp_weights(1, T, ρ/(ε)),#W2_weights(T, ρ/(2*ε)), 
-                label = "\$p=1\$",
-                color = color,
-                linewidth = linewidth,
-                linestyle = :solid,
-                alpha = 1,
-                fill = (0, alpha, color))
-
-        plot!(1:T, 
-                Wp_weights(2, T, ρ/(2*ε)),#W2_weights(T, ρ/(2*ε)), 
-                label = "\$p=2\$",
-                color = color,
-                linewidth = linewidth,
-                linestyle = :dash,
-                alpha = 1,
-                fill = (0, alpha, color))
-
-        plot!(1:T, 
-                Wp_weights(3, T, ρ/(3*ε)), 
-                label = "\$p=3\$",
-                color = color,
-                linewidth = linewidth,
-                linestyle = :dashdot,
-                alpha = 1,
-                fill = (0, alpha, color))
-
-        plot!(1:T, 
-                Wp_weights(4, T, ρ/(4*ε)), 
-                label = "\$p=4\$",
-                color = color,
-                linewidth = linewidth,
-                linestyle = :dashdotdot,
-                alpha = 1,
-                fill = (0, alpha, color))
-
-        plot!(1:T, 
-                Wp_weights(5, T, ρ/(5*ε)), 
-                label = "\$p=5\$",
-                color = color,
-                linewidth = linewidth,
-                linestyle = :dot,
-                alpha = 1,
-                fill = (0, alpha, color))
-
-        xlims!((-2,102))
-        yl = ylims(plt)
-        ylims!((0,yl[2]))
-        display(plt)
-        #yl = ylims(plt)
-
-        savefig(plt, "figures/weights-for-p=1,2,3,4,5.pdf")
-end
 
 
 
