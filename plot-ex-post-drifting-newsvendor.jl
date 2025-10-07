@@ -4,8 +4,8 @@ using ProgressBars, IterTools
 include("weights.jl")
 include("newsvendor-optimizations.jl")
 
-repetitions = 30 # 200
-history_length = 10 # 60
+repetitions = 200 # 200
+history_length = 80 # 60
 
 function expected_newsvendor_cost(order, demand_probability)
 
@@ -21,11 +21,12 @@ end
 
 #drifts = [1e-4, 1e-3, 1e-2]
 
-drifts = [2.5e-2]
+#drifts = [2.5e-2]
 #drifts = [1e-4, 4e-4, 1e-3, 4e-3, 1e-2, 2e-2, 3e-2, 4e-2, 1e-1]
 
 #drifts = [1e-4, 4e-4, 1e-3, 4e-3, 1e-2, 4e-2, 1e-1]
 #drifts = [1e-4, 1e-3, 1e-2, 1e-1]
+drifts = [1e-3, 4e-3, 1e-2, 4e-2, 1e-1, 4e-1, 1e0]
 #drifts = [1e-5, 1e-4, 1e-3, 1e-2, 1e-1]
 #drifts = [1e-5, 4e-5, 1e-4, 4e-4, 1e-3, 4e-3, 1e-2, 4e-2, 1e-1]
 
@@ -114,13 +115,13 @@ end
 
 LogRange(start, stop, len) = exp.(LinRange(log(start), log(stop), len))
 
-ε = [0; LinRange(1e0,1e1,10); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9);]
+ε = [0; LinRange(1e-1,1e0,10); LinRange(2e0,1e1,9); LinRange(2e1,1e2,9);]
 s = unique(round.(Int, LogRange(1,history_length,30)))
 α = [0; LogRange(1e-4,1e0,30)]
 ρ╱ε = [0; LogRange(1e-4,1e0,30)]
 
 #intersection_ε = [LinRange(1e0,1e1,10); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9);]
-intersection_ε = [LinRange(1e1,1e2,10); LinRange(2e2,1e3,9); LinRange(2e3,1e4,9);]
+intersection_ε = [LinRange(1e-1,1e0,10); LinRange(2e0,1e1,9); LinRange(2e1,1e2,9);]
 #intersection_ε = [LinRange(1e1,1e2,10); LinRange(2e2,1e3,9);]
 intersection_ρ╱ε = [0; LogRange(1e-4,1e0,30)]
 #intersection_ρ╱ε = [0; LogRange(1e-4,1e2,30)]

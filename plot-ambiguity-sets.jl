@@ -230,23 +230,23 @@ if true
 
     end
 
-    Ξ = [-1,6]
-    max_σ = 4
-    samples = [1,2,3,4]
+    Ξ = [-6,12]
+    max_σ = 15
+    samples = [1,0,2,4,6,5]
 
     number_of_points = 100
     number_of_distributions = 10000 # 30000
 
     markersize = 4
 
-    weighted_ε = 2
-    weighted_ρ = 1/2
+    weighted_ε = 3
+    weighted_ρ = 1/3
 
     scale_radii = 1
     intersection_ε = scale_radii*weighted_ε
     intersection_ρ = scale_radii*weighted_ρ
 
-    P = [samples, Wp_concentration_weights(p, length(samples), weighted_ρ/weighted_ε)]
+    P = [samples, Wp_weights(p, length(samples), weighted_ρ/weighted_ε)]
 
     display(P)
 
