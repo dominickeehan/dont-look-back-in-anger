@@ -26,8 +26,8 @@ default(framestyle = :box,
         legendfont = Plots.font(fontfamily, pointsize = 11),
         tickfont = Plots.font(fontfamily, pointsize = 10))
 
-plt = plot(xlims=(-0,5),
-            ylims=(0,3),
+plt = plot(xlims=(-4,8),
+            ylims=(0,7),
             xlabel="Mean", 
             ylabel="Standard deviation",
             #legend=:horizontal,
@@ -52,11 +52,11 @@ function nonnegative_ellipse_coords(ellipse_parameters)
 
 end
 
-    intersection_ellipse_1 = [2.75,2.75,1,0] # Width, height, x, y. 
-    intersection_ellipse_2 = [2.5,2.6,2,0]
-    intersection_ellipse_3 = [2.25,2.4,3,0]
-    intersection_ellipse_4 = [2,2.25,4,0]
-    weighted_ellipse = [0.95,0.95,2.95,0.95]
+    intersection_ellipse_1 = [5.9,5.9,1,0] # Width, height, x, y. 
+    intersection_ellipse_2 = [5.5,5.5,-1,0]
+    intersection_ellipse_3 = [5.1,5.1,2,0]
+    intersection_ellipse_4 = [4.7,4.7,3,0]
+    weighted_ellipse = [2.5,2.5,1.9,1.9]
 
     linewidth = 1
     alpha = 1
@@ -140,7 +140,7 @@ function nonnegative_intersected_ellipse_coords(ellipse_1_parameters, ellipse_2_
 
 end
 
-    x_coords, y_coords = nonnegative_intersected_ellipse_coords(intersection_ellipse_1, intersection_ellipse_4)
+    x_coords, y_coords = nonnegative_intersected_ellipse_coords(intersection_ellipse_2, intersection_ellipse_4)
     plot!(x_coords,
             y_coords,
             color = palette(:tab10)[1],
@@ -169,7 +169,7 @@ end
             label = "Weighted",
             fill = (0, 2*fillalpha, palette(:tab10)[2]))
 
-    samples = [1,2,3,4]
+    samples = [1,-1,2,3]
     scatter!(samples, zeros(length(samples)), 
                 markersize = 6.0,
                 markershape = :utriangle,
@@ -184,7 +184,7 @@ end
     end
 
     display(plt)
-#    savefig(plt, "figures/ambiguity-sets.pdf")
+    savefig(plt, "figures/ambiguity-sets.pdf")
 
 
 
@@ -230,9 +230,9 @@ if true
 
     end
 
-    Ξ = [-6,12]
-    max_σ = 15
-    samples = [1,0,2,4,6,5]
+    Ξ = [-4,8]
+    max_σ = 7
+    samples = [1,-1,2,3]
 
     number_of_points = 100
     number_of_distributions = 10000 # 30000
@@ -242,9 +242,9 @@ if true
     weighted_ε = 3
     weighted_ρ = 1/3
 
-    scale_radii = 1
+    scale_radii = 1.5
     intersection_ε = scale_radii*weighted_ε
-    intersection_ρ = scale_radii*weighted_ρ
+    intersection_ρ = weighted_ρ
 
     P = [samples, Wp_weights(p, length(samples), weighted_ρ/weighted_ε)]
 
@@ -343,7 +343,7 @@ if true
     end
 
     display(plt)
-#    savefig(plt, "figures/ambiguity-sets-data-1.pdf")
+    savefig(plt, "figures/ambiguity-sets-data-1.pdf")
 
     default() # Reset plot defaults.
 
@@ -420,6 +420,6 @@ if true
     end
 
     display(plt)
-#    savefig(plt, "figures/ambiguity-sets-data-2.pdf")
+    savefig(plt, "figures/ambiguity-sets-data-2.pdf")
 
 end

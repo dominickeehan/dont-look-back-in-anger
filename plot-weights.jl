@@ -31,7 +31,7 @@ plt = plot(
         bottommargin = 6pt, 
         leftmargin = 6pt)
 
-ε = 100
+ε = 90
 ρ = 1
 T = 100
 P = [1,2,3,4,5]
@@ -64,44 +64,44 @@ savefig(plt, "figures/weights-for-p.pdf")
 
 
 
+        if false
+        LogRange(a, b, n) = exp.(LinRange(log(a), log(b), n))
 
-LogRange(a, b, n) = exp.(LinRange(log(a), log(b), n))
+        plt = plot()
 
-plt = plot()
+        for s in unique(floor.(Int, LogRange(1,100,30)))
+                plot!(1:T, windowing_weights(T, s), label = nothing, color = :black)
+        end
 
-for s in unique(floor.(Int, LogRange(1,100,30)))
-        plot!(1:T, windowing_weights(T, s), label = nothing, color = :black)
+        display(plt)
+
+        plt = plot()
+        for α in [[0]; LogRange(1e-4,1e0,30)]
+                plot!(1:T, smoothing_weights(T, α), label = nothing, color = :black)
+        end
+        display(plt)
+
+        plt = plot()
+        for ρ╱ε in [[0]; LogRange(1e-4,1e0,30)]
+                plot!(1:T, W1_weights(T, ρ╱ε), label = nothing, color = :black)
+        end
+        display(plt)
+
+        plt = plot()
+        for ρ╱ε in [[0]; LogRange(1e-4,1e0,30)]
+                plot!(1:T, W2_weights(T, ρ╱ε), label = nothing, color = :black)
+        end
+        display(plt)
+
+        plt = plot(1:T, W1_weights(T, 0), label = nothing, color = :black)
+        plot!(1:T, W1_weights(T, 1e-4), label = nothing, color = :black)
+        display(plt)
+
+        plt = plot(1:T, W2_weights(T, 0), label = nothing, color = :black)
+        plot!(1:T, W2_weights(T, 1e-4), label = nothing, color = :black)
+        display(plt)
+
 end
-
-display(plt)
-
-plt = plot()
-for α in [[0]; LogRange(1e-4,1e0,30)]
-        plot!(1:T, smoothing_weights(T, α), label = nothing, color = :black)
-end
-display(plt)
-
-plt = plot()
-for ρ╱ε in [[0]; LogRange(1e-4,1e0,30)]
-        plot!(1:T, W1_weights(T, ρ╱ε), label = nothing, color = :black)
-end
-display(plt)
-
-plt = plot()
-for ρ╱ε in [[0]; LogRange(1e-4,1e0,30)]
-        plot!(1:T, W2_weights(T, ρ╱ε), label = nothing, color = :black)
-end
-display(plt)
-
-plt = plot(1:T, W1_weights(T, 0), label = nothing, color = :black)
-plot!(1:T, W1_weights(T, 1e-4), label = nothing, color = :black)
-display(plt)
-
-plt = plot(1:T, W2_weights(T, 0), label = nothing, color = :black)
-plot!(1:T, W2_weights(T, 1e-4), label = nothing, color = :black)
-display(plt)
-
-
 
 
 
