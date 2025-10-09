@@ -4,8 +4,8 @@ using ProgressBars, IterTools
 include("weights.jl")
 include("newsvendor-optimizations.jl")
 
-repetitions = 200 # 200
-history_length = 80 # 60
+repetitions = 100 # 100
+history_length = 70 # 60
 
 function expected_newsvendor_cost(order, demand_probability)
 
@@ -20,15 +20,15 @@ function expected_newsvendor_cost(order, demand_probability)
 end
 
 #drifts = [1e-4, 1e-3, 1e-2]
-
 #drifts = [2.5e-2]
 #drifts = [1e-4, 4e-4, 1e-3, 4e-3, 1e-2, 2e-2, 3e-2, 4e-2, 1e-1]
-
 #drifts = [1e-4, 4e-4, 1e-3, 4e-3, 1e-2, 4e-2, 1e-1]
 #drifts = [1e-4, 1e-3, 1e-2, 1e-1]
-drifts = [1e-3, 4e-3, 1e-2, 4e-2, 1e-1, 4e-1, 1e0]
+#drifts = [1e-3, 4e-3, 1e-2, 4e-2, 1e-1, 4e-1, 1e0]
 #drifts = [1e-5, 1e-4, 1e-3, 1e-2, 1e-1]
 #drifts = [1e-5, 4e-5, 1e-4, 4e-4, 1e-3, 4e-3, 1e-2, 4e-2, 1e-1]
+
+drifts = [1e-4, 2.15e-4, 4.64e-4, 1e-3, 2.15e-3, 4.64e-3, 1e-2, 2.15e-2, 4.64e-2, 1e-1]
 
 function line_to_plot(newsvendor_objective_value_and_order, ambiguity_radii, compute_weights, weight_parameters)
 
@@ -115,14 +115,15 @@ end
 
 LogRange(start, stop, len) = exp.(LinRange(log(start), log(stop), len))
 
+
 ε = [0; LinRange(1e-1,1e0,10); LinRange(2e0,1e1,9); LinRange(2e1,1e2,9);]
+#ε = [0; LinRange(1e0,1e1,10); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9);]
 s = unique(round.(Int, LogRange(1,history_length,30)))
 α = [0; LogRange(1e-4,1e0,30)]
 ρ╱ε = [0; LogRange(1e-4,1e0,30)]
 
-#intersection_ε = [LinRange(1e0,1e1,10); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9);]
 intersection_ε = [LinRange(1e-1,1e0,10); LinRange(2e0,1e1,9); LinRange(2e1,1e2,9);]
-#intersection_ε = [LinRange(1e1,1e2,10); LinRange(2e2,1e3,9);]
+#intersection_ε = [LinRange(1e0,1e1,10); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9);]
 intersection_ρ╱ε = [0; LogRange(1e-4,1e0,30)]
 #intersection_ρ╱ε = [0; LogRange(1e-4,1e2,30)]
 
@@ -155,8 +156,8 @@ if true
             tickfont = Plots.font(fontfamily, pointsize = 10))
 
     plt = plot(xscale = :log10, #yscale = :log10,
-                xlabel = "Drift parameter, \$ρ′\$", 
-                ylabel = "Ex-post optimal average\ncost (normalized)",
+                xlabel = "Underlying drift parameter, \$ρ′\$", 
+                ylabel = "Ex-post optimal average\ncost (relative to smoothing)",
                 title = "\$Ξ = [0,$D]\$, \$p_1\$\$ = $initial_demand_probability\$, \$T = $history_length\$",
                 #title = "\$p_1\$\$ = $initial_demand_probability\$, \$s ≥ 0\$",
                 #title = "\$p_1\$\$ = $initial_demand_probability\$, \$s > -∞\$",
