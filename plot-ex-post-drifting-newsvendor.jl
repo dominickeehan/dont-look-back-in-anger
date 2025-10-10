@@ -4,8 +4,8 @@ using ProgressBars, IterTools
 include("weights.jl")
 include("newsvendor-optimizations.jl")
 
-repetitions = 30 # 100, 200
-history_length = 10 # 10, 70, 100
+repetitions = 100 # 100, 200
+history_length = 70 # 10, 70, 100
 
 function expected_newsvendor_cost(order, demand_probability)
 
@@ -209,7 +209,7 @@ if true
     xlims!((0.9999*drifts[1], 1.0001*drifts[end]))
 
     display(plt)
-    #savefig(plt, "figures/talk-ex-post-T=0.pdf")
+    savefig(plt, "figures/talk-ex-post-T=70.pdf")
 
 end
 
