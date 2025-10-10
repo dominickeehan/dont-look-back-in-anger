@@ -4,8 +4,8 @@ using ProgressBars, IterTools
 include("weights.jl")
 include("newsvendor-optimizations.jl")
 
-repetitions = 100 # 100, 200
-history_length = 100 # 10, 70, 100
+repetitions = 30 # 100, 200
+history_length = 10 # 10, 70, 100
 
 function expected_newsvendor_cost(order, demand_probability)
 
@@ -20,6 +20,7 @@ function expected_newsvendor_cost(order, demand_probability)
 end
 
 drifts = [1e-4, 2.15e-4, 4.64e-4, 1e-3, 2.15e-3, 4.64e-3, 1e-2, 2.15e-2, 4.64e-2, 1e-1]
+#drifts = [1e-4, 1e-3, 1e-2, 1e-1]
 #drifts = [1e-4, 2.15e-4, 4.64e-4, 1e-3, 2.15e-3, 4.64e-3, 1e-2, 2.15e-2, 4.64e-2, 1e-1, 2.15e-1]
 #drifts = [1e-2, 1e-1, 2.15e-1]
 
@@ -111,8 +112,8 @@ end
 LogRange(start, stop, len) = exp.(LinRange(log(start), log(stop), len))
 
 
-#ε = [0; LinRange(1e-1,1e0,10); LinRange(2e0,1e1,9); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9);]
-ε = [0; LinRange(1e0,1e1,10); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9);]
+ε = [0; LinRange(1e-1,1e0,10); LinRange(2e0,1e1,9); LinRange(2e1,1e2,9);]
+#ε = [0; LinRange(1e0,1e1,10); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9);]
 s = unique(round.(Int, LogRange(1,history_length,30)))
 α = [0; LogRange(1e-4,1e0,30)]
 ρ╱ε = [0; LogRange(1e-4,1e0,30)]
@@ -208,7 +209,7 @@ if true
     xlims!((0.9999*drifts[1], 1.0001*drifts[end]))
 
     display(plt)
-    savefig(plt, "figures/talk-ex-post-T=100.pdf")
+    #savefig(plt, "figures/talk-ex-post-T=0.pdf")
 
 end
 
