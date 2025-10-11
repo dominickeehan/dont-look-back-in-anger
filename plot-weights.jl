@@ -37,7 +37,7 @@ T = 100
 P = [1,2,3,4,5]
 
 linewidth = 1
-colors = cgrad([palette(:tab10)[1], palette(:tab10)[2]], P[end])
+colors = cgrad([palette(:tab10)[2], palette(:tab10)[1]], P[end])
 linestyles = [:solid, :dash, :dashdot, :dashdotdot, :dot]
 alpha = 0.05
 
