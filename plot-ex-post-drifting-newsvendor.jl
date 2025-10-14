@@ -4,7 +4,7 @@ using ProgressBars, IterTools
 include("weights.jl")
 include("newsvendor-optimizations.jl")
 
-repetitions = 1 #200 #200 # 100, 200
+repetitions = 300 #200 #200 # 100, 200
 history_length = 70 # 10, 70, 100
 
 function expected_newsvendor_cost(order, demand_probability)
@@ -21,6 +21,8 @@ end
 
 #exp10.(LinRange(log10(1),log10(10),7))
 
+
+#drifts = [1e-4, 2.1544e-4, 4.6416e-4, 1e-3, 2.1544e-3, 4.6416e-3, 1e-2, 2.1544e-2, 4.6416e-2, 6.8129e-2, 1e-1]
 drifts = [1e-4, 2.1544e-4, 4.6416e-4, 1e-3, 2.1544e-3, 4.6416e-3, 1e-2, 2.1544e-2, 4.6416e-2, 6.8129e-2, 1e-1, 1.4678e-1, 2.1544e-1]
 #drifts = [4.64e-2, 7.06e-2, 1e-1, 1.42e-1, 2.15e-1,]
 
@@ -134,7 +136,7 @@ intersection_ρ╱ε = [0; LogRange(1e-4,1e0,30)]
 
     default() # Reset plot defaults.
 
-    gr(size = (275+6+6,183+6).*sqrt(3))
+    gr(size = (275+6,183+6).*sqrt(3))
 
     fontfamily = "Computer Modern"
 
@@ -163,7 +165,7 @@ intersection_ρ╱ε = [0; LogRange(1e-4,1e0,30)]
                 topmargin = 0pt,
                 leftmargin = 6pt,
                 bottommargin = 6pt,
-                rightmargin = 6pt,
+                rightmargin = 0pt,
                 legend = :bottomleft,
                 )
 
@@ -215,8 +217,8 @@ intersection_ρ╱ε = [0; LogRange(1e-4,1e0,30)]
     #savefig(plt, "figures/talk-ex-post-T=10.pdf")
     #savefig(plt, "figures/talk-ex-post-T=10.svg")
     
-    #savefig(plt, "figures/talk-ex-post-T=70-alt.pdf")
-    #savefig(plt, "figures/talk-ex-post-T=70-alt.svg")
+    savefig(plt, "figures/talk-ex-post-T=70-alt.pdf")
+    savefig(plt, "figures/talk-ex-post-T=70-alt.svg")
 
 
 

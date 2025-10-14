@@ -37,12 +37,12 @@ T = 100
 P = [1,2,3,4,5]
 
 linewidth = 1
-#colors = cgrad([palette(:tab10)[2], palette(:tab10)[1]], P[end])
+colors = cgrad([palette(:tab10)[1], palette(:tab10)[2]], P[end])
 #colors = cgrad([:black, palette(:tab10)[8]], P[end])
-colors = cgrad([:black, :black], P[end])
+#colors = cgrad([:black, :black], P[end])
 linestyles = [:solid, :dash, :dashdot, :dashdotdot, :dot]
 linewidths = LinRange(1,1.2,P[end])
-alpha = 0.025
+alpha = 0.117
 
 for p in P
         plot!(1:T, 
