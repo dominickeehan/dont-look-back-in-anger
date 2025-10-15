@@ -137,7 +137,7 @@ intersection_ρ╱ε = [0; LogRange(1e-4,1e0,30)]
 
     default() # Reset plot defaults.
 
-    gr(size = (275+6,183+6).*sqrt(3))
+    gr(size = (275+6+8,183+6).*sqrt(3))
 
     fontfamily = "Computer Modern"
 
@@ -212,8 +212,8 @@ intersection_ρ╱ε = [0; LogRange(1e-4,1e0,30)]
 
     xticks!([1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1e0])
     ylims!((0.7, 1.3))
-    xlims!((0.99999*drifts[1], 1.00001*drifts[end]))
-    #xlims!((0.99999*drifts[1], 1.00001*drifts[end-1]update))
+    #xlims!((0.99999*drifts[1], 1.00001*drifts[end]))
+    xlims!((0.99999*drifts[1], 1.00001*drifts[end-1]))
 
     display(plt)
     #savefig(plt, "figures/talk-ex-post-T=10.pdf")
@@ -222,8 +222,8 @@ intersection_ρ╱ε = [0; LogRange(1e-4,1e0,30)]
     #savefig(plt, "figures/talk-ex-post-T=70-alt.pdf")
     #savefig(plt, "figures/talk-ex-post-T=70-alt.svg")
 
-    savefig(plt, "figures/talk-ex-post-T=70-alt-alt.pdf")
-    savefig(plt, "figures/talk-ex-post-T=70-alt-alt.svg")
+    savefig(plt, "figures/talk-ex-post-T=70-alt-alt-alt.pdf")
+    savefig(plt, "figures/talk-ex-post-T=70-alt-alt-alt.svg")
 
 
 
