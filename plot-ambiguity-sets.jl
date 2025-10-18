@@ -53,14 +53,14 @@ function nonnegative_ellipse_coords(ellipse_parameters)
 end
 
     intersection_ellipse_1 = [5.9,5.9,1,0] # Width, height, x, y. 
-    intersection_ellipse_2 = [5.5,5.5,-1,0]
+    intersection_ellipse_2 = [5.4,5.4,-1,0]
     intersection_ellipse_3 = [5.1,5.1,2,0]
-    intersection_ellipse_4 = [4.7,4.7,3,0]
-    weighted_ellipse = [2.5,2.5,1.9,1.9]
+    intersection_ellipse_4 = [4.9,4.9,3,0]
+    weighted_ellipse = [2.75,2.75,1.75,1.5]
 
-    linewidth = 1
+    linewidth = 1.5
     alpha = 1
-    fillalpha = 0.2
+    fillalpha = 0.075
 
     x_coords, y_coords = nonnegative_ellipse_coords(intersection_ellipse_1)
     plot!(x_coords,
@@ -157,17 +157,17 @@ end
             linestyle = :solid,
             alpha = alpha,
             label = "Intersection",
-            fill = (0, 3*fillalpha, palette(:tab10)[1]))
+            fill = (0, 0.268, palette(:tab10)[1]))
 
     x_coords, y_coords = nonnegative_ellipse_coords(weighted_ellipse)
-    plot!(x_coords,
+        plot!(x_coords,
             y_coords,
             color = palette(:tab10)[2],
             linewidth = linewidth,
             linestyle = :dash,
             alpha = alpha,
             label = "Weighted",
-            fill = (0, 2*fillalpha, palette(:tab10)[2]))
+            fill = (0, 0.268, palette(:tab10)[2]))
 
     samples = [1,-1,2,3]
     scatter!(samples, zeros(length(samples)), 
@@ -188,7 +188,7 @@ end
 
 
 
-if true
+if false
 
     p = 2
 
