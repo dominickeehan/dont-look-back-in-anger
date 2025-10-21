@@ -4,8 +4,8 @@ using ProgressBars, IterTools
 include("weights.jl")
 include("newsvendor-optimizations.jl")
 
-repetitions = 300 #200 #200 # 100, 200
-history_length = 80 # 10, 70, 100
+repetitions = 100 #200 #200 # 100, 200
+history_length = 70 # 10, 70, 100
 
 function expected_newsvendor_cost(order, demand_probability)
 
@@ -219,13 +219,13 @@ intersection_ρ╱ε = [0; LogRange(1e-4,1e0,30)]
     #savefig(plt, "figures/talk-ex-post-T=10.pdf")
     #savefig(plt, "figures/talk-ex-post-T=10.svg")
     
-    #savefig(plt, "figures/talk-ex-post-T=70-alt.pdf")
-    #savefig(plt, "figures/talk-ex-post-T=70-alt.svg")
+    savefig(plt, "figures/talk-ex-post-T=70-alt.pdf")
+    savefig(plt, "figures/talk-ex-post-T=70-alt.svg")
 
-    savefig(plt, "figures/talk-ex-post-T=70-alt-alt-alt-alt-alt.pdf")
-    savefig(plt, "figures/talk-ex-post-T=70-alt-alt-alt-alt-alt.svg")
+    #savefig(plt, "figures/talk-ex-post-T=70-alt-alt-alt-alt-alt.pdf")
+    #savefig(plt, "figures/talk-ex-post-T=70-alt-alt-alt-alt-alt.svg")
 
-
+5
 
 
 
