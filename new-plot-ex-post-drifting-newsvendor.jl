@@ -4,8 +4,8 @@ using ProgressBars, IterTools
 include("weights.jl")
 include("newsvendor-optimizations.jl")
 
-repetitions = 100 #200 #200 # 100, 200
-history_length = 130 # 10, 70, 100
+repetitions = 300 #200 #200 # 100, 200
+history_length = 150 # 10, 70, 100
 
 function expected_newsvendor_cost(order, demand_probability)
 
@@ -130,7 +130,7 @@ s = unique(round.(Int, LogRange(1,history_length,3*N)))
 
 #intersection_ε = [LinRange(1e-1,1e0,10); LinRange(2e0,1e1,9); LinRange(2e1,1e2,9);]
 #intersection_ε = [LinRange(1e-1,1e0,10); LinRange(2e0,1e1,9); LinRange(2e1,1e2,9)]#; LinRange(2e2,1e3,9);]
-intersection_ε = [LinRange(1e-1,1e-0,N); LinRange(1e0,1e1,N); LinRange(1e1,1e2,N)]
+intersection_ε = unique([LinRange(1e-1,1e-0,N); LinRange(1e0,1e1,N); LinRange(1e1,1e2,N)])
 intersection_ρ╱ε = [0; LogRange(1e-4,1e0,3*N)]
 #intersection_ρ╱ε = [0; LogRange(1e-4,1e2,30)]
 
