@@ -1,13 +1,13 @@
 using Statistics, StatsBase
 using JuMP, MathOptInterface, Gurobi
 
-initial_demand_probability = 1/3 # 0.1
-D = 1000 # Number of consumers.
+#initial_demand_probability = 1/3 # 0.1
+#D = 1000 # Number of consumers.
 
 nonzero_weight_tolerance = 0
 
-Cu = 4 # Per-unit underage cost.
-Co = 1 # Per-unit overage cost.
+#Cu = 4 # Per-unit underage cost.
+#Co = 1 # Per-unit overage cost.
 
 
 env = Gurobi.Env()
