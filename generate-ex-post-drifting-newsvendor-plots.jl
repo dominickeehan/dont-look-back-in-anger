@@ -1,8 +1,9 @@
 using Random, Statistics, StatsBase, Distributions
 using ProgressBars, IterTools
+using Plots, Measures
 
-repetitions = 400
-history_length = 10 #70
+repetitions = 300
+history_length = 70 #70
 
 include("weights.jl")
 
@@ -11,7 +12,7 @@ D = [100,1000,10000] # Number of consumers.
 Cu = [1,2,3,4] # Per-unit underage cost.
 Co = 1 # Per-unit overage cost.
 
-job_number = 1 #parse(Int64, ENV["PBS_ARRAY_INDEX"])  # 0 to 119 (product of cardinality of above parameter sets).
+job_number = parse(Int64, ENV["PBS_ARRAY_INDEX"])  # 0 to 119 (product of cardinality of above parameter sets).
 
 # Compute indices
 i_initial_demand_probability = job_number % length(initial_demand_probability)
@@ -39,7 +40,9 @@ function expected_newsvendor_cost(order, demand_probability)
 
 end
 
-drifts = [1e-4, 2.1544e-4, 4.6416e-4, 1e-3, 2.1544e-3, 4.6416e-3, 1e-2, 2.1544e-2, 4.6416e-2, 1e-1] # Uniform drift.
+#drifts = [1e-4, 2.1544e-4, 4.6416e-4, 1e-3, 2.1544e-3, 4.6416e-3, 1e-2, 2.1544e-2, 4.6416e-2, 1e-1] # Uniform drift.
+drifts = [1e-4, 1e-3, 2.1544e-3, 4.6416e-3, 1e-2, 2.1544e-2, 4.6416e-2, 1e-1] # Uniform drift.
+
 
 function line_to_plot(newsvendor_objective_value_and_order, ambiguity_radii, compute_weights, weight_parameters)
 
@@ -129,7 +132,7 @@ end
 LogRange(start, stop, len) = exp.(LinRange(log(start), log(stop), len))
 
 
-discretisation = 10
+discretisation = 5
 ε = D*unique([0; LinRange(1e-4,1e-3,discretisation); LinRange(1e-3,1e-2,discretisation); LinRange(1e-2,1e-1,discretisation)])
 s = unique(round.(Int, LogRange(1,history_length,3*discretisation)))
 α = [0; LogRange(1e-4,1e0,3*discretisation)]
@@ -137,7 +140,6 @@ s = unique(round.(Int, LogRange(1,history_length,3*discretisation)))
 intersection_ε = D*unique([LinRange(1e-4,1e-3,discretisation); LinRange(1e-3,1e-2,discretisation); LinRange(1e-2,1e-1,discretisation)])
 intersection_ρ╱ε = [0; LogRange(1e-4,1e0,3*discretisation)]
 
-using Plots, Measures
 
 default() # Reset plot defaults.
 
@@ -219,7 +221,7 @@ ylims!((0.5, 1.5))
 xlims!((0.99999*drifts[1], 1.00001*drifts[end]))
 
 display(plt)
-savefig(plt, "figures/ex-post-$job_number.pdf")
+savefig(plt, "ex-post-$job_number.pdf")
 
 
 
