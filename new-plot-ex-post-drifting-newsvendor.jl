@@ -5,7 +5,7 @@ include("weights.jl")
 include("newsvendor-optimizations.jl")
 
 repetitions = 300 #200 #200 # 100, 200
-history_length = 150 # 10, 70, 100
+history_length = 50 # 10, 70, 100
 
 function expected_newsvendor_cost(order, demand_probability)
 
@@ -19,20 +19,7 @@ function expected_newsvendor_cost(order, demand_probability)
 
 end
 
-#exp10.(LinRange(log10(1),log10(10),7))
-
-
-#drifts = [1e-4, 2.1544e-4, 4.6416e-4, 1e-3, 2.1544e-3, 4.6416e-3, 1e-2, 2.1544e-2, 4.6416e-2, 6.8129e-2, 1e-1]
-#drifts = [1e-4, 2.1544e-4, 4.6416e-4, 1e-3, 2.1544e-3, 4.6416e-3, 1e-2, 2.1544e-2, 4.6416e-2, 6.8129e-2, 1e-1, 1.4678e-1, 2.1544e-1]
-#drifts = [1e-4, 2.1544e-4, 4.6416e-4, 1e-3, 2.1544e-3, 4.6416e-3, 1e-2, 2.1544e-2, 4.6416e-2, 1e-1]#, 2.1544e-1, 4.6416e-1,]
-#drifts = [4.64e-2, 7.06e-2, 1e-1, 1.42e-1, 2.15e-1,]
-drifts = [1e-4, 1e-3, 4e-3, 1e-2, 4e-2, 1e-1]
-
-#drifts = [1e-4, 1e-3, 1e-2, 1e-1]
-#drifts = [1e-4, 2.15e-4, 4.64e-4, 1e-3, 2.15e-3, 4.64e-3, 1e-2, 2.15e-2, 4.64e-2, 1e-1, 2.15e-1]
-#drifts = [1e-2, 1e-1, 2.15e-1]
-
-
+drifts = [1e-4, 1e-3, 2.1544e-3, 4.6416e-3, 1e-2, 2.1544e-2, 4.6416e-2, 1e-1]
 
 function line_to_plot(newsvendor_objective_value_and_order, ambiguity_radii, compute_weights, weight_parameters)
 
@@ -120,19 +107,13 @@ end
 LogRange(start, stop, len) = exp.(LinRange(log(start), log(stop), len))
 
 
-#ε = [0; LinRange(1e-1,1e0,10); LinRange(2e0,1e1,9); LinRange(2e1,1e2,9);]
-N = 5
-#ε = [0; LinRange(1e-1,1e0,10); LinRange(2e0,1e1,9); LinRange(2e1,1e2,9)]
-ε = unique([0; LinRange(1e-1,1e-0,N); LinRange(1e0,1e1,N); LinRange(1e1,1e2,N)])
-s = unique(round.(Int, LogRange(1,history_length,3*N)))
-α = [0; LogRange(1e-4,1e0,3*N)]
-ρ╱ε = [0; LogRange(1e-4,1e0,3*N)]
-
-#intersection_ε = [LinRange(1e-1,1e0,10); LinRange(2e0,1e1,9); LinRange(2e1,1e2,9);]
-#intersection_ε = [LinRange(1e-1,1e0,10); LinRange(2e0,1e1,9); LinRange(2e1,1e2,9)]#; LinRange(2e2,1e3,9);]
-intersection_ε = unique([LinRange(1e-1,1e-0,N); LinRange(1e0,1e1,N); LinRange(1e1,1e2,N)])
-intersection_ρ╱ε = [0; LogRange(1e-4,1e0,3*N)]
-#intersection_ρ╱ε = [0; LogRange(1e-4,1e2,30)]
+discretisation = 5
+ε = D*unique([0; LinRange(1e-4,1e-3,discretisation); LinRange(1e-3,1e-2,discretisation); LinRange(1e-2,1e-1,discretisation)])
+s = unique(round.(Int, LogRange(1,history_length,3*discretisation)))
+α = [0; LogRange(1e-4,1e0,3*discretisation)]
+ρ╱ε = [0; LogRange(1e-4,1e0,3*discretisation)]
+intersection_ε = D*unique([LinRange(1e-4,1e-3,discretisation); LinRange(1e-3,1e-2,discretisation); LinRange(1e-2,1e-1,discretisation)])
+intersection_ρ╱ε = [0; LogRange(1e-4,1e0,3*discretisation)]
 
 #line_to_plot(REMK_intersection_W2_newsvendor_objective_value_and_order, intersection_ε, REMK_intersection_weights, intersection_ρ╱ε)
 
@@ -213,10 +194,10 @@ intersection_ρ╱ε = [0; LogRange(1e-4,1e0,3*N)]
             markerstrokewidth = 0,
             label = "Weighted")
 
-    #xticks!([1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1e0])
+
+    xticks!([1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1e0])
     ylims!((0.7, 1.3))
     xlims!((0.99999*drifts[1], 1.00001*drifts[end]))
-    #xlims!((0.99999*drifts[1], 1.00001*drifts[end-2]))
 
     display(plt)
     #savefig(plt, "figures/talk-ex-post-T=10.pdf")

@@ -13,13 +13,14 @@ Cu = [1,2,3,4] # Per-unit underage cost.
 Co = 1 # Per-unit overage cost.
 
 job_number = parse(Int64, ENV["PBS_ARRAY_INDEX"])  # 0 to 119 (product of cardinality of above parameter sets).
+index = job_number
 
 # Compute indices
-i_initial_demand_probability = job_number % length(initial_demand_probability)
-job_number ÷= length(initial_demand_probability)
-i_D = job_number % length(D)
-job_number ÷= length(D)
-i_Cu = job_number % length(Cu)
+i_initial_demand_probability = index % length(initial_demand_probability)
+index ÷= length(initial_demand_probability)
+i_D = index % length(D)
+index ÷= length(D)
+i_Cu = index % length(Cu)
 # Get values
 initial_demand_probability = initial_demand_probability[i_initial_demand_probability + 1]
 D = D[i_D + 1]
@@ -221,6 +222,7 @@ ylims!((0.5, 1.5))
 xlims!((0.99999*drifts[1], 1.00001*drifts[end]))
 
 display(plt)
+
 savefig(plt, "ex-post-$job_number.pdf")
 
 

@@ -171,12 +171,32 @@ function W2_newsvendor_objective_value_and_order(ε, demands, weights, doubling_
     end
 end
 
-
 function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, weights, doubling_count)
 
     K = length(demands)
 
     ball_radii = REMK_intersection_ball_radii(K, ε, weights[end])
+
+    # Check if ball empty, and scale to nonempty if so.
+    # Compute interval endpoints at α = 1
+    L = demands .- ball_radii
+    U = demands .+ ball_radii
+
+    # Indices of worst lower and upper endpoints
+    i_maxL = argmax(L)        # index attaining max lower bound
+    j_minU = argmin(U)        # index attaining min upper bound
+
+    L0 = L[i_maxL]
+    U0 = U[j_minU]
+
+    # Check intersection at α = 1
+    if L0 > U0
+        # Otherwise compute smallest α ≥ 1 such that intersection is nonempty
+        # Derived formula: α* = (d[i] - d[j]) / (r[i] + r[j])
+        α = (demands[i_maxL] - demands[j_minU]) / (ball_radii[i_maxL] + ball_radii[j_minU])
+        ball_radii = 1.1 * α * ball_radii
+
+    end
 
     Problem = Model(optimizer)
 
@@ -231,3 +251,6 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
     
     end
 end
+
+5
+
