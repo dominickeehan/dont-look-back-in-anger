@@ -1,14 +1,15 @@
 using Statistics, StatsBase
 using JuMP, MathOptInterface, Gurobi
 
-#initial_demand_probability = 1/3 # 0.1
-#D = 1000 # Number of consumers.
+# Problem parameters
+initial_demand_probability = 1/3 # 0.1
+D = 1000 # Number of consumers.
+Cu = 4 # Per-unit underage cost.
+Co = 1 # Per-unit overage cost.
 
-nonzero_weight_tolerance = 0
-
-#Cu = 4 # Per-unit underage cost.
-#Co = 1 # Per-unit overage cost.
-
+# Problem tolerances
+zero_weight_tolerance = 1e-9
+empty_intersection_ratio_tolerance = 0.9
 
 env = Gurobi.Env()
 GRBsetintparam(env, "OutputFlag", 0)
@@ -19,7 +20,7 @@ optimizer = optimizer_with_attributes(() -> Gurobi.Optimizer(env))
 
 function SO_newsvendor_objective_value_and_order(_, demands, weights, doubling_count) 
 
-    nonzero_weight_indices = weights .> nonzero_weight_tolerance
+    nonzero_weight_indices = weights .> zero_weight_tolerance
     weights = weights[nonzero_weight_indices]
     weights = weights/sum(weights)
     demands = demands[nonzero_weight_indices]
@@ -66,7 +67,7 @@ function W1_newsvendor_objective_value_and_order(ε, demands, weights, doubling_
 
     if ε == 0; return SO_newsvendor_objective_value_and_order(ε, demands, weights, doubling_count); end
 
-    nonzero_weight_indices = weights .> nonzero_weight_tolerance
+    nonzero_weight_indices = weights .> zero_weight_tolerance
     weights = weights[nonzero_weight_indices]
     weights = weights/sum(weights)
     demands = demands[nonzero_weight_indices]
@@ -118,7 +119,7 @@ function W2_newsvendor_objective_value_and_order(ε, demands, weights, doubling_
 
     if ε == 0; return SO_newsvendor_objective_value_and_order(ε, demands, weights, doubling_count); end
 
-    nonzero_weight_indices = weights .> nonzero_weight_tolerance
+    nonzero_weight_indices = weights .> zero_weight_tolerance
     weights = weights[nonzero_weight_indices]
     weights = weights/sum(weights)
     demands = demands[nonzero_weight_indices]
@@ -177,24 +178,18 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
 
     ball_radii = REMK_intersection_ball_radii(K, ε, weights[end])
 
-    # Check if ball empty, and scale to nonempty if so.
-    # Compute interval endpoints at α = 1
+    # Check if ball (nearly) empty, and scale if so.
     L = demands .- ball_radii
     U = demands .+ ball_radii
 
-    # Indices of worst lower and upper endpoints
-    i_maxL = argmax(L)        # index attaining max lower bound
-    j_minU = argmin(U)        # index attaining min upper bound
+    # Indices of worst lower and upper endpoints.
+    i_maxL = argmax(L) # index attaining max lower bound.
+    j_minU = argmin(U) # index attaining min upper bound.
 
-    L0 = L[i_maxL]
-    U0 = U[j_minU]
+    empty_intersection_ratio = (demands[i_maxL] - demands[j_minU]) / (ball_radii[i_maxL] + ball_radii[j_minU])
 
-    # Check intersection at α = 1
-    if L0 > U0
-        # Otherwise compute smallest α ≥ 1 such that intersection is nonempty
-        # Derived formula: α* = (d[i] - d[j]) / (r[i] + r[j])
-        α = (demands[i_maxL] - demands[j_minU]) / (ball_radii[i_maxL] + ball_radii[j_minU])
-        ball_radii = 1.1 * α * ball_radii
+    if empty_intersection_ratio >= empty_intersection_ratio_tolerance # Scale to sufficiently nonempty.
+        ball_radii = (empty_intersection_ratio / empty_intersection_ratio_tolerance) * ball_radii
 
     end
 
@@ -251,6 +246,4 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
     
     end
 end
-
-5
 
