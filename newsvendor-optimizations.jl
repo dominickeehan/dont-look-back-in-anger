@@ -8,15 +8,18 @@ Cu = 4 # Per-unit underage cost.
 Co = 1 # Per-unit overage cost.
 
 # Problem tolerances
-zero_weight_tolerance = 1e-9
-empty_intersection_ratio_tolerance = 0.9
+zero_weight_tolerance = 0
+empty_intersection_ratio_tolerance = 1 - 1e-3
 
 env = Gurobi.Env()
 GRBsetintparam(env, "OutputFlag", 0)
-GRBsetintparam(env, "BarHomogeneous", 1) # Useful for dealing with very unbalanced weights/intersections giving nearly infeasible problems.
-#GRBsetintparam(env, "NumericFocus", 3) # Useful for dealing with very unbalanced weights.
-
 optimizer = optimizer_with_attributes(() -> Gurobi.Optimizer(env))
+
+high_precision_env = Gurobi.Env()
+GRBsetintparam(high_precision_env, "OutputFlag", 0)
+GRBsetintparam(high_precision_env, "BarHomogeneous", 1) # Useful for dealing with very unbalanced weights/intersections giving nearly infeasible problems.
+GRBsetintparam(high_precision_env, "NumericFocus", 3) # Useful for dealing with very unbalanced weights/intersections giving nearly infeasible problems.
+high_precision_optimizer = optimizer_with_attributes(() -> Gurobi.Optimizer(high_precision_env))
 
 function SO_newsvendor_objective_value_and_order(_, demands, weights, doubling_count) 
 
@@ -51,13 +54,12 @@ function SO_newsvendor_objective_value_and_order(_, demands, weights, doubling_c
 
     optimize!(Problem)
 
-    try
+    if is_solved_and_feasible(Problem)
         return objective_value(Problem), value(order), doubling_count 
 
-    catch
+    else
         order = quantile(demands, Weights(weights), Cu/(Co+Cu))
-
-        return sum(weights[t] * (Cu*max(demands[t]-order,0) + Co*max(order-demands[t],0)) for t in eachindex(weights)), order, doubling_count+1
+        return sum(weights[t] * (Cu*max(demands[t]-order,0) + Co*max(order-demands[t],0)) for t in eachindex(weights)), order, doubling_count
     
     end
 end
@@ -104,14 +106,22 @@ function W1_newsvendor_objective_value_and_order(ε, demands, weights, doubling_
 
     optimize!(Problem)
 
-    # Try to return a suboptimal solution from an early termination as the problem is always feasible.
-    # (This may be neccesary due to near infeasiblity caused by very unbalanced weights.)
-    try
+    # Check the problem is solved and feasible.
+    if is_solved_and_feasible(Problem)
         return objective_value(Problem), value(order), doubling_count
     
-    catch
-        return W1_newsvendor_objective_value_and_order(2*ε, demands, weights, doubling_count+1)
+    else # Attempt a high precision solve otherwise.
+        set_optimizer(Problem, high_precision_optimizer); optimize!(Problem)
+
+        # Try to return a suboptimal solution from a possibly early termination as the problem is always feasible and bounded. 
+        # (This may be neccesary due to near infeasiblity after convex reformulation caused by very unbalanced weights.)
+        try
+            return objective_value(Problem), value(order), doubling_count
     
+        catch # As a last resort, double the ambiguity radius and try again.
+            return W1_newsvendor_objective_value_and_order(2*ε, demands, weights, doubling_count+1)
+
+        end
     end
 end
 
@@ -145,12 +155,9 @@ function W2_newsvendor_objective_value_and_order(ε, demands, weights, doubling_
         for i in 1:2
             @constraints(Problem, begin
                                         # b(order)[i] + w[t,i]*demands[t] + (1/4)*(1/λ)*w[t,i]^2 + z[t,i,:]'*d <= γ[t] 
-
                                         # <==> w[t,i]^2 <= 2*(2*λ)*(γ[t] - b(order)[i] - w[t,i]*demands[t] - z[t,i,:]'*d) 
-                                        
                                         # <==>
                                         [2*λ; γ[t] - b(order)[i] - w[t,i]*demands[t] - z[t,i,:]'*d; w[t,i]] in MathOptInterface.RotatedSecondOrderCone(3)
-                                        
                                         a[i] - C'*z[t,i,:] == w[t,i]
                                 end)
         end
@@ -160,15 +167,23 @@ function W2_newsvendor_objective_value_and_order(ε, demands, weights, doubling_
 
     optimize!(Problem)
 
-    # Try to return a suboptimal solution from an early termination as the problem is always feasible.
-    # (This may be neccesary due to near infeasiblity after convex reformulation caused by very unbalanced weights.)
-    try
+    # Check the problem is solved and feasible.
+    if is_solved_and_feasible(Problem)
         return objective_value(Problem), value(order), doubling_count
     
-    catch
-        return W2_newsvendor_objective_value_and_order(2*ε, demands, weights, doubling_count+1)
-        #return Inf, D, 1
+    else # Attempt a high precision solve otherwise.
+        set_optimizer(Problem, high_precision_optimizer); optimize!(Problem)
 
+        # Try to return a suboptimal solution from a possibly early termination as the problem is always feasible and bounded. 
+        # (This may be neccesary due to near infeasiblity after convex reformulation caused by very unbalanced weights.)
+        if is_solved_and_feasible(Problem)
+            return objective_value(Problem), value(order), doubling_count
+    
+        else # As a last resort, double the ambiguity radius and try again.
+            #throw=throw
+            return W2_newsvendor_objective_value_and_order(2*ε, demands, weights, doubling_count+1)
+
+        end
     end
 end
 
@@ -178,13 +193,13 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
 
     ball_radii = REMK_intersection_ball_radii(K, ε, weights[end])
 
-    # Check if ball (nearly) empty, and scale if so.
+    # Check if the intersection of balls is (nearly) empty, and scale up the radii if so.
     L = demands .- ball_radii
     U = demands .+ ball_radii
 
     # Indices of worst lower and upper endpoints.
-    i_maxL = argmax(L) # index attaining max lower bound.
-    j_minU = argmin(U) # index attaining min upper bound.
+    i_maxL = argmax(L) # Index attaining max lower bound.
+    j_minU = argmin(U) # Index attaining min upper bound.
 
     empty_intersection_ratio = (demands[i_maxL] - demands[j_minU]) / (ball_radii[i_maxL] + ball_radii[j_minU])
 
@@ -212,13 +227,10 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
     for i in 1:2
         @constraints(Problem, begin
                                     # b(order)[i] + sum(w[i,k]*demands[k] + (1/4)*(1/λ[k])*w[i,k]^2 for k in 1:K) + z[i,:]'*d <= sum(γ[k] for k in 1:K)
-                                    
                                     # <==> b(order)[i] + sum(w[i,k]*demands[k] + s[i,k] for k in 1:K) + z[i,:]'*d <= sum(γ[k] for k in 1:K)
                                     # 0 <= (1/4)*(1/λ[K])*w[i,k]^2 <= s[i,k] for all i,k <==> w[i,k]^2 <= 2*(2*λ[K])*s[i,k] for all i,k,
-                                    
                                     # <==> b(order)[i] + sum(w[i,k]*demands[k] + s[i,k] for k in 1:K) + z[i,:]'*d <= sum(γ[k] for k in 1:K)
-                                    # [2*λ[k]; s[i,k]; w[i,k]] in MathOptInterface.RotatedSecondOrderCone(3) for all i,k,
-                                    
+                                    # [2*λ[k]; s[i,k]; w[i,k]] in MathOptInterface.RotatedSecondOrderCone(3) for all i,k,       
                                     # <==>
                                     b(order)[i] + sum(w[i,k]*demands[k] + s[i,k] for k in 1:K) + z[i,:]'*d <= sum(γ[k] for k in 1:K)
                                     a[i] - C'*z[i,:] == sum(w[i,k] for k in 1:K)
@@ -238,12 +250,33 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
     # Feasibility check to ensure intersection is nonempty before returning. 
     # (Otherwise, occasionally BarHomogeneous will return a crazy solution 
     # from an early termination since the problem is actually infeasible.)
-    if is_solved_and_feasible(Problem) 
+    #if is_solved_and_feasible(Problem) 
+    #    return objective_value(Problem), value(order), doubling_count
+    
+    #else
+    #    throw=throw
+        #return REMK_intersection_W2_newsvendor_objective_value_and_order(2*ε, demands, weights, doubling_count+1)
+    
+    #end
+
+    # Check the problem is solved and feasible.
+    if is_solved_and_feasible(Problem)
         return objective_value(Problem), value(order), doubling_count
     
-    else
-        return REMK_intersection_W2_newsvendor_objective_value_and_order(2*ε, demands, weights, doubling_count+1)
+    else # Attempt a high precision solve otherwise.
+        set_optimizer(Problem, high_precision_optimizer); optimize!(Problem)
+
+        # Try to return a suboptimal solution from a possibly early termination as the problem is always feasible and bounded. 
+        # (This may be neccesary due to near infeasiblity after convex reformulation caused by very unbalanced weights.)
+        if is_solved_and_feasible(Problem)
+            return objective_value(Problem), value(order), doubling_count
     
+        else # As a last resort, double the scaled-up ambiguity radius and try again.
+            return REMK_intersection_W2_newsvendor_objective_value_and_order(2*(empty_intersection_ratio / empty_intersection_ratio_tolerance)*ε, demands, weights, doubling_count+1)
+
+        end
     end
+
 end
 
+5
