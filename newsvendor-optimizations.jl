@@ -9,7 +9,7 @@ Co = 1 # Per-unit overage cost.
 
 # Problem tolerances
 zero_weight_tolerance = 0
-empty_intersection_ratio_tolerance = 1 - 1e-3
+empty_intersection_ratio_tolerance = 1 - 1e-2
 
 env = Gurobi.Env()
 GRBsetintparam(env, "OutputFlag", 0)
@@ -176,10 +176,10 @@ function W2_newsvendor_objective_value_and_order(ε, demands, weights, doubling_
 
         # Try to return a suboptimal solution from a possibly early termination as the problem is always feasible and bounded. 
         # (This may be neccesary due to near infeasiblity after convex reformulation caused by very unbalanced weights.)
-        if is_solved_and_feasible(Problem)
+        try #is_solved_and_feasible(Problem)
             return objective_value(Problem), value(order), doubling_count
     
-        else # As a last resort, double the ambiguity radius and try again.
+        catch #else # As a last resort, double the ambiguity radius and try again.
             #throw=throw
             return W2_newsvendor_objective_value_and_order(2*ε, demands, weights, doubling_count+1)
 
@@ -268,10 +268,10 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
 
         # Try to return a suboptimal solution from a possibly early termination as the problem is always feasible and bounded. 
         # (This may be neccesary due to near infeasiblity after convex reformulation caused by very unbalanced weights.)
-        if is_solved_and_feasible(Problem)
+        try #is_solved_and_feasible(Problem)
             return objective_value(Problem), value(order), doubling_count
     
-        else # As a last resort, double the scaled-up ambiguity radius and try again.
+        catch # As a last resort, double the scaled-up ambiguity radius and try again.
             return REMK_intersection_W2_newsvendor_objective_value_and_order(2*(empty_intersection_ratio / empty_intersection_ratio_tolerance)*ε, demands, weights, doubling_count+1)
 
         end

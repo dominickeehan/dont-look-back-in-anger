@@ -13,14 +13,14 @@ Cu = [1,2,3,4] # Per-unit underage cost.
 Co = 1 # Per-unit overage cost.
 
 job_number = parse(Int64, ENV["PBS_ARRAY_INDEX"])  # 0 to 119 (product of cardinality of above parameter sets).
-index = job_number
+parameter_index = job_number
 
 # Compute indices
-i_initial_demand_probability = index % length(initial_demand_probability)
-index ÷= length(initial_demand_probability)
-i_D = index % length(D)
-index ÷= length(D)
-i_Cu = index % length(Cu)
+i_initial_demand_probability = parameter_index % length(initial_demand_probability)
+parameter_index ÷= length(initial_demand_probability)
+i_D = parameter_index % length(D)
+parameter_index ÷= length(D)
+i_Cu = parameter_index % length(Cu)
 # Get values
 initial_demand_probability = initial_demand_probability[i_initial_demand_probability + 1]
 D = D[i_D + 1]
@@ -218,7 +218,7 @@ plot!(drifts, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha =
         label = "Weighted")
 
 xticks!([1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1e0])
-ylims!((0.5, 1.5))
+ylims!((0.6, 1.4))
 xlims!((0.99999*drifts[1], 1.00001*drifts[end]))
 
 display(plt)

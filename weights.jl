@@ -55,7 +55,8 @@ function W1_weights(T, ρ╱ε)
     @objective(Problem, Max, (1/(sum(w[t]^2 for t in 1:T)))*(ε-(sum(w[t]*(T-t+1)*ρ for t in 1:T)))^2)
 
     optimize!(Problem)
-    #print(is_solved_and_feasible(Problem)) # Passes and solution looks good locally for ε = 10.
+
+    #assert_is_solved_and_feasible(Problem) # Passes and solution looks good locally for ε = 10.
 
     weights = [max(value(w[t]),0) for t in 1:T]
     weights = weights/sum(weights)
@@ -88,7 +89,8 @@ function W2_weights(T, ρ╱ε)
     @objective(Problem, Max, (1/(sum(w[t]^2 for t in 1:T)))*((ε-(sum(w[t]*(T-t+1)^p*ρ^p for t in 1:T))^(1/p))^(2*p)))
 
     optimize!(Problem)
-    #print(is_solved_and_feasible(Problem)) # Passes and solution looks good locally for ε = 10.
+
+    #assert_is_solved_and_feasible(Problem) # Passes and solution looks good locally for ε = 10.
 
     weights = [max(value(w[t]),0) for t in 1:T]
     weights = weights/sum(weights)
@@ -135,8 +137,8 @@ function Wp_weights(p, T, ρ╱ε)
     @objective(Problem, Max, (1/(sum(w[t]^2 for t in 1:T)))*((ε-(sum(w[t]*(T-t+1)^p*ρ^p for t in 1:T))^(1/p))^(2*p)))
 
     optimize!(Problem)
-    #print(is_solved_and_feasible(Problem)) # Passes and solution looks good locally for ε = 10.
 
+    #assert_is_solved_and_feasible(Problem) # Passes and solution looks good locally for ε = 10.
 
     weights = [max(value(w[t]),0) for t in 1:T]
     weights = weights/sum(weights)
@@ -144,3 +146,6 @@ function Wp_weights(p, T, ρ╱ε)
     return weights
 
 end
+
+5
+
