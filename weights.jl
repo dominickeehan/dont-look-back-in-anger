@@ -56,7 +56,7 @@ function W1_weights(T, ρ╱ε)
 
     optimize!(Problem)
 
-    #assert_is_solved_and_feasible(Problem) # Passes and solution looks good locally for ε = 10.
+    #display(is_solved_and_feasible(Problem)) # Passes and solution looks good locally for ε = 10.
 
     weights = [max(value(w[t]),0) for t in 1:T]
     weights = weights/sum(weights)
@@ -90,7 +90,7 @@ function W2_weights(T, ρ╱ε)
 
     optimize!(Problem)
 
-    #assert_is_solved_and_feasible(Problem) # Passes and solution looks good locally for ε = 10.
+    #display(is_solved_and_feasible(Problem)) # Passes and solution looks good locally for ε = 10.
 
     weights = [max(value(w[t]),0) for t in 1:T]
     weights = weights/sum(weights)
@@ -138,7 +138,7 @@ function Wp_weights(p, T, ρ╱ε)
 
     optimize!(Problem)
 
-    #assert_is_solved_and_feasible(Problem) # Passes and solution looks good locally for ε = 10.
+    #display(is_solved_and_feasible(Problem)) # Passes and solution looks good locally for ε = 10.
 
     weights = [max(value(w[t]),0) for t in 1:T]
     weights = weights/sum(weights)
