@@ -203,8 +203,11 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
 
     empty_intersection_ratio = (demands[i_maxL] - demands[j_minU]) / (ball_radii[i_maxL] + ball_radii[j_minU])
 
-    if empty_intersection_ratio >= empty_intersection_ratio_tolerance # Scale to sufficiently nonempty.
-        ball_radii = (empty_intersection_ratio / empty_intersection_ratio_tolerance) * ball_radii
+    if empty_intersection_ratio >= 1.0 # Scale to sufficiently nonempty.
+        demand = demands[i_maxL] - empty_intersection_ratio*ball_radii[i_maxL]
+        return SO_newsvendor_objective_value_and_order(0.0, demand, 1.0, doubling_count)
+
+        #ball_radii = (empty_intersection_ratio / empty_intersection_ratio_tolerance) * ball_radii
 
     end
 
@@ -272,7 +275,7 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
             return objective_value(Problem), value(order), doubling_count
     
         catch # As a last resort, double the scaled-up ambiguity radius and try again.
-            return REMK_intersection_W2_newsvendor_objective_value_and_order(2*(empty_intersection_ratio / empty_intersection_ratio_tolerance)*ε, demands, weights, doubling_count+1)
+            return REMK_intersection_W2_newsvendor_objective_value_and_order(2*max(empty_intersection_ratio, 1)*ε, demands, weights, doubling_count+1)
 
         end
     end

@@ -5,7 +5,7 @@ include("weights.jl")
 include("newsvendor-optimizations.jl")
 
 repetitions = 300 #300
-history_length = 30 # 70
+history_length = 10 # 70
 
 #for history_length in [30, 60, 90]
 
