@@ -8,8 +8,8 @@ Cu = 4 # Per-unit underage cost.
 Co = 1 # Per-unit overage cost.
 
 # Problem tolerances
-zero_weight_tolerance = 0
-empty_intersection_ratio_tolerance = 1 - 1e-2
+zero_weight_tolerance = 0 #0
+empty_intersection_ratio_tolerance = 1
 
 env = Gurobi.Env()
 GRBsetintparam(env, "OutputFlag", 0)

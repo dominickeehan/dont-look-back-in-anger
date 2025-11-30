@@ -5,9 +5,9 @@ include("weights.jl")
 include("newsvendor-optimizations.jl")
 
 repetitions = 300 #300
-#history_length = 30 # 70
+history_length = 30 # 70
 
-for history_length in [30, 60, 90]
+#for history_length in [30, 60, 90]
 
     function expected_newsvendor_cost(order, demand_probability)
 
@@ -213,5 +213,5 @@ for history_length in [30, 60, 90]
 
     5
 
-end
+#end
 
