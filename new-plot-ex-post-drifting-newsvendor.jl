@@ -5,7 +5,7 @@ include("weights.jl")
 include("newsvendor-optimizations.jl")
 
 repetitions = 300 #300
-history_length = 10 # 70
+history_length = 50 # 70
 
 #for history_length in [30, 60, 90]
 
@@ -109,7 +109,7 @@ history_length = 10 # 70
     LogRange(start, stop, len) = exp.(LinRange(log(start), log(stop), len))
 
 
-    discretisation = 5
+    discretisation = 10
     ε = D*unique([0; LinRange(1e-4,1e-3,discretisation); LinRange(1e-3,1e-2,discretisation); LinRange(1e-2,1e-1,discretisation)])
     s = unique(round.(Int, LogRange(1,history_length,3*discretisation)))
     α = [0; LogRange(1e-4,1e0,3*discretisation)]

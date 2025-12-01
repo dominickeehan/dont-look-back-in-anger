@@ -3,14 +3,15 @@ using ProgressBars, IterTools
 using Plots, Measures
 
 repetitions = 300
-history_length = 70 #70
+history_length = 50 #70
 
 include("weights.jl")
 
-initial_demand_probability = [0.01,0.02,0.03,0.04,0.05,0.1,0.2,0.3,0.4,0.5] # Binomial demand probability.
-D = [100,1000,10000] # Number of consumers.
-Cu = [1,2,3,4] # Per-unit underage cost.
+initial_demand_probability = [0.01,0.025,0.05,0.1,0.25,0.5] # Binomial demand probability.
+D = [100,500,1000,5000,10000] # Number of consumers.
+Cu = 4 # Per-unit underage cost.
 Co = 1 # Per-unit overage cost.
+dds = [1,2]
 
 job_number = parse(Int64, ENV["PBS_ARRAY_INDEX"])  # 0 to 119 (product of cardinality of above parameter sets).
 parameter_index = job_number
@@ -20,12 +21,11 @@ i_initial_demand_probability = parameter_index % length(initial_demand_probabili
 parameter_index ÷= length(initial_demand_probability)
 i_D = parameter_index % length(D)
 parameter_index ÷= length(D)
-i_Cu = parameter_index % length(Cu)
+i_dd = parameter_index % length(dds)
 # Get values
 initial_demand_probability = initial_demand_probability[i_initial_demand_probability + 1]
 D = D[i_D + 1]
-Cu = Cu[i_Cu + 1]
-Co = Co
+dd = dds[i_dd]
 
 include("newsvendor-optimizations.jl")
 
@@ -42,7 +42,7 @@ function expected_newsvendor_cost(order, demand_probability)
 end
 
 #drifts = [1e-4, 2.1544e-4, 4.6416e-4, 1e-3, 2.1544e-3, 4.6416e-3, 1e-2, 2.1544e-2, 4.6416e-2, 1e-1] # Uniform drift.
-drifts = [1e-4, 1e-3, 2.1544e-3, 4.6416e-3, 1e-2, 2.1544e-2, 4.6416e-2, 1e-1] # Uniform drift.
+drifts = [1e-3, 2.1544e-3, 4.6416e-3, 1e-2, 2.1544e-2, 4.6416e-2, 1e-1, 2.1544e-1, 4.6416e-1, 1e-0] # Uniform drift.
 
 
 function line_to_plot(newsvendor_objective_value_and_order, ambiguity_radii, compute_weights, weight_parameters)
@@ -53,7 +53,13 @@ function line_to_plot(newsvendor_objective_value_and_order, ambiguity_radii, com
     for drift_index in eachindex(drifts)
 
         Random.seed!(42)
-        drift_distribution = Uniform(-drifts[drift_index],drifts[drift_index])
+        if dd == 1
+            drift_distribution = Uniform(-drifts[drift_index],drifts[drift_index])
+        
+        else
+            drift_distribution = TriangularDist(-drifts[drift_index],drifts[drift_index],0)
+
+        end
 
         demand_sequences = [zeros(history_length) for _ in 1:repetitions]
         final_demand_probabilities = [zeros(1000) for _ in 1:repetitions]
@@ -133,7 +139,7 @@ end
 LogRange(start, stop, len) = exp.(LinRange(log(start), log(stop), len))
 
 
-discretisation = 5
+discretisation = 10
 ε = D*unique([0; LinRange(1e-4,1e-3,discretisation); LinRange(1e-3,1e-2,discretisation); LinRange(1e-2,1e-1,discretisation)])
 s = unique(round.(Int, LogRange(1,history_length,3*discretisation)))
 α = [0; LogRange(1e-4,1e0,3*discretisation)]
@@ -167,7 +173,7 @@ default(framestyle = :box,
 plt = plot(xscale = :log10, #yscale = :log10,
             xlabel = "Binomial drift parameter, \$δ\$", 
             ylabel = "Ex-post optimal expected\ncost (relative to smoothing)",
-            title = "\$Cu = $Cu\$, \$Ξ = [0,$D]\$, \$p_1\$\$ = $initial_demand_probability\$, \$T = $history_length\$",
+            title = "dd = $dd, \$Ξ = [0,$D]\$, \$p_1\$\$ = $initial_demand_probability\$, \$T = $history_length\$",
             #title = "\$p_1\$\$ = $initial_demand_probability\$, \$s ≥ 0\$",
             #title = "\$p_1\$\$ = $initial_demand_probability\$, \$s > -∞\$",
             topmargin = 0pt,
