@@ -224,7 +224,7 @@ plot!(drifts, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha =
         label = "Weighted")
 
 xticks!([1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1e0])
-ylims!((0.6, 1.4))
+ylims!((0.5, 1.5))
 xlims!((0.99999*drifts[1], 1.00001*drifts[end]))
 
 display(plt)
