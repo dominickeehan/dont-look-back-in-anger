@@ -25,7 +25,7 @@ i_dd = parameter_index % length(dds)
 # Get values
 initial_demand_probability = initial_demand_probability[i_initial_demand_probability + 1]
 D = D[i_D + 1]
-dd = dds[i_dd]
+dd = dds[i_dd + 1]
 
 include("newsvendor-optimizations.jl")
 
