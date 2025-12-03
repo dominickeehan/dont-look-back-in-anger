@@ -2,7 +2,7 @@ using LinearAlgebra
 using Statistics, StatsBase
 using JuMP, MathOptInterface, Gurobi
 
-number_of_dimensions = 2
+number_of_dimensions = 3
 
 # Per-dimension problem parameters
 initial_demand_probability = 1/3
