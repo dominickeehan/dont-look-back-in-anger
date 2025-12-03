@@ -4,27 +4,33 @@ using JuMP, MathOptInterface, Gurobi
 number_of_dimensions = 3
 
 # Per-dimension problem parameters
-initial_demand_probabilities = 1/3*ones(number_of_dimensions)
+initial_demand_probability = 1/3
 number_of_consumers = 1000
-D = 1000*ones(number_of_dimensions) # Number of consumers.
-cu = 4
-Cu = 4*ones(number_of_dimensions) # Per-unit underage cost.
-co = 1
-Co = 1*ones(number_of_dimensions) # Per-unit overage cost.
+cu = 4 # Per-unit underage cost.
+co = 1 # Per-unit overage cost.
 
 env = Gurobi.Env()
 GRBsetintparam(env, "OutputFlag", 0)
 optimizer = optimizer_with_attributes(() -> Gurobi.Optimizer(env))
 
-# Construct a vectors.
+# Construct .
 choices = (cu, -co)
 iterators = Iterators.product(ntuple(_ -> choices, number_of_dimensions)...)
 a = vec([collect(iterator) for iterator in iterators])
-
-# Construct b vectors.
 choices = (-cu, co)
 iterators = Iterators.product(ntuple(_ -> choices, number_of_dimensions)...)
 b = vec([collect(iterator) for iterator in iterators])
+
+C = zeros((2*number_of_dimensions, number_of_dimensions))
+g = zeros(2*number_of_dimensions)
+for i in 1:number_of_dimensions
+    C[2*i-1, i] = -1.0
+    C[2*i, i] = 1.0
+    g[2*i-1] = 0.0
+    g[2*i] = number_of_consumers
+
+end
+
 
 function SO_newsvendor_objective_value_and_order(_, demands, weights, doubling_count) 
 
@@ -78,21 +84,18 @@ function W2_newsvendor_objective_value_and_order(ε, demands, weights, doubling_
 
     Problem = Model(optimizer)
 
-    C = [-1 0 0; 1 0 0; 0 -1 0; 0 1 0; 0 0 -1; 0 0 1]
-    g = [0, number_of_consumers, 0, number_of_consumers, 0, number_of_consumers]
-
     @variables(Problem, begin
                             number_of_consumers >= order >= 0
                                 λ >= 0
                                 γ[t=1:T]
                                 z[t=1:T,l=1:2,m=1:2] >= 0
-                                w[t=1:T,l=1:2]
+                                w[t=1:T,l=1:2,i=1:number_of_dimensions]
                         end)
 
     for t in 1:T
-        for i in 1:2
+        for l in eachindex(a)
             @constraints(Problem, begin
-                                        # b(order)[i] + w[t,i]*demands[t] + (1/4)*(1/λ)*w[t,i]^2 + z[t,i,:]'*g <= γ[t] 
+                                        # b[l]'*order + w[t,l,:]'*demands[t] + (1/4)*(1/λ)*w[t,i]^2 + z[t,i,:]'*g <= γ[t] 
                                         # <==> w[t,i]^2 <= 2*(2*λ)*(γ[t] - b(order)[i] - w[t,i]*demands[t] - z[t,i,:]'*g) 
                                         # <==>
                                         [2*λ; γ[t] - b(order)[i] - w[t,i]*demands[t] - z[t,i,:]'*d; w[t,i]] in MathOptInterface.RotatedSecondOrderCone(3)
