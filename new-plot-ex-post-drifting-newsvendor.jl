@@ -4,120 +4,119 @@ using ProgressBars, IterTools
 include("weights.jl")
 include("newsvendor-optimizations.jl")
 
-repetitions = 10 #300
+number_of_repetitions = 100 #300
 history_length = 10 # 70
 
-#for history_length in [30, 60, 90]
 
-    function expected_newsvendor_cost(order, demand_probability)
+function expected_newsvendor_cost_in_1D(order, binomial_demand_probability)
 
-        a = cdf(Binomial(D-1,demand_probability), order-1)
-        b = cdf(Binomial(D,demand_probability), order)
+    a = cdf(Binomial(number_of_consumers-1,binomial_demand_probability), order-1)
+    b = cdf(Binomial(number_of_consumers,binomial_demand_probability), order)
 
-        expected_underage_cost = Cu * (D*demand_probability*(1-a) - order*(1-b))
-        expected_overage_cost = Co * (order*b - D*demand_probability*a)
+    expected_underage_cost = cu * (number_of_consumers*binomial_demand_probability*(1-a) - order*(1-b))
+    expected_overage_cost = co * (order*b - number_of_consumers*binomial_demand_probability*a)
 
-        return expected_underage_cost + expected_overage_cost
+    return expected_underage_cost + expected_overage_cost
 
-    end
+end
 
-    #drifts = [1e-3, 2.1544e-3, 4.6416e-3, 1e-2, 2.1544e-2, 4.6416e-2, 1e-1, 2.1544e-1, 4.6416e-1, 0.5, 1.0]
-    drifts = [1e-3, 1e-2, 1e-1]
+drifts = [1e-3, 1e-2, 1e-1]
 
+function line_to_plot(newsvendor_objective_value_and_order, ambiguity_radii, compute_weights, weight_parameters)
 
-    function line_to_plot(newsvendor_objective_value_and_order, ambiguity_radii, compute_weights, weight_parameters)
+    average_costs = zeros(length(drifts))
+    standard_deviations = zeros(length(drifts))
 
-        μs = zeros(length(drifts))
-        σs = zeros(length(drifts))
+    for drift_index in eachindex(drifts)
 
-        for drift_index in eachindex(drifts)
+        Random.seed!(42)
+        drift_distributions = [Uniform(-drifts[drift_index], drifts[drift_index]) for _ in 1:number_of_dimensions]
 
-            Random.seed!(42)
-            drift_distribution = Uniform(-drifts[drift_index],drifts[drift_index])
-#            drift_distribution = TriangularDist(-drifts[drift_index],drifts[drift_index],0)
+        demand_sequences = [[zeros(number_of_dimensions) for _ in 1:history_length] for _ in 1:number_of_repetitions]
+        final_demand_probabilities = [[zeros(number_of_dimensions) for _ in 1:1000] for _ in 1:number_of_repetitions]
 
-            demand_sequences = [zeros(history_length) for _ in 1:repetitions]
-            final_demand_probabilities = [zeros(1000) for _ in 1:repetitions]
+        for repetition_index in 1:number_of_repetitions
+            local demand_probabilities = initial_demand_probabilities
 
-            for repetition in 1:repetitions
-                local demand_probability = initial_demand_probability
+            for t in 1:history_length
+                demand_sequences[repetition_index][t] = 
+                    [rand(Binomial(number_of_consumers, demand_probabilities[l])) for l in 1:number_of_dimensions]
+                
+                if t < history_length
+                    demand_probabilities = 
+                        [min(max(demand_probabilities[l] + rand(drift_distributions[l]), 0), 1) for l in 1:number_of_dimensions]
 
-                for t in 1:history_length
-                    demand_sequences[repetition][t] = rand(Binomial(D, demand_probability))
-                    
-                    if t < history_length
-                        demand_probability = min(max(demand_probability + rand(drift_distribution), 0), 1)
-
-                    else
-                        for i in eachindex(final_demand_probabilities[repetition])
-                            final_demand_probabilities[repetition][i] = min(max(demand_probability + rand(drift_distribution), 0), 1)
-                    
-                        end
+                else
+                    for i in eachindex(final_demand_probabilities[repetition_index])
+                        final_demand_probabilities[repetition_index][i] = 
+                            [min(max(demand_probabilities[l] + rand(drift_distributions[l]), 0), 1) for l in 1:number_of_dimensions]
+                
                     end
                 end
             end
+        end
 
-            costs = [zeros((length(ambiguity_radii),length(weight_parameters))) for _ in 1:repetitions]
-            doubling_count = [zeros((length(ambiguity_radii),length(weight_parameters))) for _ in 1:repetitions]
+        costs = [zeros((length(ambiguity_radii),length(weight_parameters))) for _ in 1:number_of_repetitions]
+        doubling_count = [zeros((length(ambiguity_radii),length(weight_parameters))) for _ in 1:number_of_repetitions]
 
-            precomputed_weights = [zeros(history_length) for weight_parameter_index in eachindex(weight_parameters)]
+        precomputed_weights = [zeros(history_length) for _ in eachindex(weight_parameters)]
 
-            #println("Precomputing weights...")
-            Threads.@threads for weight_parameter_index in eachindex(weight_parameters)
-                precomputed_weights[weight_parameter_index] = compute_weights(history_length, weight_parameters[weight_parameter_index])
-
-            end
-
-            #println("Parameter fitting...")
-            Threads.@threads for (ambiguity_radius_index, weight_parameter_index) in ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters))))
-                for repetition in 1:repetitions
-                    local weights = precomputed_weights[weight_parameter_index]
-                    local demand_samples = demand_sequences[repetition][1:history_length]
-
-                    local _, order, doubling_count[repetition][ambiguity_radius_index, weight_parameter_index] = newsvendor_objective_value_and_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights, 0)
-
-                    costs[repetition][ambiguity_radius_index, weight_parameter_index] = 
-                        mean([expected_newsvendor_cost(order, final_demand_probabilities[repetition][i]) for i in eachindex(final_demand_probabilities[repetition])])
-
-                end
-            end
-
-            display(compute_weights)
-
-            digits = 4
-
-            ambiguity_radius_index, weight_parameter_index = Tuple(argmin(mean(costs)))
-            minimal_costs = [costs[repetition][ambiguity_radius_index, weight_parameter_index] for repetition in 1:repetitions]
-            μ = round(mean(minimal_costs), digits = digits)
-            σ = round(sem(minimal_costs), digits = digits)
-            print("Ex-post minimal average cost: $μ ± $σ, ")
-            
-            optimal_ambiguity_radius = round(ambiguity_radii[ambiguity_radius_index], digits = digits)
-            optimal_weight_parameter = round(weight_parameters[weight_parameter_index], digits = digits)
-            print("Optimal ambiguity radius: $optimal_ambiguity_radius, ")
-            print("Weight parameter: $optimal_weight_parameter, ")
-
-            optimal_doubling_count = round(mean([doubling_count[repetition][ambiguity_radius_index, weight_parameter_index] for repetition in 1:repetitions]), digits = digits)
-            println("Doubling count: $optimal_doubling_count")
-
-            μs[drift_index] = μ
-            σs[drift_index] = σ
+        Threads.@threads for weight_parameter_index in eachindex(weight_parameters)
+            precomputed_weights[weight_parameter_index] = compute_weights(history_length, weight_parameters[weight_parameter_index])
 
         end
 
-        return μs, σs
+        Threads.@threads for (ambiguity_radius_index, weight_parameter_index) in 
+            ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters))))
+            for repetition_index in 1:number_of_repetitions
+                local weights = precomputed_weights[weight_parameter_index]
+                local demand_samples = demand_sequences[repetition_index][1:history_length]
+
+                local _, order, doubling_count[repetition_index][ambiguity_radius_index, weight_parameter_index] = 
+                    newsvendor_objective_value_and_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights, 0)
+
+                costs[repetition_index][ambiguity_radius_index, weight_parameter_index] = 
+                    mean([sum(expected_newsvendor_cost_in_1D(order[l], final_demand_probabilities[repetition_index][i][l]) for l in 1:number_of_dimensions) for i in eachindex(final_demand_probabilities[repetition_index])])
+
+            end
+        end
+
+        display(compute_weights)
+
+        digits = 4
+
+        ambiguity_radius_index, weight_parameter_index = Tuple(argmin(mean(costs)))
+        minimal_costs = [costs[repetition_index][ambiguity_radius_index, weight_parameter_index] for repetition_index in 1:number_of_repetitions]
+        average_cost = round(mean(minimal_costs), digits = digits)
+        standard_deviation = round(sem(minimal_costs), digits = digits)
+        print("Ex-post minimal average cost: $average_cost ± $standard_deviation, ")
+        
+        optimal_ambiguity_radius = round(ambiguity_radii[ambiguity_radius_index], digits = digits)
+        optimal_weight_parameter = round(weight_parameters[weight_parameter_index], digits = digits)
+        print("Optimal ambiguity radius: $optimal_ambiguity_radius, ")
+        print("Weight parameter: $optimal_weight_parameter, ")
+
+        optimal_doubling_count = round(mean([doubling_count[repetition_index][ambiguity_radius_index, weight_parameter_index] for repetition_index in 1:number_of_repetitions]), digits = digits)
+        println("Doubling count: $optimal_doubling_count")
+
+        average_costs[drift_index] = average_cost
+        standard_deviations[drift_index] = standard_deviation
+
     end
+
+    return average_costs, standard_deviations
+end
 
 
     LogRange(start, stop, len) = exp.(LinRange(log(start), log(stop), len))
 
 
     discretisation = 10
-    ε = D*unique([0; LinRange(1e-4,1e-3,discretisation); LinRange(1e-3,1e-2,discretisation); LinRange(1e-2,1e-1,discretisation)])
+    ε = number_of_consumers*unique([0; LinRange(1e-4,1e-3,discretisation); LinRange(1e-3,1e-2,discretisation); LinRange(1e-2,1e-1,discretisation)])
     s = unique(round.(Int, LogRange(1,history_length,3*discretisation)))
     α = [0; LogRange(1e-4,1e0,3*discretisation)]
     ρ╱ε = [0; LogRange(1e-4,1e0,3*discretisation)]
-    intersection_ε = D*unique([LinRange(1e-4,1e-3,discretisation); LinRange(1e-3,1e-2,discretisation); LinRange(1e-2,1e-1,discretisation)])
+    intersection_ε = number_of_consumers*unique([LinRange(1e-4,1e-3,discretisation); LinRange(1e-3,1e-2,discretisation); LinRange(1e-2,1e-1,discretisation)])
     intersection_ρ╱ε = [0; LogRange(1e-4,1e0,3*discretisation)]
 
     #line_to_plot(REMK_intersection_W2_newsvendor_objective_value_and_order, intersection_ε, REMK_intersection_weights, intersection_ρ╱ε)
@@ -149,7 +148,7 @@ history_length = 10 # 70
         plt = plot(xscale = :log10, #yscale = :log10,
                     xlabel = "Binomial drift parameter, \$δ\$", 
                     ylabel = "Ex-post optimal expected\ncost (relative to smoothing)",
-                    title = "\$Ξ = [0,$D]\$, \$p_1\$\$ = $initial_demand_probability\$, \$T = $history_length\$",
+                    #title = "\$Ξ = [0,$D]\$, \$p_1\$\$ = $initial_demand_probability\$, \$T = $history_length\$",
                     #title = "\$p_1\$\$ = $initial_demand_probability\$, \$s ≥ 0\$",
                     #title = "\$p_1\$\$ = $initial_demand_probability\$, \$s > -∞\$",
                     topmargin = 0pt,
@@ -162,8 +161,8 @@ history_length = 10 # 70
         fillalpha = 0.1
 
         normalizer, normalizer_sems = line_to_plot(SO_newsvendor_objective_value_and_order, [0], smoothing_weights, α)
-        expected_costs, sems = line_to_plot(SO_newsvendor_objective_value_and_order, [0], windowing_weights, [history_length])
-        plot!(drifts, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
+        average_costs, sems = line_to_plot(SO_newsvendor_objective_value_and_order, [0], windowing_weights, [history_length])
+        plot!(drifts, average_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
                 color = palette(:tab10)[7],
                 linestyle = :dashdot,
                 markershape = :pentagon,
@@ -171,8 +170,8 @@ history_length = 10 # 70
                 markerstrokewidth = 0,
                 label = "SAA (\$ε=0\$)")
 
-        expected_costs, sems = normalizer, normalizer_sems
-        plot!(drifts, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
+        average_costs, sems = normalizer, normalizer_sems
+        plot!(drifts, average_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
                 color = palette(:tab10)[9],
                 linestyle = :dot,
                 linewidth = 1.2,
@@ -181,8 +180,8 @@ history_length = 10 # 70
                 markerstrokewidth = 0,
                 label = "Smoothing (\$ε=0\$)")
 
-        expected_costs, sems = line_to_plot(REMK_intersection_W2_newsvendor_objective_value_and_order, intersection_ε, REMK_intersection_weights, intersection_ρ╱ε)
-        plot!(drifts, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
+        #=average_costs, sems = line_to_plot(REMK_intersection_W2_newsvendor_objective_value_and_order, intersection_ε, REMK_intersection_weights, intersection_ρ╱ε)
+        plot!(drifts, average_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
                 color = palette(:tab10)[1],
                 linestyle = :solid,
                 markershape = :circle,
@@ -190,14 +189,14 @@ history_length = 10 # 70
                 markerstrokewidth = 0,
                 label = "Intersection")
 
-        expected_costs, sems = line_to_plot(W2_newsvendor_objective_value_and_order, ε, W2_weights, ρ╱ε)
-        plot!(drifts, expected_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
+        average_costs, sems = line_to_plot(W2_newsvendor_objective_value_and_order, ε, W2_weights, ρ╱ε)
+        plot!(drifts, average_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
                 color = palette(:tab10)[2],
                 linestyle = :dash,
                 markershape = :diamond,
                 markersize = 4,
                 markerstrokewidth = 0,
-                label = "Weighted")
+                label = "Weighted")=#
 
 
         xticks!([1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1e0])

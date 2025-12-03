@@ -1,15 +1,16 @@
 using Statistics, StatsBase
 using JuMP, MathOptInterface, Gurobi
 
-# Problem parameters
-initial_demand_probability = 1/3 # 0.1
-D = 10000 # Number of consumers.
-Cu = 4 # Per-unit underage cost.
-Co = 1 # Per-unit overage cost.
+number_of_dimensions = 3
 
-# Problem tolerances
-zero_weight_tolerance = 0 #0
-empty_intersection_ratio_tolerance = 1
+# Per-dimension problem parameters
+initial_demand_probabilities = 1/3*ones(number_of_dimensions)
+number_of_consumers = 1000
+D = 1000*ones(number_of_dimensions) # Number of consumers.
+cu = 4
+Cu = 4*ones(number_of_dimensions) # Per-unit underage cost.
+co = 1
+Co = 1*ones(number_of_dimensions) # Per-unit overage cost.
 
 env = Gurobi.Env()
 GRBsetintparam(env, "OutputFlag", 0)
@@ -23,7 +24,7 @@ optimizer = optimizer_with_attributes(() -> Gurobi.Optimizer(env))
 
 function SO_newsvendor_objective_value_and_order(_, demands, weights, doubling_count) 
 
-    nonzero_weight_indices = weights .> zero_weight_tolerance
+    nonzero_weight_indices = weights .> 0
     weights = weights[nonzero_weight_indices]
     weights = weights/sum(weights)
     demands = demands[nonzero_weight_indices]
@@ -32,96 +33,36 @@ function SO_newsvendor_objective_value_and_order(_, demands, weights, doubling_c
 
     Problem = Model(optimizer)
 
-    C = [-1; 1]
-    d = [0, D]
     a = [Cu,-Co]
-    b(order) = [-Cu*order, Co*order]
+    b = [-Cu, Co]
 
     @variables(Problem, begin
-                            D >= order >= 0
-                                 s[t=1:T]
+                            D[l] >= order[l=1:number_of_dimensions] >= zeros(number_of_dimensions)[l]
+                                 s[l=1:number_of_dimensions, t=1:T]
                         end)
 
     for t in 1:T
         for i in 1:2
-            @constraints(Problem, begin
-                                        b(order)[i] + a[i]*demands[t] <= s[t]
-                                  end)
+            for l in 1:number_of_dimensions
+                @constraints(Problem, begin
+                                            b[i][l]*order[l] + a[i][l]*demands[t][l] <= s[l,t]
+                                      end)
+            end
         end
     end
 
-    @objective(Problem, Min, weights'*s)
+    @objective(Problem, Min, sum(weights[t]*sum(s[l,t] for l in 1:number_of_dimensions) for t in 1:T))
 
     optimize!(Problem)
 
     if is_solved_and_feasible(Problem)
-        return objective_value(Problem), value(order), doubling_count 
+        return objective_value(Problem), [value(order[l]) for l in 1:number_of_dimensions], doubling_count 
 
     else
-        order = quantile(demands, Weights(weights), Cu/(Co+Cu))
-        return sum(weights[t] * (Cu*max(demands[t]-order,0) + Co*max(order-demands[t],0)) for t in eachindex(weights)), order, doubling_count
-    
-    end
-end
+        #order = quantile(demands, Weights(weights), Cu/(Co+Cu))
+        #return sum(weights[t] * (Cu*max(demands[t]-order,0) + Co*max(order-demands[t],0)) for t in eachindex(weights)), order, doubling_count
+        throw("throw")
 
-
-function W1_newsvendor_objective_value_and_order(ε, demands, weights, doubling_count) 
-
-    if ε == 0; return SO_newsvendor_objective_value_and_order(ε, demands, weights, doubling_count); end
-
-    nonzero_weight_indices = weights .> zero_weight_tolerance
-    weights = weights[nonzero_weight_indices]
-    weights = weights/sum(weights)
-    demands = demands[nonzero_weight_indices]
-
-    T = length(demands)
-
-    Problem = Model(optimizer)
-
-    C = [-1; 1]
-    d = [0, D]
-    a = [Cu,-Co]
-    b(order) = [-Cu*order, Co*order]
-
-    @variables(Problem, begin
-                            D >= order >= 0
-                                 λ
-                                 s[t=1:T]
-                                 γ[t=1:T,i=1:2,j=1:2] >= 0
-                                 z[t=1:T,i=1:2]
-                        end)
-
-    for t in 1:T
-        for i in 1:2
-            @constraints(Problem, begin
-                                        b(order)[i] + a[i]*demands[t] + γ[t,i,:]'*(d-C*demands[t]) <= s[t]
-                                        z[t,i] <= λ
-                                        C'*γ[t,i,:] - a[i] <= z[t,i]
-                                       -C'*γ[t,i,:] + a[i] <= z[t,i]
-                                  end)
-        end
-    end
-
-    @objective(Problem, Min, (ε^1)*λ + weights'*s)
-
-    optimize!(Problem)
-
-    # Check the problem is solved and feasible.
-    if is_solved_and_feasible(Problem)
-        return objective_value(Problem), value(order), doubling_count
-    
-    else # Attempt a high precision solve otherwise.
-        set_optimizer(Problem, high_precision_optimizer); optimize!(Problem)
-
-        # Try to return a suboptimal solution from a possibly early termination as the problem is always feasible and bounded. 
-        # (This may be neccesary due to near infeasiblity after convex reformulation caused by very unbalanced weights.)
-        try
-            return objective_value(Problem), value(order), doubling_count
-    
-        catch # As a last resort, double the ambiguity radius and try again.
-            return W1_newsvendor_objective_value_and_order(2*ε, demands, weights, doubling_count+1)
-
-        end
     end
 end
 
