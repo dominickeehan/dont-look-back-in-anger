@@ -4,7 +4,7 @@ using ProgressBars, IterTools
 include("weights.jl")
 include("newsvendor-optimizations.jl")
 
-number_of_repetitions = 100 #300
+number_of_repetitions = 30 #300
 history_length = 10 # 70
 
 
@@ -36,7 +36,7 @@ function line_to_plot(newsvendor_objective_value_and_order, ambiguity_radii, com
         final_demand_probabilities = [[zeros(number_of_dimensions) for _ in 1:1000] for _ in 1:number_of_repetitions]
 
         for repetition_index in 1:number_of_repetitions
-            local demand_probabilities = initial_demand_probabilities
+            local demand_probabilities = [initial_demand_probability for _ in 1:number_of_dimensions]
 
             for t in 1:history_length
                 demand_sequences[repetition_index][t] = 
@@ -67,6 +67,7 @@ function line_to_plot(newsvendor_objective_value_and_order, ambiguity_radii, com
         end
 
         Threads.@threads for (ambiguity_radius_index, weight_parameter_index) in 
+        #for (ambiguity_radius_index, weight_parameter_index) in 
             ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters))))
             for repetition_index in 1:number_of_repetitions
                 local weights = precomputed_weights[weight_parameter_index]
@@ -189,14 +190,14 @@ end
                 markerstrokewidth = 0,
                 label = "Intersection")=#
 
-        #=average_costs, sems = line_to_plot(W2_newsvendor_objective_value_and_order, ε, W2_weights, ρ╱ε)
+        average_costs, sems = line_to_plot(W2_newsvendor_objective_value_and_order, ε, W2_weights, ρ╱ε)
         plot!(drifts, average_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
                 color = palette(:tab10)[2],
                 linestyle = :dash,
                 markershape = :diamond,
                 markersize = 4,
                 markerstrokewidth = 0,
-                label = "Weighted")=#
+                label = "Weighted")
 
 
         xticks!([1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1e0])

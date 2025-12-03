@@ -1,13 +1,13 @@
 using Statistics, StatsBase
 using JuMP, MathOptInterface, Gurobi
 
-number_of_dimensions = 3
+number_of_dimensions = 2
 
 # Per-dimension problem parameters
 initial_demand_probability = 1/3
-number_of_consumers = 1000
-cu = 4 # Per-unit underage cost.
-co = 1 # Per-unit overage cost.
+number_of_consumers = 1000.0
+cu = 4.0 # Per-unit underage cost.
+co = 1.0 # Per-unit overage cost.
 
 env = Gurobi.Env()
 GRBsetintparam(env, "OutputFlag", 0)
@@ -61,7 +61,7 @@ function SO_newsvendor_objective_value_and_order(_, demands, weights, doubling_c
     optimize!(Problem)
 
     if is_solved_and_feasible(Problem)
-        return objective_value(Problem), [value(order[i]) for i in 1:number_of_dimensions], doubling_count 
+        return objective_value(Problem), value.(order), doubling_count 
 
     else
         #order = quantile(demands, Weights(weights), Cu/(Co+Cu))
@@ -85,32 +85,34 @@ function W2_newsvendor_objective_value_and_order(ε, demands, weights, doubling_
     Problem = Model(optimizer)
 
     @variables(Problem, begin
-                            number_of_consumers >= order >= 0
+                            number_of_consumers >= order[i=1:number_of_dimensions] >= 0
                                 λ >= 0
                                 γ[t=1:T]
-                                z[t=1:T,l=1:2,m=1:2] >= 0
-                                w[t=1:T,l=1:2,i=1:number_of_dimensions]
+                                z[t=1:T,l=1:length(a),m=1:length(g)] >= 0
+                                w[t=1:T,l=1:length(a),i=1:number_of_dimensions]
                         end)
 
     for t in 1:T
         for l in eachindex(a)
             @constraints(Problem, begin
-                                        # b[l]'*order + w[t,l,:]'*demands[t] + (1/4)*(1/λ)*w[t,i]^2 + z[t,i,:]'*g <= γ[t] 
-                                        # <==> w[t,i]^2 <= 2*(2*λ)*(γ[t] - b(order)[i] - w[t,i]*demands[t] - z[t,i,:]'*g) 
+                                        # b[l]'*order + w[t,l,:]'*demands[t] + (1/4)*(1/λ)*sum(w[t,l,i]^2 for i in 1:number_of_dimensions) + z[t,l,:]'*g <= γ[t] 
+                                        # <==> sum(w[t,l,i]^2 for i in 1:number_of_dimensions) <= 2*(2*λ)*(γ[t] - b[l]'*order - w[t,l,:]'*demands[t] - z[t,l,:]'*g) 
                                         # <==>
-                                        [2*λ; γ[t] - b(order)[i] - w[t,i]*demands[t] - z[t,i,:]'*d; w[t,i]] in MathOptInterface.RotatedSecondOrderCone(3)
-                                        a[i] - C'*z[t,i,:] == w[t,i]
+                                        [2*λ; γ[t] - b[l]'*order - w[t,l,:]'*demands[t] - z[t,l,:]'*g; w[t,l,:]] in MathOptInterface.RotatedSecondOrderCone(2+number_of_dimensions)
+                                        a[l] .- C'*z[t,l,:] .== w[t,l,:]
                                 end)
         end
     end
 
     @objective(Problem, Min, (ε^2)*λ + weights'*γ)
 
+    set_attribute(Problem, "BarHomogeneous", -1)
+    set_attribute(Problem, "NumericFocus", 0)
     optimize!(Problem)
 
     # Check the problem is solved and feasible.
     if is_solved_and_feasible(Problem)
-        return objective_value(Problem), value(order), doubling_count
+        return objective_value(Problem), value.(order), doubling_count
     
     else # Attempt a high precision solve otherwise.
         set_attribute(Problem, "BarHomogeneous", 1)
@@ -120,7 +122,7 @@ function W2_newsvendor_objective_value_and_order(ε, demands, weights, doubling_
         # Try to return a suboptimal solution from a possibly early termination as the problem is always feasible and bounded. 
         # (This may be neccesary due to near infeasiblity after convex reformulation.)
         try
-            return objective_value(Problem), value(order), doubling_count
+            return objective_value(Problem), value.(order), doubling_count
     
         catch # As a last resort, double the ambiguity radius and try again.
             return W2_newsvendor_objective_value_and_order(2*ε, demands, weights, doubling_count+1)
