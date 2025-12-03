@@ -1,3 +1,4 @@
+using LinearAlgebra
 using Statistics, StatsBase
 using JuMP, MathOptInterface, Gurobi
 
@@ -137,37 +138,25 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
 
     ball_radii = REMK_intersection_ball_radii(K, ε, weights[end])
 
-    # Check if the intersection of balls is empty (dimension by dimension), and scale up the radii if so.
-    tightest_dimension_index = 0
-    empty_intersection_ratio_of_tightest_dimension = 0
-    for i in 1:number_of_dimensions
-        lower_ball_bounds = [demands[k][i] for k in 1:K] .- ball_radii
-        upper_ball_bounds = [demands[k][i] for k in 1:K] .+ ball_radii
+    # Check if the intersection of balls is empty ball by ball, and scale up the radii if so.
+    tightest_indice_pair = [0, 0]
+    empty_intersection_ratio_of_tightest_pair = 0
+    for i in 1:K
+        for j in i+1:K
 
-        # Indices of the tightest bounds.
-        k_max_lower_bound = argmax(lower_ball_bounds)
-        k_min_upper_bound = argmin(upper_ball_bounds)
+        empty_intersection_ratio = norm(demands[i] - demands[j], 2) / (ball_radii[i] + ball_radii[j])
 
-        empty_intersection_ratio = 
-            (demands[k_max_lower_bound][i] - demands[k_min_upper_bound][i]) / (ball_radii[k_max_lower_bound] + ball_radii[k_min_upper_bound])
-
-        if empty_intersection_ratio >= empty_intersection_ratio_of_tightest_dimension
-            empty_intersection_ratio_of_tightest_dimension = empty_intersection_ratio
-            tightest_dimension_index = i
+        if empty_intersection_ratio >= empty_intersection_ratio_of_tightest_pair
+            empty_intersection_ratio_of_tightest_pair = empty_intersection_ratio
+            tightest_indice_pair = [i, j]
 
         end
     end
 
-    if empty_intersection_ratio_of_tightest_dimension >= 1.0 # Scale to sufficiently nonempty.
+    if empty_intersection_ratio_of_tightest_pair >= 1.0 # Scale to sufficiently nonempty.
+        i, j = tightest_indice_pair
+        demand = demands[i] + ball_radii[i]/(ball_radii[i] + ball_radii[j]) * (demands[j] - demands[i])
 
-        lower_ball_bounds = [demands[k][tightest_dimension_index] for k in 1:K] .- ball_radii
-        upper_ball_bounds = [demands[k][tightest_dimension_index] for k in 1:K] .+ ball_radii
-        k_max_lower_bound = argmax(lower_ball_bounds)
-        k_min_upper_bound = argmin(upper_ball_bounds)
-
-        # Check this.
-        demand = 
-            demands[k_max_lower_bound] .- empty_intersection_ratio_of_tightest_dimension*ball_radii[k_max_lower_bound]*ones(number_of_dimensions)
         return SO_newsvendor_objective_value_and_order(0.0, [demand], [1.0], doubling_count)
 
     end
