@@ -187,9 +187,9 @@ end
                 markershape = :circle,
                 markersize = 4,
                 markerstrokewidth = 0,
-                label = "Intersection")
+                label = "Intersection")=#
 
-        average_costs, sems = line_to_plot(W2_newsvendor_objective_value_and_order, ε, W2_weights, ρ╱ε)
+        #=average_costs, sems = line_to_plot(W2_newsvendor_objective_value_and_order, ε, W2_weights, ρ╱ε)
         plot!(drifts, average_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
                 color = palette(:tab10)[2],
                 linestyle = :dash,
