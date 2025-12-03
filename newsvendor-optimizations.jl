@@ -147,17 +147,17 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
 
     for k in 1:K
         @constraint(Ball_Intersection_Feasibility_Problem,
-                        [1/2*ball_radii[k]*λ; ball_radii[k]*λ; x] in MathOptInterface.RotatedSecondOrderCone(2+number_of_dimensions))
+                        [1/2*ball_radii[k]*λ; ball_radii[k]*λ; x - demands[k]] in MathOptInterface.RotatedSecondOrderCone(2+number_of_dimensions))
     end
 
-    @objective(Problem, Min, λ)
+    @objective(Ball_Intersection_Feasibility_Problem, Min, λ)
 
-    set_attribute(Problem, "BarHomogeneous", -1)
-    set_attribute(Problem, "NumericFocus", 0)
-    optimize!(Problem)
+    set_attribute(Ball_Intersection_Feasibility_Problem, "BarHomogeneous", -1)
+    set_attribute(Ball_Intersection_Feasibility_Problem, "NumericFocus", 0)
+    optimize!(Ball_Intersection_Feasibility_Problem)
 
     # Check the problem is solved and feasible.
-    if is_solved_and_feasible(Problem)
+    if is_solved_and_feasible(Ball_Intersection_Feasibility_Problem)
         if value(λ) >= 1
             return SO_newsvendor_objective_value_and_order(0.0, [value.(x)], [1.0], doubling_count)
 
