@@ -138,27 +138,32 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
 
     ball_radii = REMK_intersection_ball_radii(K, ε, weights[end])
 
-    # Check if the intersection of balls is empty ball by ball, and scale up the radii if so.
-    tightest_indice_pair = [0, 0]
-    empty_intersection_ratio_of_tightest_pair = 0
-    for i in 1:K
-        for j in i+1:K
+    Ball_Intersection_Feasibility_Problem = Model(optimizer)
 
-        empty_intersection_ratio = norm(demands[i] - demands[j], 2) / (ball_radii[i] + ball_radii[j])
+    @variables(Ball_Intersection_Feasibility_Problem, begin
+                                                        number_of_consumers >= x[i=1:number_of_dimensions] >= 0
+                                                        λ >= 0
+                                                      end)
 
-            if empty_intersection_ratio >= empty_intersection_ratio_of_tightest_pair
-                empty_intersection_ratio_of_tightest_pair = empty_intersection_ratio
-                tightest_indice_pair = [i, j]
-
-            end
-        end
+    for k in 1:K
+        @constraint(Ball_Intersection_Feasibility_Problem,
+                        [1/2*ball_radii[k]*λ; ball_radii[k]*λ; x] in MathOptInterface.RotatedSecondOrderCone(2+number_of_dimensions))
     end
 
-    if empty_intersection_ratio_of_tightest_pair >= 1.0 # Scale to sufficiently nonempty.
-        i, j = tightest_indice_pair
-        demand = demands[i] + ball_radii[i]/(ball_radii[i] + ball_radii[j]) * (demands[j] - demands[i])
+    @objective(Problem, Min, λ)
 
-        return SO_newsvendor_objective_value_and_order(0.0, [demand], [1.0], doubling_count)
+    set_attribute(Problem, "BarHomogeneous", -1)
+    set_attribute(Problem, "NumericFocus", 0)
+    optimize!(Problem)
+
+    # Check the problem is solved and feasible.
+    if is_solved_and_feasible(Problem)
+        if value(λ) >= 1
+            return SO_newsvendor_objective_value_and_order(0.0, [value.(x)], [1.0], doubling_count)
+
+        end
+    else
+        throw("throw")
 
     end
 
@@ -210,11 +215,11 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
 
         # Try to return a suboptimal solution from a possibly early termination as the problem is always feasible and bounded. 
         # (This may be neccesary due to near infeasiblity after convex reformulation.)
-        try
+        try #is_solved_and_feasible(Problem)
             return objective_value(Problem), value.(order), doubling_count
     
         catch # As a last resort, double the scaled-up ambiguity radius and try again.
-            return REMK_intersection_W2_newsvendor_objective_value_and_order(2*max(empty_intersection_ratio_of_tightest_pair, 1)*ε, demands, weights, doubling_count+1)
+            return REMK_intersection_W2_newsvendor_objective_value_and_order(2*ε, demands, weights, doubling_count+1)
 
         end
     end
