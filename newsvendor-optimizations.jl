@@ -15,11 +15,11 @@ env = Gurobi.Env()
 GRBsetintparam(env, "OutputFlag", 0)
 optimizer = optimizer_with_attributes(() -> Gurobi.Optimizer(env))
 
-high_precision_env = Gurobi.Env()
-GRBsetintparam(high_precision_env, "OutputFlag", 0)
-GRBsetintparam(high_precision_env, "BarHomogeneous", 1) # Useful for dealing with very unbalanced weights/intersections giving nearly infeasible problems.
-GRBsetintparam(high_precision_env, "NumericFocus", 3) # Useful for dealing with very unbalanced weights/intersections giving nearly infeasible problems.
-high_precision_optimizer = optimizer_with_attributes(() -> Gurobi.Optimizer(high_precision_env))
+#high_precision_env = Gurobi.Env()
+#GRBsetintparam(high_precision_env, "OutputFlag", 0)
+#GRBsetintparam(env, "BarHomogeneous", 1) # Useful for dealing with very unbalanced weights/intersections giving nearly infeasible problems.
+#GRBsetintparam(env, "NumericFocus", 3) # Useful for dealing with very unbalanced weights/intersections giving nearly infeasible problems.
+#high_precision_optimizer = optimizer_with_attributes(() -> Gurobi.Optimizer(env))
 
 function SO_newsvendor_objective_value_and_order(_, demands, weights, doubling_count) 
 
@@ -172,7 +172,9 @@ function W2_newsvendor_objective_value_and_order(ε, demands, weights, doubling_
         return objective_value(Problem), value(order), doubling_count
     
     else # Attempt a high precision solve otherwise.
-        set_optimizer(Problem, high_precision_optimizer); optimize!(Problem)
+        #set_optimizer(Problem, high_precision_optimizer); optimize!(Problem)
+        set_attribute(Problem, "BarHomogeneous", 1); set_attribute(Problem, "NumericFocus", 3)
+        optimize!(Problem)
 
         # Try to return a suboptimal solution from a possibly early termination as the problem is always feasible and bounded. 
         # (This may be neccesary due to near infeasiblity after convex reformulation caused by very unbalanced weights.)
@@ -267,7 +269,9 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
         return objective_value(Problem), value(order), doubling_count
     
     else # Attempt a high precision solve otherwise.
-        set_optimizer(Problem, high_precision_optimizer); optimize!(Problem)
+        #set_optimizer(Problem, high_precision_optimizer); optimize!(Problem)
+        set_attribute(Problem, "BarHomogeneous", 1); set_attribute(Problem, "NumericFocus", 3)
+        optimize!(Problem)
 
         # Try to return a suboptimal solution from a possibly early termination as the problem is always feasible and bounded. 
         # (This may be neccesary due to near infeasiblity after convex reformulation caused by very unbalanced weights.)

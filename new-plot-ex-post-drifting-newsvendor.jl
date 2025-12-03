@@ -4,7 +4,7 @@ using ProgressBars, IterTools
 include("weights.jl")
 include("newsvendor-optimizations.jl")
 
-repetitions = 100 #300
+repetitions = 10 #300
 history_length = 10 # 70
 
 #for history_length in [30, 60, 90]
