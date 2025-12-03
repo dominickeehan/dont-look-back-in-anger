@@ -4,8 +4,8 @@ using ProgressBars, IterTools
 include("weights.jl")
 include("newsvendor-optimizations.jl")
 
-repetitions = 300 #300
-history_length = 50 # 70
+repetitions = 100 #300
+history_length = 10 # 70
 
 #for history_length in [30, 60, 90]
 
@@ -21,7 +21,9 @@ history_length = 50 # 70
 
     end
 
-    drifts = [1e-4, 1e-3, 2.1544e-3, 4.6416e-3, 1e-2, 2.1544e-2, 4.6416e-2, 1e-1]
+    #drifts = [1e-3, 2.1544e-3, 4.6416e-3, 1e-2, 2.1544e-2, 4.6416e-2, 1e-1, 2.1544e-1, 4.6416e-1, 0.5, 1.0]
+    drifts = [1e-3, 1e-2, 1e-1]
+
 
     function line_to_plot(newsvendor_objective_value_and_order, ambiguity_radii, compute_weights, weight_parameters)
 
@@ -32,6 +34,7 @@ history_length = 50 # 70
 
             Random.seed!(42)
             drift_distribution = Uniform(-drifts[drift_index],drifts[drift_index])
+#            drift_distribution = TriangularDist(-drifts[drift_index],drifts[drift_index],0)
 
             demand_sequences = [zeros(history_length) for _ in 1:repetitions]
             final_demand_probabilities = [zeros(1000) for _ in 1:repetitions]

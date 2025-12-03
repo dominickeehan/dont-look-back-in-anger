@@ -2,10 +2,10 @@ using Statistics, StatsBase
 using JuMP, MathOptInterface, Gurobi
 
 # Problem parameters
-#initial_demand_probability = 1/3 # 0.1
-#D = 1000 # Number of consumers.
-#Cu = 4 # Per-unit underage cost.
-#Co = 1 # Per-unit overage cost.
+initial_demand_probability = 1/3 # 0.1
+D = 10000 # Number of consumers.
+Cu = 4 # Per-unit underage cost.
+Co = 1 # Per-unit overage cost.
 
 # Problem tolerances
 zero_weight_tolerance = 0 #0
