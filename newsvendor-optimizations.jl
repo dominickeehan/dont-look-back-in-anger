@@ -45,13 +45,13 @@ function SO_newsvendor_objective_value_and_order(_, demands, weights, doubling_c
 
     @variables(Problem, begin
                             number_of_consumers >= order[i=1:number_of_dimensions] >= 0
-                                 s[t=1:T]
+                            s[t=1:T]
                         end)
 
     for t in 1:T
         for l in eachindex(a)
             @constraints(Problem, begin
-                                        b[l]'*order + a[l]'*demands[t] <= s[t]
+                                    b[l]'*order + a[l]'*demands[t] <= s[t]
                                   end)
         end
     end
@@ -75,7 +75,7 @@ function W2_newsvendor_objective_value_and_order(ε, demands, weights, doubling_
 
     if ε == 0; return SO_newsvendor_objective_value_and_order(ε, demands, weights, doubling_count); end
 
-    nonzero_weight_indices = weights .> zero_weight_tolerance
+    nonzero_weight_indices = weights .> 0
     weights = weights[nonzero_weight_indices]
     weights = weights/sum(weights)
     demands = demands[nonzero_weight_indices]
@@ -86,21 +86,21 @@ function W2_newsvendor_objective_value_and_order(ε, demands, weights, doubling_
 
     @variables(Problem, begin
                             number_of_consumers >= order[i=1:number_of_dimensions] >= 0
-                                λ >= 0
-                                γ[t=1:T]
-                                z[t=1:T,l=1:length(a),m=1:length(g)] >= 0
-                                w[t=1:T,l=1:length(a),i=1:number_of_dimensions]
+                            λ >= 0
+                            γ[t=1:T]
+                            z[t=1:T,l=1:length(a),m=1:length(g)] >= 0
+                            w[t=1:T,l=1:length(a),i=1:number_of_dimensions]
                         end)
 
     for t in 1:T
         for l in eachindex(a)
             @constraints(Problem, begin
-                                        # b[l]'*order + w[t,l,:]'*demands[t] + (1/4)*(1/λ)*sum(w[t,l,i]^2 for i in 1:number_of_dimensions) + z[t,l,:]'*g <= γ[t] 
-                                        # <==> sum(w[t,l,i]^2 for i in 1:number_of_dimensions) <= 2*(2*λ)*(γ[t] - b[l]'*order - w[t,l,:]'*demands[t] - z[t,l,:]'*g) 
-                                        # <==>
-                                        [2*λ; γ[t] - b[l]'*order - w[t,l,:]'*demands[t] - z[t,l,:]'*g; w[t,l,:]] in MathOptInterface.RotatedSecondOrderCone(2+number_of_dimensions)
-                                        a[l] .- C'*z[t,l,:] .== w[t,l,:]
-                                end)
+                                    # b[l]'*order + w[t,l,:]'*demands[t] + (1/4)*(1/λ)*sum(w[t,l,i]^2 for i in 1:number_of_dimensions) + z[t,l,:]'*g <= γ[t] 
+                                    # <==> sum(w[t,l,i]^2 for i in 1:number_of_dimensions) <= 2*(2*λ)*(γ[t] - b[l]'*order - w[t,l,:]'*demands[t] - z[t,l,:]'*g) 
+                                    # <==>
+                                    [2*λ; γ[t] - b[l]'*order - w[t,l,:]'*demands[t] - z[t,l,:]'*g; w[t,l,:]] in MathOptInterface.RotatedSecondOrderCone(2+number_of_dimensions)
+                                    a[l] .- C'*z[t,l,:] .== w[t,l,:]
+                                  end)
         end
     end
 
@@ -137,91 +137,94 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
 
     ball_radii = REMK_intersection_ball_radii(K, ε, weights[end])
 
-    # Check if the intersection of balls is (nearly) empty, and scale up the radii if so.
-    L = demands .- ball_radii
-    U = demands .+ ball_radii
+    # Check if the intersection of balls is empty (dimension by dimension), and scale up the radii if so.
+    tightest_dimension_index = 0
+    empty_intersection_ratio_of_tightest_dimension = 0
+    for i in 1:number_of_dimensions
+        lower_ball_bounds = [demands[k][i] for k in 1:K] .- ball_radii
+        upper_ball_bounds = [demands[k][i] for k in 1:K] .+ ball_radii
 
-    # Indices of worst lower and upper endpoints.
-    i_maxL = argmax(L) # Index attaining max lower bound.
-    j_minU = argmin(U) # Index attaining min upper bound.
+        # Indices of the tightest bounds.
+        k_max_lower_bound = argmax(lower_ball_bounds)
+        k_min_upper_bound = argmin(upper_ball_bounds)
 
-    empty_intersection_ratio = (demands[i_maxL] - demands[j_minU]) / (ball_radii[i_maxL] + ball_radii[j_minU])
+        empty_intersection_ratio = 
+            (demands[k_max_lower_bound][i] - demands[k_min_upper_bound][i]) / (ball_radii[k_max_lower_bound] + ball_radii[k_min_upper_bound])
 
-    if empty_intersection_ratio >= 1.0 # Scale to sufficiently nonempty.
-        demand = demands[i_maxL] - empty_intersection_ratio*ball_radii[i_maxL]
-        return SO_newsvendor_objective_value_and_order(0.0, demand, 1.0, doubling_count)
+        if empty_intersection_ratio >= empty_intersection_ratio_of_tightest_dimension
+            empty_intersection_ratio_of_tightest_dimension = empty_intersection_ratio
+            tightest_dimension_index = i
 
-        #ball_radii = (empty_intersection_ratio / empty_intersection_ratio_tolerance) * ball_radii
+        end
+    end
+
+    if empty_intersection_ratio_of_tightest_dimension >= 1.0 # Scale to sufficiently nonempty.
+
+        lower_ball_bounds = [demands[k][tightest_dimension_index] for k in 1:K] .- ball_radii
+        upper_ball_bounds = [demands[k][tightest_dimension_index] for k in 1:K] .+ ball_radii
+        k_max_lower_bound = argmax(lower_ball_bounds)
+        k_min_upper_bound = argmin(upper_ball_bounds)
+
+        # Check this.
+        demand = 
+            demands[k_max_lower_bound] .- empty_intersection_ratio_of_tightest_dimension*ball_radii[k_max_lower_bound]*ones(number_of_dimensions)
+        return SO_newsvendor_objective_value_and_order(0.0, [demand], [1.0], doubling_count)
 
     end
 
     Problem = Model(optimizer)
 
-    C = [-1; 1]
-    d = [0, D]
-    a = [Cu,-Co]
-    b(order) = [-Cu*order, Co*order]
-
     @variables(Problem, begin
-                            D >= order >= 0
-                                λ[k=1:K] >= 0
-                                γ[k=1:K]
-                                z[i=1:2,j=1:2] >= 0
-                                w[i=1:2,k=1:K]
-                                s[i=1:2,k=1:K] >= 0
+                            number_of_consumers >= order[i=1:number_of_dimensions] >= 0
+                            λ[k=1:K] >= 0
+                            γ[k=1:K]
+                            z[l=1:length(a),m=1:length(g)] >= 0
+                            w[l=1:length(a),k=1:K,i=1:number_of_dimensions]
+                            s[l=1:length(a),k=1:K] >= 0
                         end)
 
-    for i in 1:2
+    for l in eachindex(a)
         @constraints(Problem, begin
-                                    # b(order)[i] + sum(w[i,k]*demands[k] + (1/4)*(1/λ[k])*w[i,k]^2 for k in 1:K) + z[i,:]'*d <= sum(γ[k] for k in 1:K)
-                                    # <==> b(order)[i] + sum(w[i,k]*demands[k] + s[i,k] for k in 1:K) + z[i,:]'*d <= sum(γ[k] for k in 1:K)
-                                    # 0 <= (1/4)*(1/λ[K])*w[i,k]^2 <= s[i,k] for all i,k <==> w[i,k]^2 <= 2*(2*λ[K])*s[i,k] for all i,k,
-                                    # <==> b(order)[i] + sum(w[i,k]*demands[k] + s[i,k] for k in 1:K) + z[i,:]'*d <= sum(γ[k] for k in 1:K)
-                                    # [2*λ[k]; s[i,k]; w[i,k]] in MathOptInterface.RotatedSecondOrderCone(3) for all i,k,       
-                                    # <==>
-                                    b(order)[i] + sum(w[i,k]*demands[k] + s[i,k] for k in 1:K) + z[i,:]'*d <= sum(γ[k] for k in 1:K)
-                                    a[i] - C'*z[i,:] == sum(w[i,k] for k in 1:K)
-                                end)
+                                # b[l]'*order + sum(w[l,k,:]'*demands[k] + (1/4)*(1/λ[k])*sum(w[l,k,i]^2 for i in 1:number_of_dimensions) for k in 1:K) + z[l,:]'*g <= sum(γ[k] for k in 1:K)
+                                # <==> b[l]'*order + sum(w[l,k,:]'*demands[k] + s[l,k] for k in 1:K) + z[l,:]'*g <= sum(γ[k] for k in 1:K),
+                                # 0 <= (1/4)*(1/λ[K])*sum(w[l,k,i]^2 for i in 1:number_of_dimensions) <= s[l,k] for all l,k <==> sum(w[l,k,i]^2 for i in 1:number_of_dimensions) <= 2*(2*λ[K])*s[l,k] for all l,k,
+                                # <==> b[l]'*order + sum(w[l,k,:]'*demands[k] + s[l,k] for k in 1:K) + z[l,:]'*g <= sum(γ[k] for k in 1:K),
+                                # [2*λ[k]; s[l,k]; w[l,k,:]] in MathOptInterface.RotatedSecondOrderCone(2+number_of_dimensions) for all l,k,       
+                                # <==>
+                                b[l]'*order + sum(w[l,k,:]'*demands[k] + s[l,k] for k in 1:K) + z[l,:]'*g <= sum(γ[k] for k in 1:K)
+                                a[l] .- C'*z[l,:] .== sum(w[l,k,:] for k in 1:K)
+                              end)
 
         for k in 1:K
             @constraints(Problem, begin
-                                        [2*λ[k]; s[i,k]; w[i,k]] in MathOptInterface.RotatedSecondOrderCone(3) 
-                                    end)
+                                    [2*λ[k]; s[l,k]; w[l,k,:]] in MathOptInterface.RotatedSecondOrderCone(2+number_of_dimensions) 
+                                  end)
+
         end
     end
 
     @objective(Problem, Min, sum((ball_radii[k]^2)*λ[k] for k in 1:K) + sum(γ[k] for k in 1:K))
 
+    set_attribute(Problem, "BarHomogeneous", -1)
+    set_attribute(Problem, "NumericFocus", 0)
     optimize!(Problem)
-
-    # Feasibility check to ensure intersection is nonempty before returning. 
-    # (Otherwise, occasionally BarHomogeneous will return a crazy solution 
-    # from an early termination since the problem is actually infeasible.)
-    #if is_solved_and_feasible(Problem) 
-    #    return objective_value(Problem), value(order), doubling_count
-    
-    #else
-    #    throw=throw
-        #return REMK_intersection_W2_newsvendor_objective_value_and_order(2*ε, demands, weights, doubling_count+1)
-    
-    #end
 
     # Check the problem is solved and feasible.
     if is_solved_and_feasible(Problem)
-        return objective_value(Problem), value(order), doubling_count
+        return objective_value(Problem), value.(order), doubling_count
     
     else # Attempt a high precision solve otherwise.
-        #set_optimizer(Problem, high_precision_optimizer); optimize!(Problem)
-        set_attribute(Problem, "BarHomogeneous", 1); set_attribute(Problem, "NumericFocus", 3)
+        set_attribute(Problem, "BarHomogeneous", 1)
+        set_attribute(Problem, "NumericFocus", 3)
         optimize!(Problem)
 
         # Try to return a suboptimal solution from a possibly early termination as the problem is always feasible and bounded. 
-        # (This may be neccesary due to near infeasiblity after convex reformulation caused by very unbalanced weights.)
-        try #is_solved_and_feasible(Problem)
-            return objective_value(Problem), value(order), doubling_count
+        # (This may be neccesary due to near infeasiblity after convex reformulation.)
+        try
+            return objective_value(Problem), value.(order), doubling_count
     
         catch # As a last resort, double the scaled-up ambiguity radius and try again.
-            return REMK_intersection_W2_newsvendor_objective_value_and_order(2*max(empty_intersection_ratio, 1)*ε, demands, weights, doubling_count+1)
+            return REMK_intersection_W2_newsvendor_objective_value_and_order(2*max(empty_intersection_ratio_of_tightest_dimension, 1)*ε, demands, weights, doubling_count+1)
 
         end
     end

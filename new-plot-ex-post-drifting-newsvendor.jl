@@ -113,11 +113,11 @@ end
 
 
     discretisation = 10
-    ε = number_of_consumers*unique([0; LinRange(1e-4,1e-3,discretisation); LinRange(1e-3,1e-2,discretisation); LinRange(1e-2,1e-1,discretisation)])
+    ε = number_of_consumers*unique([0; LinRange(1e-3,1e-2,discretisation); LinRange(1e-2,1e-1,discretisation); LinRange(1e-1,1e-0,discretisation)])
     s = unique(round.(Int, LogRange(1,history_length,3*discretisation)))
     α = [0; LogRange(1e-4,1e0,3*discretisation)]
     ρ╱ε = [0; LogRange(1e-4,1e0,3*discretisation)]
-    intersection_ε = number_of_consumers*unique([LinRange(1e-4,1e-3,discretisation); LinRange(1e-3,1e-2,discretisation); LinRange(1e-2,1e-1,discretisation)])
+    intersection_ε = number_of_consumers*unique([LinRange(1e-3,1e-2,discretisation); LinRange(1e-2,1e-1,discretisation); LinRange(1e-1,1e-0,discretisation)])
     intersection_ρ╱ε = [0; LogRange(1e-4,1e0,3*discretisation)]
 
     #line_to_plot(REMK_intersection_W2_newsvendor_objective_value_and_order, intersection_ε, REMK_intersection_weights, intersection_ρ╱ε)
@@ -181,14 +181,14 @@ end
                 markerstrokewidth = 0,
                 label = "Smoothing (\$ε=0\$)")
 
-        #=average_costs, sems = line_to_plot(REMK_intersection_W2_newsvendor_objective_value_and_order, intersection_ε, REMK_intersection_weights, intersection_ρ╱ε)
+        average_costs, sems = line_to_plot(REMK_intersection_W2_newsvendor_objective_value_and_order, intersection_ε, REMK_intersection_weights, intersection_ρ╱ε)
         plot!(drifts, average_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
                 color = palette(:tab10)[1],
                 linestyle = :solid,
                 markershape = :circle,
                 markersize = 4,
                 markerstrokewidth = 0,
-                label = "Intersection")=#
+                label = "Intersection")
 
         average_costs, sems = line_to_plot(W2_newsvendor_objective_value_and_order, ε, W2_weights, ρ╱ε)
         plot!(drifts, average_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
