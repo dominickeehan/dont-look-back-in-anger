@@ -4,7 +4,7 @@ using ProgressBars, IterTools
 include("weights.jl")
 include("newsvendor-optimizations.jl")
 
-number_of_repetitions = 30 #300
+number_of_repetitions = 50 #300
 history_length = 10 # 70
 
 
@@ -20,7 +20,7 @@ function expected_newsvendor_cost_in_1D(order, binomial_demand_probability)
 
 end
 
-drifts = [1e-3, 1e-2, 1e-1]
+drifts = [1e-3, 1e-2, 3e-2, 1e-1]
 
 function line_to_plot(newsvendor_objective_value_and_order, ambiguity_radii, compute_weights, weight_parameters)
 

@@ -146,10 +146,11 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
 
         empty_intersection_ratio = norm(demands[i] - demands[j], 2) / (ball_radii[i] + ball_radii[j])
 
-        if empty_intersection_ratio >= empty_intersection_ratio_of_tightest_pair
-            empty_intersection_ratio_of_tightest_pair = empty_intersection_ratio
-            tightest_indice_pair = [i, j]
+            if empty_intersection_ratio >= empty_intersection_ratio_of_tightest_pair
+                empty_intersection_ratio_of_tightest_pair = empty_intersection_ratio
+                tightest_indice_pair = [i, j]
 
+            end
         end
     end
 
@@ -213,7 +214,7 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
             return objective_value(Problem), value.(order), doubling_count
     
         catch # As a last resort, double the scaled-up ambiguity radius and try again.
-            return REMK_intersection_W2_newsvendor_objective_value_and_order(2*max(empty_intersection_ratio_of_tightest_dimension, 1)*ε, demands, weights, doubling_count+1)
+            return REMK_intersection_W2_newsvendor_objective_value_and_order(2*max(empty_intersection_ratio_of_tightest_pair, 1)*ε, demands, weights, doubling_count+1)
 
         end
     end
