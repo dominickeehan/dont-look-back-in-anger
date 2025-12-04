@@ -2,19 +2,11 @@ using LinearAlgebra
 using Statistics, StatsBase
 using JuMP, MathOptInterface, Gurobi
 
-number_of_dimensions = 3
-
-# Per-dimension problem parameters
-initial_demand_probability = 1/3
-number_of_consumers = 1000.0
-cu = 4.0 # Per-unit underage cost.
-co = 1.0 # Per-unit overage cost.
-
 env = Gurobi.Env()
 GRBsetintparam(env, "OutputFlag", 0)
 optimizer = optimizer_with_attributes(() -> Gurobi.Optimizer(env))
 
-# Construct .
+# Construct problem matrors.
 choices = (cu, -co)
 iterators = Iterators.product(ntuple(_ -> choices, number_of_dimensions)...)
 a = vec([collect(iterator) for iterator in iterators])
@@ -71,6 +63,7 @@ function SO_newsvendor_objective_value_and_order(_, demands, weights, doubling_c
 
     end
 end
+
 
 function W2_newsvendor_objective_value_and_order(ε, demands, weights, doubling_count) 
 
@@ -131,6 +124,7 @@ function W2_newsvendor_objective_value_and_order(ε, demands, weights, doubling_
         end
     end
 end
+
 
 function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, weights, doubling_count)
 
