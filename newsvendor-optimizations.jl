@@ -7,7 +7,10 @@ GRBsetintparam(env, "OutputFlag", 0)
 optimizer = optimizer_with_attributes(() -> Gurobi.Optimizer(env))
 
 # Construct problem matrors.
-choices = (cu, -co)
+# See "Wasserstein Distributionally Robust Optimization with Heterogeneous Data Sources" 
+# by Yves Rychener, Adrián Esteban-Pérez, Juan M. Morales, and Daniel Kuhn (arXiv:2407.13582v2),
+# Corollary 2.
+choices = (cu, -co) # We assume that the underage and overage costs of each good are the same.
 iterators = Iterators.product(ntuple(_ -> choices, number_of_dimensions)...)
 a = vec([collect(iterator) for iterator in iterators])
 choices = (-cu, co)
@@ -76,6 +79,9 @@ function W2_newsvendor_objective_value_and_order(ε, demands, weights, doubling_
 
     T = length(demands)
 
+    # See "Wasserstein Distributionally Robust Optimization with Heterogeneous Data Sources" 
+    # by Yves Rychener, Adrián Esteban-Pérez, Juan M. Morales, and Daniel Kuhn (arXiv:2407.13582v2),
+    # Corollary 2.
     Problem = Model(optimizer)
 
     @variables(Problem, begin
@@ -132,27 +138,32 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
 
     ball_radii = REMK_intersection_ball_radii(K, ε, weights[end])
 
+    # In the following distributional ball-intersection feasibility problem the equivalence to working in R^m follows since 
+    # W₂(P,1_ξ) = sqrt(sum((E(P)_i-ξ_i)^2) + Tr(Cov(P))) which drives Tr(Cov(P)) -> 0 and P -> 1_E(P) at extremal distributions.  
     Ball_Intersection_Feasibility_Problem = Model(optimizer)
 
     @variables(Ball_Intersection_Feasibility_Problem, begin
-                                                        number_of_consumers >= x[i=1:number_of_dimensions] >= 0
-                                                        λ >= 0
+                                                        number_of_consumers >= x[i=1:number_of_dimensions] >= 0 # Feasible intersection.
+                                                        λ >= 0 # Radii up-scaling factor.
                                                       end)
 
     for k in 1:K
         @constraint(Ball_Intersection_Feasibility_Problem,
+                        # ‖x - ball_centers[k]‖₂ <= λ*ball_radii[k] for all k
+                        # <==>
                         [1/2*ball_radii[k]*λ; ball_radii[k]*λ; x - demands[k]] in MathOptInterface.RotatedSecondOrderCone(2+number_of_dimensions))
     end
 
-    @objective(Ball_Intersection_Feasibility_Problem, Min, λ)
+    @objective(Ball_Intersection_Feasibility_Problem, Min, λ) # Minimize the up-scaling factor required for a feasible intersection.
 
     set_attribute(Ball_Intersection_Feasibility_Problem, "BarHomogeneous", -1)
     set_attribute(Ball_Intersection_Feasibility_Problem, "NumericFocus", 0)
     optimize!(Ball_Intersection_Feasibility_Problem)
 
-    # Check the problem is solved and feasible.
     if is_solved_and_feasible(Ball_Intersection_Feasibility_Problem)
-        if value(λ) >= 1
+        if value(λ) >= 1 # Then we had to scale up the ball radii for the ambiguity set to be nonempty.
+            # At the point of scaling where the set first becomes nonempty, the only distribution is the point-mass distribution 
+            # at the point where all the radii touch, i.e., at the solution to the ball-intersection feasibility problem. 
             return SO_newsvendor_objective_value_and_order(0.0, [value.(x)], [1.0], doubling_count)
 
         end
@@ -161,6 +172,9 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
 
     end
 
+    # See "Wasserstein Distributionally Robust Optimization with Heterogeneous Data Sources" 
+    # by Yves Rychener, Adrián Esteban-Pérez, Juan M. Morales, and Daniel Kuhn (arXiv:2407.13582v2),
+    # Corollary 2.
     Problem = Model(optimizer)
 
     @variables(Problem, begin

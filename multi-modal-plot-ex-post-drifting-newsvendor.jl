@@ -11,7 +11,7 @@ co = 1.0 # Per-unit overage cost.
 include("weights.jl")
 include("newsvendor-optimizations.jl")
 
-number_of_repetitions = 10 #300
+number_of_repetitions = 100 #300
 history_length = 10 # 70
 
 function expected_newsvendor_cost_with_binomial_demand(order, binomial_demand_probability, number_of_consumers)
@@ -38,7 +38,7 @@ function line_to_plot(newsvendor_objective_value_and_order, ambiguity_radii, com
         Random.seed!(42)
         drift_distribution = Uniform(-drifts[drift_index], drifts[drift_index])
 
-        demand_sequences = [zeros(history_length) for _ in 1:number_of_repetitions]
+        demand_sequences = [[[0] for _ in 1:history_length] for _ in 1:number_of_repetitions]
         final_demand_probabilities = [[zeros(number_of_modes) for _ in 1:1000] for _ in 1:number_of_repetitions]
 
         for repetition_index in 1:number_of_repetitions
@@ -46,16 +46,16 @@ function line_to_plot(newsvendor_objective_value_and_order, ambiguity_radii, com
 
             for t in 1:history_length
                 demand_sequences[repetition_index][t] = 
-                    rand(MixtureModel(Binomial, [(numbers_of_consumers[i], demand_probabilities[i]) for i in 1:number_of_modes]))
+                    [rand(MixtureModel(Binomial, [(numbers_of_consumers[i], demand_probabilities[i]) for i in 1:number_of_modes]))]
                 
                 if t < history_length
                     demand_probabilities = 
-                        [min(max(demand_probabilities[i] + rand(drift_distribution[i]), 0), 1) for i in 1:number_of_modes]
+                        [min(max(demand_probabilities[i] + rand(drift_distribution), 0), 1) for i in 1:number_of_modes]
 
                 else
                     for i in eachindex(final_demand_probabilities[repetition_index])
                         final_demand_probabilities[repetition_index][i] = 
-                            [min(max(demand_probabilities[i] + rand(drift_distribution[i]), 0), 1) for i in 1:number_of_modes]
+                            [min(max(demand_probabilities[i] + rand(drift_distribution), 0), 1) for i in 1:number_of_modes]
                 
                     end
                 end
@@ -83,7 +83,7 @@ function line_to_plot(newsvendor_objective_value_and_order, ambiguity_radii, com
                     newsvendor_objective_value_and_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights, 0)
 
                 costs[repetition_index][ambiguity_radius_index, weight_parameter_index] = 
-                    mean([sum(1/number_of_modes*expected_newsvendor_cost_with_binomial_demand(order, final_demand_probabilities[repetition_index][i][j], numbers_of_consumers[j]) for j in 1:number_of_modes) for i in eachindex(final_demand_probabilities[repetition_index])])
+                    mean([sum(1/number_of_modes*expected_newsvendor_cost_with_binomial_demand(order[1], final_demand_probabilities[repetition_index][i][j], numbers_of_consumers[j]) for j in 1:number_of_modes) for i in eachindex(final_demand_probabilities[repetition_index])])
 
             end
         end
@@ -153,7 +153,7 @@ default(framestyle = :box,
 plt = plot(xscale = :log10, #yscale = :log10,
             xlabel = "Binomial drift parameter, \$δ\$", 
             ylabel = "Ex-post optimal expected\ncost (relative to smoothing)",
-            title = "modes \$= $number_of_modes\$, \$p_1 = $initial_demand_probabilities\$, \$Ξ = $numbers_of_consumers\$, \$T = $history_length\$",
+            title = "# of modes\$= $number_of_modes\$, \$p_1\$\$ = $initial_demand_probabilities\$, \$Ξ = $numbers_of_consumers\$, \$T = $history_length\$",
             titlefontsize = 10,
             topmargin = 0pt,
             leftmargin = 6pt,
