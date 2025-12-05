@@ -3,6 +3,7 @@ using ProgressBars, IterTools
 
 number_of_dimensions = 1
 number_of_modes = 2
+mixture_weights = [0.9, 0.1]
 initial_demand_probabilities = [0.3 for _ in 1:number_of_modes]
 numbers_of_consumers = [i*1000.0 for i in 1:number_of_modes]
 number_of_consumers = max(numbers_of_consumers...)
@@ -46,7 +47,7 @@ function line_to_plot(newsvendor_objective_value_and_order, ambiguity_radii, com
 
             for t in 1:history_length
                 demand_sequences[repetition_index][t] = 
-                    [rand(MixtureModel(Binomial, [(numbers_of_consumers[i], demand_probabilities[i]) for i in 1:number_of_modes]))]
+                    [rand(MixtureModel(Binomial, [(numbers_of_consumers[i], demand_probabilities[i]) for i in 1:number_of_modes], mixture_weights))]
                 
                 if t < history_length
                     demand_probabilities = 
@@ -83,7 +84,7 @@ function line_to_plot(newsvendor_objective_value_and_order, ambiguity_radii, com
                     newsvendor_objective_value_and_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights, 0)
 
                 costs[repetition_index][ambiguity_radius_index, weight_parameter_index] = 
-                    mean([sum(1/number_of_modes*expected_newsvendor_cost_with_binomial_demand(order[1], final_demand_probabilities[repetition_index][i][j], numbers_of_consumers[j]) for j in 1:number_of_modes) for i in eachindex(final_demand_probabilities[repetition_index])])
+                    mean([sum(mixture_weights[j]*expected_newsvendor_cost_with_binomial_demand(order[1], final_demand_probabilities[repetition_index][i][j], numbers_of_consumers[j]) for j in 1:number_of_modes) for i in eachindex(final_demand_probabilities[repetition_index])])
 
             end
         end
@@ -153,7 +154,7 @@ default(framestyle = :box,
 plt = plot(xscale = :log10, #yscale = :log10,
             xlabel = "Binomial drift parameter, \$δ\$", 
             ylabel = "Ex-post optimal expected\ncost (relative to smoothing)",
-            title = "# of modes\$= $number_of_modes\$, \$p_1\$\$ = $initial_demand_probabilities\$, \$Ξ = $numbers_of_consumers\$, \$T = $history_length\$",
+            title = "# of modes\$= $number_of_modes\$, mix\$= $mixture_weights\$, \$p_1\$\$ = $initial_demand_probabilities\$, \$Ξ = $numbers_of_consumers\$, \$T = $history_length\$",
             titlefontsize = 10,
             topmargin = 0pt,
             leftmargin = 6pt,
