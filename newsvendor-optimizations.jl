@@ -10,23 +10,10 @@ optimizer = optimizer_with_attributes(() -> Gurobi.Optimizer(env))
 # See "Wasserstein Distributionally Robust Optimization with Heterogeneous Data Sources" 
 # by Yves Rychener, Adrián Esteban-Pérez, Juan M. Morales, and Daniel Kuhn (arXiv:2407.13582v2),
 # Corollary 2.
-choices = (cu, -co) # We assume that the underage and overage costs of each good are the same.
-iterators = Iterators.product(ntuple(_ -> choices, number_of_dimensions)...)
-a = vec([collect(iterator) for iterator in iterators])
-choices = (-cu, co)
-iterators = Iterators.product(ntuple(_ -> choices, number_of_dimensions)...)
-b = vec([collect(iterator) for iterator in iterators])
-
-C = zeros((2*number_of_dimensions, number_of_dimensions))
-g = zeros(2*number_of_dimensions)
-for i in 1:number_of_dimensions
-    C[2*i-1, i] = -1.0
-    C[2*i, i] = 1.0
-    g[2*i-1] = 0.0
-    g[2*i] = number_of_consumers
-
-end
-
+a = [cu, -co]
+b = [-cu, co]
+C = [-1.0; 1.0]
+g = [0, number_of_consumers]
 
 function SO_newsvendor_objective_value_and_order(_, demands, weights, doubling_count) 
 
@@ -40,7 +27,7 @@ function SO_newsvendor_objective_value_and_order(_, demands, weights, doubling_c
     Problem = Model(optimizer)
 
     @variables(Problem, begin
-                            number_of_consumers >= order[i=1:number_of_dimensions] >= 0
+                            number_of_consumers >= order >= 0
                             s[t=1:T]
                         end)
 
@@ -85,21 +72,21 @@ function W2_newsvendor_objective_value_and_order(ε, demands, weights, doubling_
     Problem = Model(optimizer)
 
     @variables(Problem, begin
-                            number_of_consumers >= order[i=1:number_of_dimensions] >= 0
+                            number_of_consumers >= order >= 0
                             λ >= 0
                             γ[t=1:T]
                             z[t=1:T,l=1:length(a),m=1:length(g)] >= 0
-                            w[t=1:T,l=1:length(a),i=1:number_of_dimensions]
+                            w[t=1:T,l=1:length(a)]
                         end)
 
     for t in 1:T
         for l in eachindex(a)
             @constraints(Problem, begin
-                                    # b[l]'*order + w[t,l,:]'*demands[t] + (1/4)*(1/λ)*sum(w[t,l,i]^2 for i in 1:number_of_dimensions) + z[t,l,:]'*g <= γ[t] 
-                                    # <==> sum(w[t,l,i]^2 for i in 1:number_of_dimensions) <= 2*(2*λ)*(γ[t] - b[l]'*order - w[t,l,:]'*demands[t] - z[t,l,:]'*g) 
+                                    # b[l]'*order + w[t,l]'*demands[t] + (1/4)*(1/λ)*w[t,l]^2 + z[t,l,:]'*g <= γ[t] 
+                                    # <==> w[t,l]^2 <= 2*(2*λ)*(γ[t] - b[l]'*order - w[t,l]'*demands[t] - z[t,l,:]'*g) 
                                     # <==>
-                                    [2*λ; γ[t] - b[l]'*order - w[t,l,:]'*demands[t] - z[t,l,:]'*g; w[t,l,:]] in MathOptInterface.RotatedSecondOrderCone(2+number_of_dimensions)
-                                    a[l] .- C'*z[t,l,:] .== w[t,l,:]
+                                    [2*λ; γ[t] - b[l]'*order - w[t,l]'*demands[t] - z[t,l,:]'*g; w[t,l]] in MathOptInterface.RotatedSecondOrderCone(3)
+                                    a[l] .- C'*z[t,l,:] .== w[t,l]
                                   end)
         end
     end
@@ -143,7 +130,7 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
     Ball_Intersection_Feasibility_Problem = Model(optimizer)
 
     @variables(Ball_Intersection_Feasibility_Problem, begin
-                                                        number_of_consumers >= x[i=1:number_of_dimensions] >= 0 # Feasible intersection.
+                                                        number_of_consumers >= x >= 0 # Feasible intersection.
                                                         λ >= 0 # Radii up-scaling factor.
                                                       end)
 
@@ -151,7 +138,7 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
         @constraint(Ball_Intersection_Feasibility_Problem,
                         # ‖x - ball_centers[k]‖₂ <= λ*ball_radii[k] for all k
                         # <==>
-                        [1/2*ball_radii[k]*λ; ball_radii[k]*λ; x - demands[k]] in MathOptInterface.RotatedSecondOrderCone(2+number_of_dimensions))
+                        [1/2*ball_radii[k]*λ; ball_radii[k]*λ; x - demands[k]] in MathOptInterface.RotatedSecondOrderCone(3))
     end
 
     @objective(Ball_Intersection_Feasibility_Problem, Min, λ) # Minimize the up-scaling factor required for a feasible intersection.
@@ -178,29 +165,29 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
     Problem = Model(optimizer)
 
     @variables(Problem, begin
-                            number_of_consumers >= order[i=1:number_of_dimensions] >= 0
+                            number_of_consumers >= order >= 0
                             λ[k=1:K] >= 0
                             γ[k=1:K]
                             z[l=1:length(a),m=1:length(g)] >= 0
-                            w[l=1:length(a),k=1:K,i=1:number_of_dimensions]
+                            w[l=1:length(a),k=1:K]
                             s[l=1:length(a),k=1:K] >= 0
                         end)
 
     for l in eachindex(a)
         @constraints(Problem, begin
-                                # b[l]'*order + sum(w[l,k,:]'*demands[k] + (1/4)*(1/λ[k])*sum(w[l,k,i]^2 for i in 1:number_of_dimensions) for k in 1:K) + z[l,:]'*g <= sum(γ[k] for k in 1:K)
-                                # <==> b[l]'*order + sum(w[l,k,:]'*demands[k] + s[l,k] for k in 1:K) + z[l,:]'*g <= sum(γ[k] for k in 1:K),
-                                # 0 <= (1/4)*(1/λ[K])*sum(w[l,k,i]^2 for i in 1:number_of_dimensions) <= s[l,k] for all l,k <==> sum(w[l,k,i]^2 for i in 1:number_of_dimensions) <= 2*(2*λ[K])*s[l,k] for all l,k,
-                                # <==> b[l]'*order + sum(w[l,k,:]'*demands[k] + s[l,k] for k in 1:K) + z[l,:]'*g <= sum(γ[k] for k in 1:K),
-                                # [2*λ[k]; s[l,k]; w[l,k,:]] in MathOptInterface.RotatedSecondOrderCone(2+number_of_dimensions) for all l,k,       
+                                # b[l]'*order + sum(w[l,k]'*demands[k] + (1/4)*(1/λ[k])*w[l,k]^2 for k in 1:K) + z[l,:]'*g <= sum(γ[k] for k in 1:K)
+                                # <==> b[l]'*order + sum(w[l,k]'*demands[k] + s[l,k] for k in 1:K) + z[l,:]'*g <= sum(γ[k] for k in 1:K),
+                                # 0 <= (1/4)*(1/λ[K])*w[l,k]^2 <= s[l,k] for all l,k <==> w[l,k]^2 <= 2*(2*λ[K])*s[l,k] for all l,k,
+                                # <==> b[l]'*order + sum(w[l,k]'*demands[k] + s[l,k] for k in 1:K) + z[l,:]'*g <= sum(γ[k] for k in 1:K),
+                                # [2*λ[k]; s[l,k]; w[l,k]] in MathOptInterface.RotatedSecondOrderCone(3) for all l,k,       
                                 # <==>
-                                b[l]'*order + sum(w[l,k,:]'*demands[k] + s[l,k] for k in 1:K) + z[l,:]'*g <= sum(γ[k] for k in 1:K)
-                                a[l] .- C'*z[l,:] .== sum(w[l,k,:] for k in 1:K)
+                                b[l]'*order + sum(w[l,k]'*demands[k] + s[l,k] for k in 1:K) + z[l,:]'*g <= sum(γ[k] for k in 1:K)
+                                a[l] .- C'*z[l,:] .== sum(w[l,k] for k in 1:K)
                               end)
 
         for k in 1:K
             @constraints(Problem, begin
-                                    [2*λ[k]; s[l,k]; w[l,k,:]] in MathOptInterface.RotatedSecondOrderCone(2+number_of_dimensions) 
+                                    [2*λ[k]; s[l,k]; w[l,k]] in MathOptInterface.RotatedSecondOrderCone(3) 
                                   end)
 
         end
