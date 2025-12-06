@@ -44,7 +44,7 @@ function SO_newsvendor_objective_value_and_order(_, demands, weights, doubling_c
     optimize!(Problem)
 
     if is_solved_and_feasible(Problem)
-        return objective_value(Problem), value.(order), doubling_count 
+        return objective_value(Problem), value(order), doubling_count 
 
     else
         #order = quantile(demands, Weights(weights), Cu/(Co+Cu))
@@ -99,7 +99,7 @@ function W2_newsvendor_objective_value_and_order(ε, demands, weights, doubling_
 
     # Check the problem is solved and feasible.
     if is_solved_and_feasible(Problem)
-        return objective_value(Problem), value.(order), doubling_count
+        return objective_value(Problem), value(order), doubling_count
     
     else # Attempt a high precision solve otherwise.
         set_attribute(Problem, "BarHomogeneous", 1)
@@ -109,7 +109,7 @@ function W2_newsvendor_objective_value_and_order(ε, demands, weights, doubling_
         # Try to return a suboptimal solution from a possibly early termination as the problem is always feasible and bounded. 
         # (This may be neccesary due to near infeasiblity after convex reformulation.)
         try
-            return objective_value(Problem), value.(order), doubling_count
+            return objective_value(Problem), value(order), doubling_count
     
         catch # As a last resort, double the ambiguity radius and try again.
             return W2_newsvendor_objective_value_and_order(2*ε, demands, weights, doubling_count+1)
@@ -201,7 +201,7 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
 
     # Check the problem is solved and feasible.
     if is_solved_and_feasible(Problem)
-        return objective_value(Problem), value.(order), doubling_count
+        return objective_value(Problem), value(order), doubling_count
     
     else # Attempt a high precision solve otherwise.
         set_attribute(Problem, "BarHomogeneous", 1)
@@ -211,7 +211,7 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
         # Try to return a suboptimal solution from a possibly early termination as the problem is always feasible and bounded. 
         # (This may be neccesary due to near infeasiblity after convex reformulation.)
         try #is_solved_and_feasible(Problem)
-            return objective_value(Problem), value.(order), doubling_count
+            return objective_value(Problem), value(order), doubling_count
     
         catch # As a last resort, double the scaled-up ambiguity radius and try again.
             return REMK_intersection_W2_newsvendor_objective_value_and_order(2*ε, demands, weights, doubling_count+1)

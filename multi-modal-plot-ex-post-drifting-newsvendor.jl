@@ -6,7 +6,6 @@ using ProgressBars, IterTools
 #for mixture_weights in [[0.5, 0.5], [1.0, 0.0]]
 #for mixture_weights in [[1.0, 0.0]]
 
-    global number_of_dimensions = 1
     number_of_modes = 2
     mixture_weights = [0.6, 0.4]
     initial_demand_probabilities = [0.1, 0.5] #[0.3 for _ in 1:number_of_modes]
@@ -17,7 +16,7 @@ using ProgressBars, IterTools
     include("weights.jl")
     include("newsvendor-optimizations.jl")
 
-    number_of_repetitions = 200 #200 #200
+    number_of_repetitions = 100 #200 #200
     history_length = 30 # 30
 
     function expected_newsvendor_cost_with_binomial_demand(order, binomial_demand_probability, number_of_consumers)
@@ -44,7 +43,7 @@ using ProgressBars, IterTools
             Random.seed!(42)
             drift_distribution = Uniform(-drifts[drift_index], drifts[drift_index])
 
-            demand_sequences = [[[0] for _ in 1:history_length] for _ in 1:number_of_repetitions]
+            demand_sequences = [zeros(history_length) for _ in 1:number_of_repetitions]
             final_demand_probabilities = [[zeros(number_of_modes) for _ in 1:1000] for _ in 1:number_of_repetitions]
 
             for repetition_index in 1:number_of_repetitions
@@ -52,7 +51,7 @@ using ProgressBars, IterTools
 
                 for t in 1:history_length
                     demand_sequences[repetition_index][t] = 
-                        [rand(MixtureModel(Binomial, [(numbers_of_consumers[i], demand_probabilities[i]) for i in 1:number_of_modes], mixture_weights))]
+                        rand(MixtureModel(Binomial, [(numbers_of_consumers[i], demand_probabilities[i]) for i in 1:number_of_modes], mixture_weights))
                     
                     if t < history_length
                         demand_probabilities = 
@@ -89,7 +88,7 @@ using ProgressBars, IterTools
                         newsvendor_objective_value_and_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights, 0)
 
                     costs[repetition_index][ambiguity_radius_index, weight_parameter_index] = 
-                        mean([sum(mixture_weights[j]*expected_newsvendor_cost_with_binomial_demand(order[1], final_demand_probabilities[repetition_index][i][j], numbers_of_consumers[j]) for j in 1:number_of_modes) for i in eachindex(final_demand_probabilities[repetition_index])])
+                        mean([sum(mixture_weights[j]*expected_newsvendor_cost_with_binomial_demand(order, final_demand_probabilities[repetition_index][i][j], numbers_of_consumers[j]) for j in 1:number_of_modes) for i in eachindex(final_demand_probabilities[repetition_index])])
 
                 end
             end
