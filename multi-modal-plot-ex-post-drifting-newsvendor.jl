@@ -7,7 +7,7 @@ using ProgressBars, IterTools
 #for mixture_weights in [[1.0, 0.0]]
 
     number_of_modes = 2
-    mixture_weights = [0.6, 0.4]
+    mixture_weights = [0.9, 0.1]
     initial_demand_probabilities = [0.1, 0.5] #[0.3 for _ in 1:number_of_modes]
     numbers_of_consumers = [1000.0 for i in 1:number_of_modes]
     global number_of_consumers = max(numbers_of_consumers...)
@@ -16,8 +16,8 @@ using ProgressBars, IterTools
     include("weights.jl")
     include("newsvendor-optimizations.jl")
 
-    number_of_repetitions = 100 #200 #200
-    history_length = 30 # 30
+    number_of_repetitions = 200 #200 #200
+    history_length = 50 # 30
 
     function expected_newsvendor_cost_with_binomial_demand(order, binomial_demand_probability, number_of_consumers)
 
@@ -31,7 +31,8 @@ using ProgressBars, IterTools
 
     end
 
-    drifts = [1e-3, 5e-3, 1e-2, 5e-2, 1e-1, 2e-1] # Same for each mode.
+    drifts = [1e-3, 2.5e-3, 5e-3, 7.5e-3, 1e-2, 2.5e-2, 5e-2, 7.5e-2, 1e-1, 2.5e-1, 5e-1] # Same for each mode.
+    #drifts = [1e-3, 5e-1] # Same for each mode.
 
     function line_to_plot(newsvendor_objective_value_and_order, ambiguity_radii, compute_weights, weight_parameters)
 
@@ -41,7 +42,7 @@ using ProgressBars, IterTools
         for drift_index in eachindex(drifts)
 
             Random.seed!(42)
-            drift_distribution = Uniform(-drifts[drift_index], drifts[drift_index])
+            drift_distribution = TriangularDist(-drifts[drift_index], drifts[drift_index], 0)
 
             demand_sequences = [zeros(history_length) for _ in 1:number_of_repetitions]
             final_demand_probabilities = [[zeros(number_of_modes) for _ in 1:1000] for _ in 1:number_of_repetitions]
