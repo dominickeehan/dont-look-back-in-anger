@@ -7,7 +7,7 @@ using ProgressBars, IterTools
 #for mixture_weights in [[1.0, 0.0]]
 
     number_of_modes = 2
-    mixture_weights = [0.9, 0.1]
+    mixture_weights = [0.7, 0.3] # [0.9, 0.1]
     initial_demand_probabilities = [0.1, 0.5] #[0.3 for _ in 1:number_of_modes]
     numbers_of_consumers = [1000.0 for i in 1:number_of_modes]
     global number_of_consumers = max(numbers_of_consumers...)
