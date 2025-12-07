@@ -6,14 +6,15 @@ env = Gurobi.Env()
 GRBsetintparam(env, "OutputFlag", 0)
 optimizer = optimizer_with_attributes(() -> Gurobi.Optimizer(env))
 
-# Construct problem matrors.
+
+# Construct problem matrices.
 # See "Wasserstein Distributionally Robust Optimization with Heterogeneous Data Sources" 
 # by Yves Rychener, Adrián Esteban-Pérez, Juan M. Morales, and Daniel Kuhn (arXiv:2407.13582v2),
 # Corollary 2.
 a = [cu, -co]
 b = [-cu, co]
 C = [-1.0; 1.0]
-g = [0, number_of_consumers]
+g = [0.0, number_of_consumers]
 
 function SO_newsvendor_objective_value_and_order(_, demands, weights, doubling_count) 
 
@@ -47,9 +48,8 @@ function SO_newsvendor_objective_value_and_order(_, demands, weights, doubling_c
         return objective_value(Problem), value(order), doubling_count 
 
     else
-        #order = quantile(demands, Weights(weights), Cu/(Co+Cu))
-        #return sum(weights[t] * (Cu*max(demands[t]-order,0) + Co*max(order-demands[t],0)) for t in eachindex(weights)), order, doubling_count
-        throw("throw")
+        order = quantile(demands, Weights(weights), Cu/(Co+Cu))
+        return sum(weights[t] * (cu*max(demands[t]-order,0) + co*max(order-demands[t],0)) for t in eachindex(weights)), order, doubling_count
 
     end
 end
@@ -151,11 +151,11 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
         if value(λ) >= 1 # Then we had to scale up the ball radii for the ambiguity set to be nonempty.
             # At the point of scaling where the set first becomes nonempty, the only distribution is the point-mass distribution 
             # at the point where all the radii touch, i.e., at the solution to the ball-intersection feasibility problem. 
-            return SO_newsvendor_objective_value_and_order(0.0, [value.(x)], [1.0], doubling_count)
+            return SO_newsvendor_objective_value_and_order(0.0, value(x), [1.0], doubling_count)
 
         end
     else
-        throw("throw")
+        return REMK_intersection_W2_newsvendor_objective_value_and_order(2*ε, demands, weights, doubling_count+1)
 
     end
 
