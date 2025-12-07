@@ -17,7 +17,7 @@ using ProgressBars, IterTools
     include("newsvendor-optimizations.jl")
 
     number_of_repetitions = 200 #200 #200
-    history_length = 50 # 30
+    history_length = 70 # 30
 
     function expected_newsvendor_cost_with_binomial_demand(order, binomial_demand_probability, number_of_consumers)
 
