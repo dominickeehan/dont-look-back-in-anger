@@ -18,7 +18,7 @@ g = [0.0, number_of_consumers]
 
 function SO_newsvendor_objective_value_and_order(_, demands, weights, doubling_count) 
 
-    nonzero_weight_indices = weights .> 0
+    nonzero_weight_indices = weights .> 0.0
     weights = weights[nonzero_weight_indices]
     weights = weights/sum(weights)
     demands = demands[nonzero_weight_indices]
@@ -28,7 +28,7 @@ function SO_newsvendor_objective_value_and_order(_, demands, weights, doubling_c
     Problem = Model(optimizer)
 
     @variables(Problem, begin
-                            number_of_consumers >= order >= 0
+                            number_of_consumers >= order >= 0.0
                             s[t=1:T]
                         end)
 
@@ -49,7 +49,7 @@ function SO_newsvendor_objective_value_and_order(_, demands, weights, doubling_c
 
     else
         order = quantile(demands, Weights(weights), Cu/(Co+Cu))
-        return sum(weights[t] * (cu*max(demands[t]-order,0) + co*max(order-demands[t],0)) for t in eachindex(weights)), order, doubling_count
+        return sum(weights[t] * (cu*max(demands[t]-order,0.0) + co*max(order-demands[t],0.0)) for t in eachindex(weights)), order, doubling_count
 
     end
 end
@@ -57,9 +57,9 @@ end
 
 function W2_newsvendor_objective_value_and_order(ε, demands, weights, doubling_count) 
 
-    if ε == 0; return SO_newsvendor_objective_value_and_order(ε, demands, weights, doubling_count); end
+    if ε == 0.0; return SO_newsvendor_objective_value_and_order(ε, demands, weights, doubling_count); end
 
-    nonzero_weight_indices = weights .> 0
+    nonzero_weight_indices = weights .> 0.0
     weights = weights[nonzero_weight_indices]
     weights = weights/sum(weights)
     demands = demands[nonzero_weight_indices]
@@ -72,10 +72,10 @@ function W2_newsvendor_objective_value_and_order(ε, demands, weights, doubling_
     Problem = Model(optimizer)
 
     @variables(Problem, begin
-                            number_of_consumers >= order >= 0
-                            λ >= 0
+                            number_of_consumers >= order >= 0.0
+                            λ >= 0.0
                             γ[t=1:T]
-                            z[t=1:T,l=1:length(a),m=1:length(g)] >= 0
+                            z[t=1:T,l=1:length(a),m=1:length(g)] >= 0.0
                             w[t=1:T,l=1:length(a)]
                         end)
 
@@ -85,7 +85,7 @@ function W2_newsvendor_objective_value_and_order(ε, demands, weights, doubling_
                                     # b[l]'*order + w[t,l]'*demands[t] + (1/4)*(1/λ)*w[t,l]^2 + z[t,l,:]'*g <= γ[t] 
                                     # <==> w[t,l]^2 <= 2*(2*λ)*(γ[t] - b[l]'*order - w[t,l]'*demands[t] - z[t,l,:]'*g) 
                                     # <==>
-                                    [2*λ; γ[t] - b[l]'*order - w[t,l]'*demands[t] - z[t,l,:]'*g; w[t,l]] in MathOptInterface.RotatedSecondOrderCone(3)
+                                    [2.0*λ; γ[t] - b[l]'*order - w[t,l]'*demands[t] - z[t,l,:]'*g; w[t,l]] in MathOptInterface.RotatedSecondOrderCone(3)
                                     a[l] .- C'*z[t,l,:] .== w[t,l]
                                   end)
         end
@@ -112,7 +112,7 @@ function W2_newsvendor_objective_value_and_order(ε, demands, weights, doubling_
             return objective_value(Problem), value(order), doubling_count
     
         catch # As a last resort, double the ambiguity radius and try again.
-            return W2_newsvendor_objective_value_and_order(2*ε, demands, weights, doubling_count+1)
+            return W2_newsvendor_objective_value_and_order(2.0*ε, demands, weights, doubling_count+1)
 
         end
     end
@@ -130,8 +130,8 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
     Ball_Intersection_Feasibility_Problem = Model(optimizer)
 
     @variables(Ball_Intersection_Feasibility_Problem, begin
-                                                        number_of_consumers >= x >= 0 # Feasible intersection.
-                                                        λ >= 0 # Radii up-scaling factor.
+                                                        number_of_consumers >= x >= 0.0 # Feasible intersection.
+                                                        λ >= 0.0 # Radii up-scaling factor.
                                                       end)
 
     for k in 1:K
@@ -151,11 +151,11 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
         if value(λ) >= 1 # Then we had to scale up the ball radii for the ambiguity set to be nonempty.
             # At the point of scaling where the set first becomes nonempty, the only distribution is the point-mass distribution 
             # at the point where all the radii touch, i.e., at the solution to the ball-intersection feasibility problem. 
-            return SO_newsvendor_objective_value_and_order(0.0, value(x), [1.0], doubling_count)
+            return SO_newsvendor_objective_value_and_order(0.0, [value(x)], [1.0], doubling_count)
 
         end
     else
-        return REMK_intersection_W2_newsvendor_objective_value_and_order(2*ε, demands, weights, doubling_count+1)
+        return REMK_intersection_W2_newsvendor_objective_value_and_order(2.0*ε, demands, weights, doubling_count+1)
 
     end
 
@@ -165,12 +165,12 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
     Problem = Model(optimizer)
 
     @variables(Problem, begin
-                            number_of_consumers >= order >= 0
-                            λ[k=1:K] >= 0
+                            number_of_consumers >= order >= 0.0
+                            λ[k=1:K] >= 0.0
                             γ[k=1:K]
-                            z[l=1:length(a),m=1:length(g)] >= 0
+                            z[l=1:length(a),m=1:length(g)] >= 0.0
                             w[l=1:length(a),k=1:K]
-                            s[l=1:length(a),k=1:K] >= 0
+                            s[l=1:length(a),k=1:K] >= 0.0
                         end)
 
     for l in eachindex(a)
@@ -187,7 +187,7 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
 
         for k in 1:K
             @constraints(Problem, begin
-                                    [2*λ[k]; s[l,k]; w[l,k]] in MathOptInterface.RotatedSecondOrderCone(3) 
+                                    [2.0*λ[k]; s[l,k]; w[l,k]] in MathOptInterface.RotatedSecondOrderCone(3) 
                                   end)
 
         end
@@ -214,11 +214,10 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
             return objective_value(Problem), value(order), doubling_count
     
         catch # As a last resort, double the scaled-up ambiguity radius and try again.
-            return REMK_intersection_W2_newsvendor_objective_value_and_order(2*ε, demands, weights, doubling_count+1)
+            return REMK_intersection_W2_newsvendor_objective_value_and_order(2.0*ε, demands, weights, doubling_count+1)
 
         end
     end
 
 end
 
-5

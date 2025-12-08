@@ -69,7 +69,8 @@ display(plt)
 savefig(plt, "figures/weights-for-p.pdf")
 
 
-if true 
+# Stop motion talk plots.
+if false 
         for q in P
 
                 default() # Reset plot defaults.

@@ -4,69 +4,73 @@
 # Want each job to be under 8 hours.
 # Write the chosen parameters to the file as well.
 
-# Approximately < 8 hours runtime.
+# This script has approximately < 8 hours runtime.
 
 using Random, Statistics, StatsBase, Distributions
 using ProgressBars, IterTools
 using CSV
 
+
+number_of_modes = 2
+mixture_weights = [0.9, 0.1]
+initial_demand_probabilities = [0.1, 0.5]
+construct_drift_distribution(drift) = TriangularDist(-drift, drift, 0.0) # Same for each mode.
+drifts = [1.00e-3, 1.79e-3, 3.16e-3, 5.62e-3, 1.00e-2, 1.79e-2, 3.16e-2, 5.62e-2, 1.00e-1, 1.79e-1, 3.16e-1] # exp10.(LinRange(log10(1),log10(10),5))
+numbers_of_consumers = [1000.0 for i in 1:number_of_modes]
+global number_of_consumers = max(numbers_of_consumers...)
+global cu = 4.0 # Per-unit underage cost.
+global co = 1.0 # Per-unit overage cost.
 include("weights.jl")
 include("newsvendor-optimizations.jl")
 
-job_number = parse(Int64, ENV["PBS_ARRAY_INDEX"])
-
-open("$job_number.csv", "w") do file; end
-
-results_file = open("$job_number.csv", "a")
-
-println(results_file, "drift size, repetition, method, ambiguity radius, weight parameter, average training cost, doubling count, objective value, expected cost, time elapsed")
-
-repetitions = 1 # (1000 total jobs for each u ∈ U.)
+number_of_jobs_per_drift = 1000
+number_of_repetitions = 1 # Per each job.
 history_length = 100 # 100
 training_length = 30 # 30
 
+# Open results file and wipe it to empty.
+job_number = parse(Int64, ENV["PBS_ARRAY_INDEX"])
+open("$job_number.csv", "w") do file; end
+results_file = open("$job_number.csv", "a")
+println(results_file, "drift size, repetition index, method name, ambiguity radius, weight parameter, average training cost, doubling count, objective value, expected next period cost, time elapsed")
 
-initial_demand_probability = 0.1 # 0.1
+newsvendor_cost(order, demand) = cu*max(demand-order,0.0) + co*max(order-demand,0.0)
 
+function expected_newsvendor_cost_with_binomial_demand(order, binomial_demand_probability, number_of_consumers)
 
-newsvendor_cost(order, demand) = Cu*max(demand-order,0) + Co*max(order-demand,0)
+    a = cdf(Binomial(number_of_consumers-1,binomial_demand_probability), order-1)
+    b = cdf(Binomial(number_of_consumers,binomial_demand_probability), order)
 
-function expected_newsvendor_cost(order, demand_probability)
-
-    a = cdf(Binomial(D-1,demand_probability), order-1)
-    b = cdf(Binomial(D,demand_probability), order)
-
-    expected_underage_cost = Cu * (D*demand_probability*(1-a) - order*(1-b))
-    expected_overage_cost = Co * (order*b - D*demand_probability*a)
+    expected_underage_cost = cu * (number_of_consumers*binomial_demand_probability*(1-a) - order*(1-b))
+    expected_overage_cost = co * (order*b - number_of_consumers*binomial_demand_probability*a)
 
     return expected_underage_cost + expected_overage_cost
 
 end
 
-U = [1e-4, 2.5e-4, 5e-4, 7.5e-4, 1e-3, 2.5e-3, 5e-3, 7.5e-3, 1e-2, 2.5e-2]
+Random.seed!(job_number%number_of_jobs_per_drift)
+drift = drifts[ceil(Int,(job_number+1)/number_of_jobs_per_drift)]
+drift_distribution = construct_drift_distribution(drift)
 
-Random.seed!(job_number%1000)
+demand_sequences = [zeros(history_length) for _ in 1:number_of_repetitions]
+final_demand_probabilities = [[zeros(number_of_modes) for _ in 1:1000] for _ in 1:number_of_repetitions]
 
-u = U[ceil(Int,(job_number+1)/1000)]
-
-drift_distribution = Uniform(-u,u)
-
-demand_sequences = [zeros(history_length) for _ in 1:repetitions]
-final_demand_probabilities = [zeros(10000) for _ in 1:repetitions]
-
-for repetition in 1:repetitions
-    local demand_probability = initial_demand_probability
+for repetition_index in 1:number_of_repetitions
+    local demand_probabilities = initial_demand_probabilities
 
     for t in 1:history_length
-        demand_sequences[repetition][t] = rand(Binomial(D, demand_probability))
+        demand_sequences[repetition_index][t] = 
+            rand(MixtureModel(Binomial, [(numbers_of_consumers[i], demand_probabilities[i]) for i in 1:number_of_modes], mixture_weights))
         
         if t < history_length
-            demand_probability = min(max(demand_probability + rand(drift_distribution), 0), 1)
+            demand_probabilities = 
+                [min(max(demand_probabilities[i] + rand(drift_distribution), 0.0), 1.0) for i in 1:number_of_modes]
 
         else
-            for i in eachindex(final_demand_probabilities[repetition])
-                final_demand_probabilities[repetition][i] = min(max(demand_probability + rand(drift_distribution), 0), 1)
-            
+            for i in eachindex(final_demand_probabilities[repetition_index])
+                final_demand_probabilities[repetition_index][i] =
+                    [min(max(demand_probabilities[i] + rand(drift_distribution), 0.0), 1.0) for i in 1:number_of_modes]            
+
             end
         end
     end
@@ -88,13 +92,13 @@ function train_and_test(method, newsvendor_objective_value_and_order, ambiguity_
     end
 
     println("Training and testing...")
-    for repetition in ProgressBar(1:repetitions)
+    for repetition_index in ProgressBar(1:number_of_repetitions)
 
         start_time = time()
 
         training_costs = [zeros((length(ambiguity_radii),length(weight_parameters))) for _ in history_length-training_length+1:history_length]
         objective_values = zeros((length(ambiguity_radii),length(weight_parameters)))
-        expected_costs = zeros((length(ambiguity_radii),length(weight_parameters)))
+        expected_next_period_costs = zeros((length(ambiguity_radii),length(weight_parameters)))
         doubling_counts = zeros((length(ambiguity_radii),length(weight_parameters)))
 
 
@@ -103,11 +107,12 @@ function train_and_test(method, newsvendor_objective_value_and_order, ambiguity_
             for weight_parameter_index in eachindex(weight_parameters)   
                 for t in history_length-training_length+1:history_length
                     local weights = precomputed_weights[weight_parameter_index][t-(history_length-training_length)]
-                    local demand_samples = demand_sequences[repetition][1:t-1]
+                    local demand_samples = demand_sequences[repetition_index][1:t-1]
 
-                    local _, order, _ = newsvendor_objective_value_and_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights, 0)
+                    local _, order, _ = 
+                        newsvendor_objective_value_and_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights, 0)
                     
-                    training_costs[t-(history_length-training_length)][ambiguity_radius_index, weight_parameter_index] = newsvendor_cost(order, demand_sequences[repetition][t])
+                    training_costs[t-(history_length-training_length)][ambiguity_radius_index, weight_parameter_index] = newsvendor_cost(order, demand_sequences[repetition_index][t])
 
                 end
             end
@@ -117,13 +122,13 @@ function train_and_test(method, newsvendor_objective_value_and_order, ambiguity_
         for ambiguity_radius_index in eachindex(ambiguity_radii)
             for weight_parameter_index in eachindex(weight_parameters)
                 local weights = precomputed_weights[weight_parameter_index][end]
-                local demand_samples = demand_sequences[repetition][1:end]
+                local demand_samples = demand_sequences[repetition_index][1:end]
 
                 local objective_values[ambiguity_radius_index, weight_parameter_index], order, doubling_counts[ambiguity_radius_index, weight_parameter_index] = 
                     newsvendor_objective_value_and_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights, 0)
                 
-                expected_costs[ambiguity_radius_index, weight_parameter_index] = 
-                    mean([expected_newsvendor_cost(order, final_demand_probabilities[repetition][i]) for i in eachindex(final_demand_probabilities[repetition])])
+                expected_next_period_costs[ambiguity_radius_index, weight_parameter_index] = 
+                    mean([sum(mixture_weights[j]*expected_newsvendor_cost_with_binomial_demand(order, final_demand_probabilities[repetition_index][i][j], numbers_of_consumers[j]) for j in 1:number_of_modes) for i in eachindex(final_demand_probabilities[repetition_index])])
 
             end
         end
@@ -139,51 +144,30 @@ function train_and_test(method, newsvendor_objective_value_and_order, ambiguity_
                 average_training_cost = average_training_costs[ambiguity_radius_index, weight_parameter_index]
                 doubling_count = doubling_counts[ambiguity_radius_index, weight_parameter_index]
                 objective_value = objective_values[ambiguity_radius_index, weight_parameter_index]
-                expected_cost = expected_costs[ambiguity_radius_index, weight_parameter_index]
+                expected_next_period_cost = expected_next_period_costs[ambiguity_radius_index, weight_parameter_index]
 
-                println(results_file, "$u, $repetition, $method, $ambiguity_radius, $weight_parameter, $average_training_cost, $doubling_count, $objective_value, $expected_cost, $time_elapsed")
+                println(results_file, "$drift, $repetition_index, $method, $ambiguity_radius, $weight_parameter, $average_training_cost, $doubling_count, $objective_value, $expected_next_period_cost, $time_elapsed")
 
             end
         end
-
     end
-    
 end
 
-ε = [0; LinRange(1e-1,1e0,10); LinRange(2e0,1e1,9); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9);]
-
 LogRange(start, stop, len) = exp.(LinRange(log(start), log(stop), len))
+ε = number_of_consumers*unique([0.0; LinRange(1.0e-3,1.0e-2,10); LinRange(1.0e-2,1.0e-1,10); LinRange(1.0e-1,1.0e-0,10)])
+s = unique(round.(Int, LogRange(1,history_length,30)))
+α = [0.0; LogRange(1.0e-4,1.0e0,30)]
+ρ╱ε = [0.0; LogRange(1.0e-4,1.0e0,30)]
+intersection_ε = number_of_consumers*unique([LinRange(1.0e-3,1.0e-2,10); LinRange(1.0e-2,1.0e-1,10); LinRange(1.0e-1,1.0e-0,10)])
+intersection_ρ╱ε = [0.0; LogRange(1.0e-4,1.0e0,30)]
 
-s = unique(round.(Int, LogRange(1,100,40)))
-α = [0; LogRange(1e-4,1e0,40)]
-ρ╱ε = [0; LogRange(1e-4,1e0,40)]
+println("Training and testing stochastic optimization methods...")
+train_and_test("SAA (\$ε=0\$)", SO_newsvendor_objective_value_and_order, [0.0], windowing_weights, [history_length])
+train_and_test("Smoothing (\$ε=0\$)", SO_newsvendor_objective_value_and_order, [0.0], smoothing_weights, α)
 
-println("SO...")
-
-train_and_test("SO Naive", SO_newsvendor_objective_value_and_order, [0], windowing_weights, [history_length])
-train_and_test("SO Windowing", SO_newsvendor_objective_value_and_order, [0], windowing_weights, s)
-train_and_test("SO Smoothing", SO_newsvendor_objective_value_and_order, [0], smoothing_weights, α)
-
-println("W1...")
-
-train_and_test("W1 Naive", W1_newsvendor_objective_value_and_order, ε, windowing_weights, [history_length])
-train_and_test("W1 Windowing", W1_newsvendor_objective_value_and_order, ε, windowing_weights, s)
-train_and_test("W1 Smoothing", W1_newsvendor_objective_value_and_order, ε, smoothing_weights, α)
-train_and_test("W1 Concentration", W1_newsvendor_objective_value_and_order, ε, W1_weights, ρ╱ε)
-
-println("W2...")
-
-train_and_test("W2 Naive", W2_newsvendor_objective_value_and_order, ε, windowing_weights, [history_length])
-train_and_test("W2 Windowing", W2_newsvendor_objective_value_and_order, ε, windowing_weights, s)
-train_and_test("W2 Smoothing", W2_newsvendor_objective_value_and_order, ε, smoothing_weights, α)
-train_and_test("W2 Concentration", W2_newsvendor_objective_value_and_order, ε, W2_weights, ρ╱ε)
-
-ε = [LinRange(1e0,1e1,10); LinRange(2e1,1e2,9); LinRange(2e2,1e3,9); LinRange(2e3,1e4,9);]
-ρ╱ε = [0; LogRange(1e-4,1e2,40)]
-
-println("Intersections...")
-
-train_and_test("W2 Intersections", REMK_intersection_W2_newsvendor_objective_value_and_order, ε, REMK_intersection_weights, ρ╱ε)
+println("Training and testing W2 distributionally robust optimization methods...")
+train_and_test("Intersection", REMK_intersection_W2_newsvendor_objective_value_and_order, intersection_ε, REMK_intersection_weights, intersection_ρ╱ε)
+train_and_test("Weighted", W2_newsvendor_objective_value_and_order, ε, W2_weights, ρ╱ε)
 
 close(results_file)
 
