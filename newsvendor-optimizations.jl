@@ -42,6 +42,8 @@ function SO_newsvendor_objective_value_and_order(_, demands, weights, doubling_c
 
     @objective(Problem, Min, weights'*s)
 
+    set_attribute(Problem, "BarHomogeneous", -1)
+    set_attribute(Problem, "NumericFocus", 0)
     optimize!(Problem)
 
     if is_solved_and_feasible(Problem)

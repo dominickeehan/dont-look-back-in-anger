@@ -3,4 +3,4 @@
 #PBS -l walltime=7:59:59
 
 cd $HOME/Dominic
-julia generate-ex-post-drifting-newsvendor-plots.jl
+julia generate-train-test-multi-modal-drifting-newsvendor-data.jl

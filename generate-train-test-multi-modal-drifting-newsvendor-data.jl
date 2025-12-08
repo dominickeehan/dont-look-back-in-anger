@@ -32,7 +32,7 @@ training_length = 30 # 30
 job_number = parse(Int64, ENV["PBS_ARRAY_INDEX"])
 open("$job_number.csv", "w") do file; end
 results_file = open("$job_number.csv", "a")
-println(results_file, "drift size, repetition index, method name, ambiguity radius, weight parameter, average training cost, doubling count, objective value, expected next period cost, time elapsed")
+println(results_file, "drift, repetition index, method name, ambiguity radius, weight parameter, average training cost, doubling count, objective value, expected next period cost, time elapsed")
 
 newsvendor_cost(order, demand) = cu*max(demand-order,0.0) + co*max(order-demand,0.0)
 
@@ -45,7 +45,6 @@ function expected_newsvendor_cost_with_binomial_demand(order, binomial_demand_pr
     expected_overage_cost = co * (order*b - number_of_consumers*binomial_demand_probability*a)
 
     return expected_underage_cost + expected_overage_cost
-
 end
 
 Random.seed!(job_number%number_of_jobs_per_drift)

@@ -153,22 +153,22 @@ if false
 
         plt = plot()
         for ρ╱ε in [[0]; LogRange(1e-4,1e0,30)]
-                plot!(1:T, W1_weights(T, ρ╱ε), label = nothing, color = :black)
+                plot!(1:T, Wp_weights(1, T, ρ╱ε), label = nothing, color = :black)
         end
         display(plt)
 
         plt = plot()
         for ρ╱ε in [[0]; LogRange(1e-4,1e0,30)]
-                plot!(1:T, W2_weights(T, ρ╱ε), label = nothing, color = :black)
+                plot!(1:T, Wp_weights(2, T, ρ╱ε), label = nothing, color = :black)
         end
         display(plt)
 
-        plt = plot(1:T, W1_weights(T, 0), label = nothing, color = :black)
-        plot!(1:T, W1_weights(T, 1e-4), label = nothing, color = :black)
+        plt = plot(1:T, Wp_weights(1, T, 0), label = nothing, color = :black)
+        plot!(1:T, Wp_weights(1, T, 1e-4), label = nothing, color = :black)
         display(plt)
 
-        plt = plot(1:T, W2_weights(T, 0), label = nothing, color = :black)
-        plot!(1:T, W2_weights(T, 1e-4), label = nothing, color = :black)
+        plt = plot(1:T, Wp_weights(2, T, 0), label = nothing, color = :black)
+        plot!(1:T, Wp_weights(2, T, 1e-4), label = nothing, color = :black)
         display(plt)
 
 end
