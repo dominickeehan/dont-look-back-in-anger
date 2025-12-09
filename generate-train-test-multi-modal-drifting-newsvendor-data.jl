@@ -91,7 +91,7 @@ function train_and_test(method, newsvendor_objective_value_and_order, ambiguity_
     end
 
     println("Training and testing...")
-    for repetition_index in ProgressBar(1:number_of_repetitions)
+    for repetition_index in 1:number_of_repetitions
 
         start_time = time()
 
@@ -101,8 +101,8 @@ function train_and_test(method, newsvendor_objective_value_and_order, ambiguity_
         doubling_counts = zeros((length(ambiguity_radii),length(weight_parameters)))
 
 
-        #Threads.@threads for ambiguity_radius_index in eachindex(ambiguity_radii)
-        for ambiguity_radius_index in eachindex(ambiguity_radii)
+        #Threads.@threads for ambiguity_radius_index in ProgressBar(eachindex(ambiguity_radii))
+        for ambiguity_radius_index in ProgressBar(eachindex(ambiguity_radii))
             for weight_parameter_index in eachindex(weight_parameters)   
                 for t in history_length-training_length+1:history_length
                     local weights = precomputed_weights[weight_parameter_index][t-(history_length-training_length)]
@@ -117,8 +117,8 @@ function train_and_test(method, newsvendor_objective_value_and_order, ambiguity_
             end
         end
 
-        #Threads.@threads for ambiguity_radius_index in eachindex(ambiguity_radii)
-        for ambiguity_radius_index in eachindex(ambiguity_radii)
+        #Threads.@threads for ambiguity_radius_index in ProgressBar(eachindex(ambiguity_radii))
+        for ambiguity_radius_index in ProgressBar(eachindex(ambiguity_radii))
             for weight_parameter_index in eachindex(weight_parameters)
                 local weights = precomputed_weights[weight_parameter_index][end]
                 local demand_samples = demand_sequences[repetition_index][1:end]
@@ -170,3 +170,4 @@ train_and_test("Weighted", W2_newsvendor_objective_value_and_order, ε, W2_weigh
 
 close(results_file)
 
+5
