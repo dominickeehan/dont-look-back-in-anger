@@ -50,7 +50,7 @@ function SO_newsvendor_objective_value_and_order(_, demands, weights, doubling_c
         return objective_value(Problem), value(order), doubling_count 
 
     else
-        order = quantile(demands, Weights(weights), Cu/(Co+Cu))
+        order = quantile(demands, Weights(weights), cu/(co+cu))
         return sum(weights[t] * (cu*max(demands[t]-order,0.0) + co*max(order-demands[t],0.0)) for t in eachindex(weights)), order, doubling_count
 
     end
@@ -93,7 +93,7 @@ function W2_newsvendor_objective_value_and_order(ε, demands, weights, doubling_
         end
     end
 
-    @objective(Problem, Min, (ε^2)*λ + weights'*γ)
+    @objective(Problem, Min, (ε^2.0)*λ + weights'*γ)
 
     set_attribute(Problem, "BarHomogeneous", -1)
     set_attribute(Problem, "NumericFocus", 0)
@@ -195,7 +195,7 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
         end
     end
 
-    @objective(Problem, Min, sum((ball_radii[k]^2)*λ[k] for k in 1:K) + sum(γ[k] for k in 1:K))
+    @objective(Problem, Min, sum((ball_radii[k]^2.0)*λ[k] for k in 1:K) + sum(γ[k] for k in 1:K))
 
     set_attribute(Problem, "BarHomogeneous", -1)
     set_attribute(Problem, "NumericFocus", 0)
