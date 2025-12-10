@@ -57,7 +57,7 @@ function SO_newsvendor_objective_value_and_order(_, demands, weights, doubling_c
 end
 
 
-function W2_newsvendor_objective_value_and_order(ε, demands, weights, doubling_count) 
+function W2_DRO_newsvendor_objective_value_and_order(ε, demands, weights, doubling_count) 
 
     if ε == 0.0; return SO_newsvendor_objective_value_and_order(ε, demands, weights, doubling_count); end
 
@@ -93,7 +93,7 @@ function W2_newsvendor_objective_value_and_order(ε, demands, weights, doubling_
         end
     end
 
-    @objective(Problem, Min, (ε^2.0)*λ + weights'*γ)
+    @objective(Problem, Min, (ε^2)*λ + weights'*γ)
 
     set_attribute(Problem, "BarHomogeneous", -1)
     set_attribute(Problem, "NumericFocus", 0)
@@ -114,14 +114,17 @@ function W2_newsvendor_objective_value_and_order(ε, demands, weights, doubling_
             return objective_value(Problem), value(order), doubling_count
     
         catch # As a last resort, double the ambiguity radius and try again.
-            return W2_newsvendor_objective_value_and_order(2.0*ε, demands, weights, doubling_count+1)
+
+            println("Bad")
+
+            return W2_DRO_newsvendor_objective_value_and_order(2.0*ε, demands, weights, doubling_count+1)
 
         end
     end
 end
 
 
-function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, weights, doubling_count)
+function REMK_intersection_W2_DRO_newsvendor_objective_value_and_order(ε, demands, weights, doubling_count)
 
     K = length(demands)
 
@@ -157,7 +160,7 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
 
         end
     else
-        return REMK_intersection_W2_newsvendor_objective_value_and_order(2.0*ε, demands, weights, doubling_count+1)
+        return REMK_intersection_W2_DRO_newsvendor_objective_value_and_order(2.0*ε, demands, weights, doubling_count+1)
 
     end
 
@@ -195,7 +198,7 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
         end
     end
 
-    @objective(Problem, Min, sum((ball_radii[k]^2.0)*λ[k] for k in 1:K) + sum(γ[k] for k in 1:K))
+    @objective(Problem, Min, sum((ball_radii[k]^2)*λ[k] for k in 1:K) + sum(γ[k] for k in 1:K))
 
     set_attribute(Problem, "BarHomogeneous", -1)
     set_attribute(Problem, "NumericFocus", 0)
@@ -216,10 +219,11 @@ function REMK_intersection_W2_newsvendor_objective_value_and_order(ε, demands, 
             return objective_value(Problem), value(order), doubling_count
     
         catch # As a last resort, double the scaled-up ambiguity radius and try again.
-            return REMK_intersection_W2_newsvendor_objective_value_and_order(2.0*ε, demands, weights, doubling_count+1)
+            return REMK_intersection_W2_DRO_newsvendor_objective_value_and_order(2.0*ε, demands, weights, doubling_count+1)
 
         end
     end
 
 end
 
+5
