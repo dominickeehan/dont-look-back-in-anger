@@ -1,0 +1,6 @@
+#!/bin/sh
+#PBS -l select=1:ncpus=1:mem=8GB
+#PBS -l walltime=7:59:59
+
+cd $HOME/Dominic
+julia generate-train-test-multi-modal-drifting-newsvendor-data.jl
