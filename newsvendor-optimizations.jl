@@ -3,7 +3,7 @@ using Statistics, StatsBase
 using JuMP, MathOptInterface, Gurobi
 
 env = Gurobi.Env()
-GRBsetintparam(env, "OutputFlag", 3)
+GRBsetintparam(env, "OutputFlag", 0)
 GRBsetintparam(env, "Threads", 1)
 optimizer = optimizer_with_attributes(() -> Gurobi.Optimizer(env))
 
@@ -152,7 +152,7 @@ function REMK_intersection_W2_DRO_newsvendor_objective_value_and_order(ε, deman
     optimize!(Ball_Intersection_Feasibility_Problem)
 
     if is_solved_and_feasible(Ball_Intersection_Feasibility_Problem)
-        if value(λ) >= 1 # Then we had to scale up the ball radii for the ambiguity set to be nonempty.
+        if value(λ) >= 1.0 # Then we had to scale up the ball radii for the ambiguity set to be nonempty.
             # At the point of scaling where the set first becomes nonempty, the only distribution is the point-mass distribution 
             # at the point where all the radii touch, i.e., at the solution to the ball-intersection feasibility problem. 
             return SO_newsvendor_objective_value_and_order(0.0, [value(x)], [1.0], doubling_count)
@@ -224,5 +224,3 @@ function REMK_intersection_W2_DRO_newsvendor_objective_value_and_order(ε, deman
     end
 
 end
-
-5

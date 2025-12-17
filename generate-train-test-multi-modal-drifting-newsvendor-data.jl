@@ -25,10 +25,9 @@ include("newsvendor-optimizations.jl")
 number_of_jobs_per_drift = 1000
 number_of_repetitions = 1 # Per each job.
 history_length = 100 # 100
-training_length = 3 # 30
+training_length = 30 # 30
 
 # Open results file and wipe it to empty.
-ENV["PBS_ARRAY_INDEX"] = 1
 job_number = parse(Int64, ENV["PBS_ARRAY_INDEX"])
 open("$job_number.csv", "w") do file; end
 results_file = open("$job_number.csv", "a")
@@ -161,13 +160,11 @@ intersection_ε = number_of_consumers*unique([LinRange(1.0e-3,1.0e-2,10); LinRan
 intersection_ρ╱ε = [0.0; LogRange(1.0e-4,1.0e0,30)]
 
 println("Training and testing stochastic optimization methods...")
-#train_and_test("SAA (\$ε=0\$)", SO_newsvendor_objective_value_and_order, [0.0], windowing_weights, [history_length])
-#train_and_test("Smoothing (\$ε=0\$)", SO_newsvendor_objective_value_and_order, [0.0], smoothing_weights, α)
+train_and_test("SAA (\$ε=0\$)", SO_newsvendor_objective_value_and_order, [0.0], windowing_weights, [history_length])
+train_and_test("Smoothing (\$ε=0\$)", SO_newsvendor_objective_value_and_order, [0.0], smoothing_weights, α)
 
 println("Training and testing W2 distributionally robust optimization methods...")
-#train_and_test("Intersection", REMK_intersection_W2_DRO_newsvendor_objective_value_and_order, intersection_ε, REMK_intersection_weights, intersection_ρ╱ε)
+train_and_test("Intersection", REMK_intersection_W2_DRO_newsvendor_objective_value_and_order, intersection_ε, REMK_intersection_weights, intersection_ρ╱ε)
 train_and_test("Weighted", W2_DRO_newsvendor_objective_value_and_order, ε, W2_weights, ρ╱ε)
 
 close(results_file)
-
-5

@@ -6,7 +6,8 @@ number_of_modes = 2
 mixture_weights = [0.9, 0.1]
 initial_demand_probabilities = [0.1, 0.5]
 construct_drift_distribution(δ) = TriangularDist(-δ, δ, 0.0) # Same for each mode.
-drifts = [1.00e-3, 1.79e-3, 3.16e-3, 5.62e-3, 1.00e-2, 1.79e-2, 3.16e-2, 5.62e-2, 1.00e-1, 1.79e-1, 3.16e-1] # exp10.(LinRange(log10(1),log10(10),5))
+#drifts = [1.00e-3, 1.79e-3, 3.16e-3, 5.62e-3, 1.00e-2, 1.79e-2, 3.16e-2, 5.62e-2, 1.00e-1, 1.79e-1, 3.16e-1] # exp10.(LinRange(log10(1),log10(10),5))
+drifts = [5.62e-1, 1.00e-0] # exp10.(LinRange(log10(1),log10(10),5))
 numbers_of_consumers = [1000.0 for i in 1:number_of_modes]
 global number_of_consumers = max(numbers_of_consumers...)
 global cu = 4.0 # Per-unit underage cost.
@@ -14,8 +15,8 @@ global co = 1.0 # Per-unit overage cost.
 include("weights.jl")
 include("newsvendor-optimizations.jl")
 
-number_of_repetitions = 10 # 200
-history_length = 10 # 70
+number_of_repetitions = 30 # 200
+history_length = 20 # 70
 
 function expected_newsvendor_cost_with_binomial_demand(order, binomial_demand_probability, number_of_consumers)
 
@@ -184,16 +185,16 @@ plot!(drifts, average_costs./normalizer, ribbon = sems./normalizer, fillalpha = 
         markerstrokewidth = 0.0,
         label = "Smoothing (\$ε=0\$)")
 
-#=average_costs, sems = line_to_plot(REMK_intersection_W2_newsvendor_objective_value_and_order, intersection_ε, REMK_intersection_weights, intersection_ρ╱ε)
+average_costs, sems = line_to_plot(REMK_intersection_W2_DRO_newsvendor_objective_value_and_order, intersection_ε, REMK_intersection_weights, intersection_ρ╱ε)
 plot!(drifts, average_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
         color = palette(:tab10)[1],
         linestyle = :solid,
         markershape = :circle,
         markersize = 4.0,
         markerstrokewidth = 0.0,
-        label = "Intersection")=#
+        label = "Intersection")
 
-average_costs, sems = line_to_plot(W2_newsvendor_objective_value_and_order, ε, W2_weights, ρ╱ε)
+average_costs, sems = line_to_plot(W2_DRO_newsvendor_objective_value_and_order, ε, W2_weights, ρ╱ε)
 plot!(drifts, average_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
         color = palette(:tab10)[2],
         linestyle = :dash,

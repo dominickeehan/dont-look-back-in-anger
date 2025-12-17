@@ -35,7 +35,7 @@ end
 
 function W2_weights(T, ρ╱ε)
 
-    return Wp_weights(2.0, T, ρ╱ε)
+    return Wp_weights(2, T, ρ╱ε)
 end
 
 
