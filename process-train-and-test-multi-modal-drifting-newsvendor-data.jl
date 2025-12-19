@@ -1,4 +1,4 @@
-# To extract the CSV data files from HPC output, run the following in a command line (adjust the file structure appropriately):
+# To extract the CSV data files from zipped HPC output, run the following in a command line (adjust the file structure appropriately):
 # "C:\Program Files\7-Zip\7z.exe" e "C:\Users\[USERNAME]\Documents\repositories\dont-look-back-in-anger\train-and-test-multi-modal-drifting-newsvendor-data\[HPC OUTPUT].zip" -r -o"C:\Users\[USERNAME]\Documents\repositories\dont-look-back-in-anger\train-and-test-multi-modal-drifting-newsvendor-data" *.csv
 
 using CSV, Statistics, StatsBase 

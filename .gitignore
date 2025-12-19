@@ -11,6 +11,8 @@ results/
 newsvendor-data/
 drifting-newsvendor-data/
 mulit-modal-drifting-newsvendor-data/
+train-and-test-multi-modal-drifting-newsvendor-data/
+train-and-test-multi-modal-drifting-newsvendor-data/hpc-output.zip
 
 *.csv
 
