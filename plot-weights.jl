@@ -67,10 +67,10 @@ ylims!((0,yl[2]))
 display(plt)
 
 savefig(plt, "figures/weights-for-p.pdf")
+savefig(plt, "figures/weights-for-p.svg")
 
 
-# Stop motion talk plots.
-if false 
+if false # Stop motion talk plots.
         for q in P
 
                 default() # Reset plot defaults.
@@ -133,7 +133,7 @@ end
 
 
 
-if false
+if false # Test weight parameters.
 
         LogRange(a, b, n) = exp.(LinRange(log(a), log(b), n))
 

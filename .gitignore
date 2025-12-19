@@ -10,6 +10,7 @@
 results/
 newsvendor-data/
 drifting-newsvendor-data/
+mulit-modal-drifting-newsvendor-data/
 
 *.csv
 

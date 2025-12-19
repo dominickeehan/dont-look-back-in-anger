@@ -6,17 +6,15 @@ number_of_modes = 2
 mixture_weights = [0.9, 0.1]
 initial_demand_probabilities = [0.1, 0.5]
 construct_drift_distribution(δ) = TriangularDist(-δ, δ, 0.0) # Same for each mode.
-#drifts = [1.00e-3, 1.79e-3, 3.16e-3, 5.62e-3, 1.00e-2, 1.79e-2, 3.16e-2, 5.62e-2, 1.00e-1, 1.79e-1, 3.16e-1] # exp10.(LinRange(log10(1),log10(10),5))
-drifts = [5.62e-1, 1.00e-0] # exp10.(LinRange(log10(1),log10(10),5))
-numbers_of_consumers = [1000.0 for i in 1:number_of_modes]
-global number_of_consumers = max(numbers_of_consumers...)
-global cu = 4.0 # Per-unit underage cost.
-global co = 1.0 # Per-unit overage cost.
+drifts = [1.00e-3, 1.79e-3, 3.16e-3, 5.62e-3, 1.00e-2, 1.79e-2, 3.16e-2, 5.62e-2, 1.00e-1, 1.79e-1, 3.16e-1, 5.62e-1, 1.00e-0] # exp10.(LinRange(log10(1),log10(10),5))
+number_of_consumers = 1000.0
+cu = 4.0 # Per-unit underage cost.
+co = 1.0 # Per-unit overage cost.
 include("weights.jl")
 include("newsvendor-optimizations.jl")
 
-number_of_repetitions = 30 # 200
-history_length = 20 # 70
+number_of_repetitions = 200
+history_length = 40
 
 function expected_newsvendor_cost_with_binomial_demand(order, binomial_demand_probability, number_of_consumers)
 
@@ -48,7 +46,7 @@ function line_to_plot(newsvendor_objective_value_and_order, ambiguity_radii, com
 
             for t in 1:history_length
                 demand_sequences[repetition_index][t] = 
-                    rand(MixtureModel(Binomial, [(numbers_of_consumers[i], demand_probabilities[i]) for i in 1:number_of_modes], mixture_weights))
+                    rand(MixtureModel(Binomial, [(number_of_consumers, demand_probabilities[i]) for i in 1:number_of_modes], mixture_weights))
                 
                 if t < history_length
                     demand_probabilities = 
@@ -85,7 +83,7 @@ function line_to_plot(newsvendor_objective_value_and_order, ambiguity_radii, com
                     newsvendor_objective_value_and_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights, 0)
 
                 costs[repetition_index][ambiguity_radius_index, weight_parameter_index] = 
-                    mean([sum(mixture_weights[j]*expected_newsvendor_cost_with_binomial_demand(order, final_demand_probabilities[repetition_index][i][j], numbers_of_consumers[j]) for j in 1:number_of_modes) for i in eachindex(final_demand_probabilities[repetition_index])])
+                    mean([sum(mixture_weights[j]*expected_newsvendor_cost_with_binomial_demand(order, final_demand_probabilities[repetition_index][i][j], number_of_consumers) for j in 1:number_of_modes) for i in eachindex(final_demand_probabilities[repetition_index])])
 
             end
         end
@@ -154,8 +152,6 @@ default(framestyle = :box,
 plt = plot(xscale = :log10, #yscale = :log10,
             xlabel = "Binomial drift parameter, \$δ\$", 
             ylabel = "Ex-post optimal expected\ncost (relative to smoothing)",
-            #title = "modes\$= $number_of_modes\$, mix\$= $mixture_weights\$, \$p_1\$\$ = $initial_demand_probabilities\$, \$Ξ = $numbers_of_consumers\$, \$T = $history_length\$",
-            #titlefontsize = 10,
             topmargin = 0.0pt,
             leftmargin = 6.0pt,
             bottommargin = 6.0pt,
@@ -205,7 +201,7 @@ plot!(drifts, average_costs./normalizer, ribbon = sems./normalizer, fillalpha = 
 
 
 xticks!([1.0e-5, 1.0e-4, 1.0e-3, 1.0e-2, 1.0e-1, 1.0e0])
-ylims!((0.6, 1.4))
+ylims!((0.8, 1.2))
 xlims!((0.99999*drifts[1], 1.00001*drifts[end]))
 
 display(plt)

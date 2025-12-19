@@ -3,6 +3,8 @@ using JuMP, Gurobi
 using Plots, Measures
 using ProgressBars
 
+# The first part of this script takes hard-coded data giving the means and standard deviations of uniform distributions within W2 balls. 
+# For code which samples the distributions from these balls, see line 195.
 
 default() # Reset plot defaults.
 
@@ -52,55 +54,57 @@ function nonnegative_ellipse_coords(ellipse_parameters)
 
 end
 
-    intersection_ellipse_1 = [5.9,5.9,1,0] # Width, height, x, y. 
-    intersection_ellipse_2 = [5.4,5.4,-1,0]
-    intersection_ellipse_3 = [5.1,5.1,2,0]
-    intersection_ellipse_4 = [4.9,4.9,3,0]
-    weighted_ellipse = [2.75,2.75,1.75,1.5]
+# Hard-coded data from /figures/ambiguity-sets-data-*.pdf
+intersection_ellipse_1 = [5.9,5.9,1,0] # Width, height, x, y. 
+intersection_ellipse_2 = [5.4,5.4,-1,0]
+intersection_ellipse_3 = [5.1,5.1,2,0]
+intersection_ellipse_4 = [4.9,4.9,3,0]
+weighted_ellipse = [2.75,2.75,1.75,1.5]
 
-    linewidth = 1.5
-    alpha = 1
-    fillalpha = 0.075
+linewidth = 1.5
+alpha = 1
+fillalpha = 0.075
 
-    x_coords, y_coords = nonnegative_ellipse_coords(intersection_ellipse_1)
-    plot!(x_coords,
-            y_coords,
-            color = palette(:tab10)[1],
-            linewidth = 0,
-            linestyle = :solid,
-            alpha = 0,
-            label = nothing,
-            fill = (0, fillalpha, palette(:tab10)[1]))
+x_coords, y_coords = nonnegative_ellipse_coords(intersection_ellipse_1)
+plot!(x_coords,
+        y_coords,
+        color = palette(:tab10)[1],
+        linewidth = 0,
+        linestyle = :solid,
+        alpha = 0,
+        label = nothing,
+        fill = (0, fillalpha, palette(:tab10)[1]))
 
-    x_coords, y_coords = nonnegative_ellipse_coords(intersection_ellipse_2)
-    plot!(x_coords,
-            y_coords,
-            color = palette(:tab10)[1],
-            linewidth = 0,
-            linestyle = :solid,
-            alpha = 0,
-            label = nothing,
-            fill = (0, fillalpha, palette(:tab10)[1]))
+x_coords, y_coords = nonnegative_ellipse_coords(intersection_ellipse_2)
+plot!(x_coords,
+        y_coords,
+        color = palette(:tab10)[1],
+        linewidth = 0,
+        linestyle = :solid,
+        alpha = 0,
+        label = nothing,
+        fill = (0, fillalpha, palette(:tab10)[1]))
 
-    x_coords, y_coords = nonnegative_ellipse_coords(intersection_ellipse_3)
-    plot!(x_coords,
-            y_coords,
-            color = palette(:tab10)[1],
-            linewidth = 0,
-            linestyle = :solid,
-            alpha = 0,
-            label = nothing,
-            fill = (0, fillalpha, palette(:tab10)[1]))
+x_coords, y_coords = nonnegative_ellipse_coords(intersection_ellipse_3)
+plot!(x_coords,
+        y_coords,
+        color = palette(:tab10)[1],
+        linewidth = 0,
+        linestyle = :solid,
+        alpha = 0,
+        label = nothing,
+        fill = (0, fillalpha, palette(:tab10)[1]))
 
-    x_coords, y_coords = nonnegative_ellipse_coords(intersection_ellipse_4)
-    plot!(x_coords,
-            y_coords,
-            color = palette(:tab10)[1],
-            linewidth = 0,
-            linestyle = :solid,
-            alpha = 0,
-            label = nothing,
-            fill = (0, fillalpha, palette(:tab10)[1]))
+x_coords, y_coords = nonnegative_ellipse_coords(intersection_ellipse_4)
+plot!(x_coords,
+        y_coords,
+        color = palette(:tab10)[1],
+        linewidth = 0,
+        linestyle = :solid,
+        alpha = 0,
+        label = nothing,
+        fill = (0, fillalpha, palette(:tab10)[1]))
+
 
 function nonnegative_intersected_ellipse_coords(ellipse_1_parameters, ellipse_2_parameters)
 
@@ -140,55 +144,55 @@ function nonnegative_intersected_ellipse_coords(ellipse_1_parameters, ellipse_2_
 
 end
 
-    x_coords, y_coords = nonnegative_intersected_ellipse_coords(intersection_ellipse_2, intersection_ellipse_4)
+
+x_coords, y_coords = nonnegative_intersected_ellipse_coords(intersection_ellipse_2, intersection_ellipse_4)
+plot!(x_coords,
+        y_coords,
+        color = palette(:tab10)[1],
+        linewidth = linewidth,
+        linestyle = :solid,
+        alpha = 1,
+        label = nothing)
+
+x_coords, y_coords = nonnegative_ellipse_coords([1,1,-1,-1])
+plot!(x_coords,
+        y_coords,
+        color = palette(:tab10)[1],
+        linewidth = linewidth,
+        linestyle = :solid,
+        alpha = alpha,
+        label = "Intersection",
+        fill = (0, 0.268, palette(:tab10)[1]))
+
+x_coords, y_coords = nonnegative_ellipse_coords(weighted_ellipse)
     plot!(x_coords,
-            y_coords,
-            color = palette(:tab10)[1],
-            linewidth = linewidth,
-            linestyle = :solid,
+        y_coords,
+        color = palette(:tab10)[2],
+        linewidth = linewidth,
+        linestyle = :dash,
+        alpha = alpha,
+        label = "Weighted",
+        fill = (0, 0.268, palette(:tab10)[2]))
+
+samples = [1,-1,2,3]
+scatter!(samples, zeros(length(samples)), 
+            markersize = 6.0,
+            markershape = :utriangle,
+            markercolor = :black,
+            markerstrokecolor = :black,
+            markerstrokewidth = 0,
             alpha = 1,
-            label = nothing)
+            labels = nothing)
 
-    x_coords, y_coords = nonnegative_ellipse_coords([1,1,-1,-1])
-    plot!(x_coords,
-            y_coords,
-            color = palette(:tab10)[1],
-            linewidth = linewidth,
-            linestyle = :solid,
-            alpha = alpha,
-            label = "Intersection",
-            fill = (0, 0.268, palette(:tab10)[1]))
+for i in eachindex(samples)
+    annotate!(samples[i], 0, text(" \$\\xi_$i\$", :black, :bottom, 12))
+end
 
-    x_coords, y_coords = nonnegative_ellipse_coords(weighted_ellipse)
-        plot!(x_coords,
-            y_coords,
-            color = palette(:tab10)[2],
-            linewidth = linewidth,
-            linestyle = :dash,
-            alpha = alpha,
-            label = "Weighted",
-            fill = (0, 0.268, palette(:tab10)[2]))
-
-    samples = [1,-1,2,3]
-    scatter!(samples, zeros(length(samples)), 
-                markersize = 6.0,
-                markershape = :utriangle,
-                markercolor = :black,
-                markerstrokecolor = :black,
-                markerstrokewidth = 0,
-                alpha = 1,
-                labels = nothing)
-
-    for i in eachindex(samples)
-        annotate!(samples[i], 0, text(" \$\\xi_$i\$", :black, :bottom, 12))
-    end
-
-    display(plt)
-    savefig(plt, "figures/ambiguity-sets.pdf")
+display(plt)
+savefig(plt, "figures/ambiguity-sets.pdf")
 
 
-
-if false
+if false # Sample from the intersection-based and weight-based ambiguity sets.
 
     p = 2
 
@@ -219,7 +223,6 @@ if false
         @assert is_solved_and_feasible(model)
 
         try; return ifelse((objective_value(model)^(1/p)) <= ε, 1, 0); catch; return 0; end
-
     end
 
     include("weights.jl")
@@ -227,7 +230,6 @@ if false
     function mean_and_std(Q)
 
         return mean(Q[1], Weights(Q[2])), std(Q[1], Weights(Q[2]))
-
     end
 
     Ξ = [-4,8]
@@ -317,6 +319,7 @@ if false
                             markerstrokewidth = 0.0,
                             alpha = 1,
                             labels = nothing)
+
             end
         end
     end
@@ -343,7 +346,7 @@ if false
     end
 
     display(plt)
-    savefig(plt, "figures/ambiguity-sets-data-1.pdf")
+    savefig(plt, "figures/intersection-ambiguity-set-data.pdf")
 
     default() # Reset plot defaults.
 
@@ -417,9 +420,10 @@ if false
 
     for i in eachindex(samples)
         annotate!(samples[i], 0, text(" \$\\xi_$i\$", :black, :bottom, 12))
+
     end
 
     display(plt)
-    savefig(plt, "figures/ambiguity-sets-data-2.pdf")
+    savefig(plt, "figures/weighted-ambiguity-set-data.pdf")
 
 end
