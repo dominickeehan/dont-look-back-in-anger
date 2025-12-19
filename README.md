@@ -11,7 +11,7 @@ This repository provides implementations of our numerical tests on a distributio
 
 The following image (Figure&nbsp;2 of the paper) shows an example of the optimal observation weights.
 
-<img src="figures/weights-for-p.svg" width="515pt">
+<img src="figures/weights-for-p.svg" width="431pt">
 
 For full details, see Subsection&nbsp;4 of the&nbsp;paper.
 
