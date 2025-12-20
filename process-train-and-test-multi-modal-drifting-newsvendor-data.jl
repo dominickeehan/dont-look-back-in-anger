@@ -1,6 +1,9 @@
 # To extract the CSV data files from zipped HPC output, run the following in a command line (adjust the file structure appropriately):
 # "C:\Program Files\7-Zip\7z.exe" e "C:\Users\[USERNAME]\Documents\repositories\dont-look-back-in-anger\train-and-test-multi-modal-drifting-newsvendor-data\[HPC OUTPUT].zip" -r -o"C:\Users\[USERNAME]\Documents\repositories\dont-look-back-in-anger\train-and-test-multi-modal-drifting-newsvendor-data" *.csv
 
+#"C:\Program Files\7-Zip\7z.exe" e "C:\Users\domin\Documents\repositories\dont-look-back-in-anger\train-and-test-multi-modal-drifting-newsvendor-data\dom (5).zip" -r -o"C:\Users\domin\Documents\repositories\dont-look-back-in-anger\train-and-test-multi-modal-drifting-newsvendor-data" *.csv
+
+
 using CSV, Statistics, StatsBase 
 using ProgressBars
 using Plots, Measures
@@ -38,7 +41,7 @@ function extract_train_and_test_objective_values_and_expected_next_period_costs(
 
     Threads.@threads for job in 0:number_of_jobs_per_drift-1
         local job_index = 999*(drift_index-1)+job
-        local results_file = CSV.File("multi-modal-drifting-newsvendor-data/$job_index.csv", header=false, skipto=skipto)
+        local results_file = CSV.File("train-and-test-multi-modal-drifting-newsvendor-data/$job_index.csv", header=false, skipto=skipto)
 
         local train_average_cost_data, doubling_count_data, objective_values_data, test_expected_cost_data = eachcol(stack([[row.Column6, row.Column7, row.Column8, row.Column9] for row in Iterators.take(results_file, take)])')
         
@@ -81,7 +84,7 @@ end
 
 default() # Reset plot defaults.
 
-gr(size = (275+6+8,183+6+9).*sqrt(3))
+gr(size = (275+6+8+3,183+6+10).*sqrt(3))
 
 fontfamily = "Computer Modern"
 
@@ -104,21 +107,22 @@ default(framestyle = :box,
 plt = plot(xscale = :log10, #yscale = :log10,
         xlabel ="Binomial drift parameter, \$δ\$", 
         ylabel = "Average train-and-test next-period\nexpected cost (relative to smoothing)",
-        topmargin = 9pt,
+        topmargin = 10pt,
         leftmargin = 6pt,
         bottommargin = 6pt,
-        rightmargin = 0pt,
+        rightmargin = 3pt,
         #legend = :bottom,
         )
 
 fillalpha = 0.1
 
 #normaliser, normaliser_sems = extract_line_to_plot(2)
-normaliser, normaliser_sems = ([183.0128717113633, 184.62990450375528, 183.40472107860836, 185.59454010728734, 183.76827749418942, 187.32362212419574, 184.4278583379568, 188.0999075519978, 193.4904629201685, 222.57161468174186, 286.20874812273564], [1.5431727828948911, 1.6089016508440883, 1.5099443075243746, 1.6342467722998617, 1.5343725877619685, 1.9494327403324878, 2.505026027233826, 3.577923754616864, 4.316775872353911, 3.680758949538472, 5.096065509362292])
+# Saved output:
+normaliser, normaliser_sems = ([183.0128717113633, 184.62990450375528, 183.40472107860836, 185.59454010728734, 183.76827749418942, 187.32362212419574, 184.4278583379568, 188.0999075519978, 193.4904629201685, 222.57161468174186, 286.20874812273564, 380.7418442307149, 500.49672815396764], [1.5431727828948911, 1.6089016508440883, 1.5099443075243746, 1.6342467722998617, 1.5343725877619685, 1.9494327403324878, 2.505026027233826, 3.577923754616864, 4.316775872353911, 3.680758949538472, 5.096065509362292, 5.633165437323657, 7.173561509392465])
 
 #expected_costs, sems = extract_line_to_plot(1)
-# Hard coded output:
-expected_costs, sems = ([168.83063744707127, 169.34881296541704, 170.92225825904754, 174.3865026857558, 179.3032432189207, 188.60696013719405, 203.4492693328096, 233.16117125747363, 317.0979041144834, 405.59089367452935, 458.4503858757774], [0.18779161870807576, 0.22705589735696696, 0.2904076644205518, 0.4751913814504601, 0.8408575077679022, 1.3931291464996947, 2.451467266026189, 4.112242927539038, 7.7954865798475925, 9.657921312331677, 9.61049489232579])
+# Saved output:
+expected_costs, sems = ([168.83063744707127, 169.34881296541704, 170.92225825904754, 174.3865026857558, 179.3032432189207, 188.60696013719405, 203.4492693328096, 233.16117125747363, 317.0979041144834, 405.59089367452935, 458.4503858757774, 489.4980965058448, 512.4907743087648], [0.18779161870807576, 0.22705589735696696, 0.2904076644205518, 0.4751913814504601, 0.8408575077679022, 1.3931291464996947, 2.451467266026189, 4.112242927539038, 7.7954865798475925, 9.657921312331677, 9.61049489232579, 6.97038806672341, 6.306867206281049])
 plot!(drifts, expected_costs./normaliser, ribbon = sems./normaliser, fillalpha = fillalpha,
         color = palette(:tab10)[7],
         linestyle = :dashdot,
@@ -138,8 +142,8 @@ plot!(drifts, expected_costs./normaliser, ribbon = sems./normaliser, fillalpha =
         label = "Smoothing (\$ε=0\$)")
 
 #expected_costs, sems = extract_line_to_plot(3)
-# Hard-coded output:
-expected_costs, sems = ([216.80729917513506, 216.87654667489082, 217.0624431871434, 217.4212817033139, 213.1293153912676, 212.17487744997706, 201.5934460319634, 196.96920061693413, 206.94290539064286, 238.48176782883837, 289.5647069821513], [1.2505500203551956, 1.308434281147745, 1.4402673189889976, 1.5118038836246341, 1.5757866722920841, 2.078265580438921, 2.9069231138321876, 3.912518648580798, 4.856413233993833, 5.142819081674797, 5.923156544727841])
+# Saved output:
+expected_costs, sems = ([216.80729917513506, 216.87654667489082, 217.0624431871434, 217.4212817033139, 213.1293153912676, 212.17487744997706, 201.5934460319634, 196.96920061693413, 206.94290539064286, 238.48176782883837, 289.5647069821513, 390.05899854746997, 501.67024814129564], [1.2505500203551956, 1.308434281147745, 1.4402673189889976, 1.5118038836246341, 1.5757866722920841, 2.078265580438921, 2.9069231138321876, 3.912518648580798, 4.856413233993833, 5.142819081674797, 5.923156544727841, 6.815229330461311, 6.799456831728153])
 plot!(drifts, expected_costs./normaliser, ribbon = sems./normaliser, fillalpha = fillalpha,
         color = palette(:tab10)[1],
         linestyle = :solid,
@@ -149,8 +153,8 @@ plot!(drifts, expected_costs./normaliser, ribbon = sems./normaliser, fillalpha =
         label = "Intersection")
 
 #expected_costs, sems = extract_line_to_plot(4)
-# Hard-coded output:
-expected_costs, sems = ([187.51233637236757, 190.90639326972726, 186.70373288890664, 188.12271562022147, 185.20360406562693, 189.2095586603273, 186.44553631884438, 185.14424439261634, 191.51037970814923, 212.25399700394672, 270.5625413109855], [1.777211013495511, 1.9623800600082664, 1.7824646845050895, 1.786918218227337, 1.7170315339178344, 2.14547592262683, 2.8228010892944435, 3.784045044941464, 4.770977841375317, 3.961253568307639, 6.161035159464617])
+# Saved output:
+expected_costs, sems = ([187.51233637236757, 190.90639326972726, 186.70373288890664, 188.12271562022147, 185.20360406562693, 189.2095586603273, 186.44553631884438, 185.14424439261634, 191.51037970814923, 212.25399700394672, 270.5625413109855, 352.80935960584316, 461.92753242533803], [1.777211013495511, 1.9623800600082664, 1.7824646845050895, 1.786918218227337, 1.7170315339178344, 2.14547592262683, 2.8228010892944435, 3.784045044941464, 4.770977841375317, 3.961253568307639, 6.161035159464617, 6.161699436686653, 6.383126408550185])
 plot!(drifts, expected_costs./normaliser, ribbon = sems./normaliser, fillalpha = fillalpha,
         color = palette(:tab10)[2],
         linestyle = :dash,
@@ -160,9 +164,11 @@ plot!(drifts, expected_costs./normaliser, ribbon = sems./normaliser, fillalpha =
         label = "Weighted")
 
 xticks!([1.0e-5, 1.0e-4, 1.0e-3, 1.0e-2, 1.0e-1, 1.0e0])
-ylims!((0.9, 1.2))
-xlims!((0.99999*drifts[5], 1.00001*drifts[end]))
+xlims!((0.99999*drifts[4], 1.00001*drifts[end]))
+yticks!([0.90, 0.95, 1.00, 1.05, 1.10, 1.15, 1.20])
+ylims!((0.89999, 1.20001))
 
 display(plt)
 
 savefig(plt, "figures/average-train-and-test-next-period-expected-cost.pdf")
+savefig(plt, "figures/average-train-and-test-next-period-expected-cost.svg")

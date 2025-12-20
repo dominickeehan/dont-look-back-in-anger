@@ -54,7 +54,7 @@ function nonnegative_ellipse_coords(ellipse_parameters)
 
 end
 
-# Hard-coded data from /figures/ambiguity-sets-data-*.pdf
+# Saved data from /figures/ambiguity-sets-data-*.pdf
 intersection_ellipse_1 = [5.9,5.9,1,0] # Width, height, x, y. 
 intersection_ellipse_2 = [5.4,5.4,-1,0]
 intersection_ellipse_3 = [5.1,5.1,2,0]
