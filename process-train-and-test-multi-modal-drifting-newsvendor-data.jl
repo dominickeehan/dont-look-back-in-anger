@@ -169,4 +169,3 @@ ylims!((0.89999, 1.20001))
 display(plt)
 
 savefig(plt, "figures/average-train-and-test-next-period-expected-cost.pdf")
-savefig(plt, "figures/average-train-and-test-next-period-expected-cost.svg")
