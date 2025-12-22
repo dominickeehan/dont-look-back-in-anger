@@ -127,7 +127,7 @@ plot!(drifts, expected_costs./normaliser, ribbon = sems./normaliser, fillalpha =
         markershape = :pentagon,
         markersize = 4.0,
         markerstrokewidth = 0.0,
-        label = "SAA (\$ε=0\$)")
+        label = "SAA")# (\$ε=0\$)")
 
 expected_costs, sems = normaliser, normaliser_sems
 plot!(drifts, expected_costs./normaliser, ribbon = sems./normaliser, fillalpha = fillalpha,
@@ -137,7 +137,7 @@ plot!(drifts, expected_costs./normaliser, ribbon = sems./normaliser, fillalpha =
         markershape = :star4,
         markersize = 6.0,
         markerstrokewidth = 0.0,
-        label = "Smoothing (\$ε=0\$)")
+        label = "Smoothing")# (\$ε=0\$)")
 
 #expected_costs, sems = extract_line_to_plot(3)
 # Saved output:

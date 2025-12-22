@@ -205,7 +205,3 @@ ylims!((0.8, 1.2))
 xlims!((0.99999*drifts[1], 1.00001*drifts[end]))
 
 display(plt)
-
-5
-
-
