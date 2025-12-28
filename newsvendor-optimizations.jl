@@ -134,7 +134,7 @@ function REMK_intersection_W2_DRO_newsvendor_objective_value_and_order(ε, deman
     Ball_Intersection_Feasibility_Problem = Model(optimizer)
 
     @variables(Ball_Intersection_Feasibility_Problem, begin
-                                                        number_of_consumers >= x >= 0.0 # Feasible intersection.
+                                                        number_of_consumers >= ξ >= 0.0 # Feasible intersection.
                                                         λ >= 0.0 # Radii up-scaling factor.
                                                       end)
 
@@ -142,7 +142,7 @@ function REMK_intersection_W2_DRO_newsvendor_objective_value_and_order(ε, deman
         @constraint(Ball_Intersection_Feasibility_Problem,
                         # ‖x - ball_centers[k]‖₂ <= λ*ball_radii[k] for all k
                         # <==>
-                        [1/2*ball_radii[k]*λ; ball_radii[k]*λ; x - demands[k]] in MathOptInterface.RotatedSecondOrderCone(3))
+                        [1/2*ball_radii[k]*λ; ball_radii[k]*λ; ξ - demands[k]] in MathOptInterface.RotatedSecondOrderCone(3))
     end
 
     @objective(Ball_Intersection_Feasibility_Problem, Min, λ) # Minimize the up-scaling factor required for a feasible intersection.
@@ -155,7 +155,7 @@ function REMK_intersection_W2_DRO_newsvendor_objective_value_and_order(ε, deman
         if value(λ) >= 1.0 # Then we had to scale up the ball radii for the ambiguity set to be nonempty.
             # At the point of scaling where the set first becomes nonempty, the only distribution is the point-mass distribution 
             # at the point where all the radii touch, i.e., at the solution to the ball-intersection feasibility problem. 
-            return SO_newsvendor_objective_value_and_order(0.0, [value(x)], [1.0], doubling_count)
+            return SO_newsvendor_objective_value_and_order(0.0, [value(ξ)], [1.0], doubling_count)
 
         end
     else
