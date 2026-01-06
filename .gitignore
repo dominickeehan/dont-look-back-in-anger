@@ -1,3 +1,5 @@
+.vscode/*
+
 *.csv
 train-and-test-multi-modal-drifting-newsvendor-data/*.csv
 train-and-test-multi-modal-drifting-newsvendor-data/hpc-output.zip
