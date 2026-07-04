@@ -7,14 +7,15 @@ mixture_weights = [0.9, 0.1]
 initial_demand_probabilities = [0.1, 0.5]
 construct_drift_distribution(δ) = TriangularDist(-δ, δ, 0.0) # Same for each mode.
 drifts = [1.00e-3, 1.79e-3, 3.16e-3, 5.62e-3, 1.00e-2, 1.79e-2, 3.16e-2, 5.62e-2, 1.00e-1, 1.79e-1, 3.16e-1, 5.62e-1, 1.00e-0] # exp10.(LinRange(log10(1),log10(10),5))
+drifts = [1.00e-3, 1.00e-2, 1.00e-1, 1.00e-0]
 number_of_consumers = 1000.0
 cu = 4.0 # Per-unit underage cost.
 co = 1.0 # Per-unit overage cost.
 include("weights.jl")
 include("newsvendor-optimizations.jl")
 
-number_of_repetitions = 200
-history_length = 40
+number_of_repetitions = 100
+history_length = 50
 
 function expected_newsvendor_cost_with_binomial_demand(order, binomial_demand_probability, number_of_consumers)
 
@@ -50,12 +51,12 @@ function line_to_plot(newsvendor_objective_value_and_order, ambiguity_radii, com
                 
                 if t < history_length
                     demand_probabilities = 
-                        [min(max(demand_probabilities[i] + rand(drift_distribution), 0.0), 1.0) for i in 1:number_of_modes]
+                        [min(max(demand_probabilities[i] + rand(drift_distribution), 0.01), 0.99) for i in 1:number_of_modes]
 
                 else
                     for i in eachindex(final_demand_probabilities[repetition_index])
                         final_demand_probabilities[repetition_index][i] = 
-                            [min(max(demand_probabilities[i] + rand(drift_distribution), 0.0), 1.0) for i in 1:number_of_modes]
+                            [min(max(demand_probabilities[i] + rand(drift_distribution), 0.01), 0.99) for i in 1:number_of_modes]
                 
                     end
                 end
@@ -205,3 +206,4 @@ ylims!((0.8, 1.2))
 xlims!((0.99999*drifts[1], 1.00001*drifts[end]))
 
 display(plt)
+
