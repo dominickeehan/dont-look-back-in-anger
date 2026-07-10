@@ -1,0 +1,401 @@
+using Test
+using LinearAlgebra
+
+
+number_of_items = 3
+number_of_consumers = 10.0
+cu = 4.0
+co = 1.0
+
+include("weights.jl")
+include("multi-item-newsvendor-optimizations.jl")
+
+
+# Small exhaustive formulations retained as an exactness oracle. They should
+# only be used for tests because their size is exponential in number_of_items.
+reference_loss_pieces =
+    collect(Iterators.product(fill([false, true], number_of_items)...))
+reference_a = [
+    [reference_loss_pieces[l][i] ? cu : -co for i in 1:number_of_items]
+    for l in eachindex(reference_loss_pieces)
+]
+reference_b = [-reference_a[l] for l in eachindex(reference_a)]
+reference_C = [
+    -Matrix{Float64}(I, number_of_items, number_of_items);
+    Matrix{Float64}(I, number_of_items, number_of_items)
+]
+reference_g =
+    [zeros(number_of_items); number_of_consumers * ones(number_of_items)]
+
+
+function reference_weighted_W2(epsilon, demands, weights)
+    weights = weights ./ sum(weights)
+    T = length(demands)
+    L = length(reference_a)
+    problem = _new_multi_item_model()
+
+    @variables(problem, begin
+        number_of_consumers >= order[i = 1:number_of_items] >= 0.0
+        lambda >= 0.0
+        gamma[t = 1:T]
+        z[t = 1:T, l = 1:L, m = 1:length(reference_g)] >= 0.0
+        w[t = 1:T, l = 1:L, i = 1:number_of_items]
+    end)
+
+    for t in 1:T, l in 1:L
+        @constraint(
+            problem,
+            [
+                2.0 * lambda;
+                gamma[t] -
+                sum(reference_b[l][i] * order[i] for i in 1:number_of_items) -
+                sum(w[t, l, i] * demands[t][i] for i in 1:number_of_items) -
+                sum(z[t, l, m] * reference_g[m] for m in eachindex(reference_g));
+                [w[t, l, i] for i in 1:number_of_items]
+            ] in MathOptInterface.RotatedSecondOrderCone(number_of_items + 2),
+        )
+        for i in 1:number_of_items
+            @constraint(
+                problem,
+                reference_a[l][i] -
+                sum(reference_C[m, i] * z[t, l, m] for m in eachindex(reference_g)) ==
+                w[t, l, i],
+            )
+        end
+    end
+
+    @objective(
+        problem,
+        Min,
+        epsilon^2 * lambda + sum(weights[t] * gamma[t] for t in 1:T),
+    )
+    _optimize_multi_item_model!(problem; high_precision = true)
+    return objective_value(problem)
+end
+
+
+function reference_intersection_W2(epsilon, demands, radius_ratio)
+    K = length(demands)
+    L = length(reference_a)
+    radii = REMK_intersection_ball_radii(K, epsilon, radius_ratio)
+    problem = _new_multi_item_model()
+
+    @variables(problem, begin
+        number_of_consumers >= order[i = 1:number_of_items] >= 0.0
+        lambda[k = 1:K] >= 0.0
+        eta
+        z[l = 1:L, m = 1:length(reference_g)] >= 0.0
+        w[l = 1:L, k = 1:K, i = 1:number_of_items]
+        s[l = 1:L, k = 1:K] >= 0.0
+    end)
+
+    for l in 1:L
+        @constraint(
+            problem,
+            sum(reference_b[l][i] * order[i] for i in 1:number_of_items) +
+            sum(
+                w[l, k, i] * demands[k][i]
+                for k in 1:K, i in 1:number_of_items
+            ) +
+            sum(s[l, k] for k in 1:K) +
+            sum(z[l, m] * reference_g[m] for m in eachindex(reference_g)) <= eta,
+        )
+        for i in 1:number_of_items
+            @constraint(
+                problem,
+                reference_a[l][i] -
+                sum(reference_C[m, i] * z[l, m] for m in eachindex(reference_g)) ==
+                sum(w[l, k, i] for k in 1:K),
+            )
+        end
+        for k in 1:K
+            @constraint(
+                problem,
+                [
+                    2.0 * lambda[k];
+                    s[l, k];
+                    [w[l, k, i] for i in 1:number_of_items]
+                ] in MathOptInterface.RotatedSecondOrderCone(number_of_items + 2),
+            )
+        end
+    end
+
+    @objective(
+        problem,
+        Min,
+        sum(radii[k]^2 * lambda[k] for k in 1:K) + eta,
+    )
+    _optimize_multi_item_model!(problem)
+    return objective_value(problem)
+end
+
+
+demands = [
+    [2.0, 4.0, 3.0],
+    [5.0, 3.0, 6.0],
+    [3.0, 6.0, 4.0],
+    [4.0, 5.0, 7.0],
+]
+weights = [0.1, 0.2, 0.3, 0.4]
+
+
+@testset "compact multi-item newsvendor formulations" begin
+    scalar_epsilon, scalar_point =
+        _minimum_scalar_intersection_epsilon_and_point(
+            [0.1, 0.6, 0.3], ones(3),
+        )
+    @test scalar_epsilon ≈ 0.25
+    @test scalar_point ≈ [0.35]
+
+    weighted_reference_objective = reference_weighted_W2(1.2, demands, weights)
+    compact_objective, compact_order, _ =
+        W2_DRO_multi_item_newsvendor_objective_value_and_order(
+            1.2, demands, weights, 0,
+        )
+    @test compact_objective ≈ weighted_reference_objective atol = 1.0e-3
+    @test all((0.0 .<= compact_order) .& (compact_order .<= number_of_consumers))
+
+    support_diameter = number_of_consumers * sqrt(number_of_items)
+    saturated_objective, saturated_order, _ =
+        W2_DRO_multi_item_newsvendor_objective_value_and_order(
+            support_diameter, demands, weights, 0,
+        )
+    expected_saturated_objective =
+        number_of_items * number_of_consumers * cu * co / (cu + co)
+    @test saturated_objective ≈ expected_saturated_objective atol = 1.0e-10
+    @test saturated_order ≈ fill(
+        number_of_consumers * cu / (cu + co), number_of_items,
+    )
+
+    endpoint_demands = [zeros(number_of_items), fill(number_of_consumers, number_of_items)]
+    endpoint_objective, endpoint_order, _ =
+        W2_DRO_multi_item_newsvendor_objective_value_and_order(
+            1.0, endpoint_demands, [0.8, 0.2], 0,
+        )
+    @test endpoint_objective ≈ expected_saturated_objective atol = 1.0e-10
+    @test endpoint_order ≈ saturated_order atol = 1.0e-10
+
+    tied_demands = [
+        [2.0, 5.0, 0.0],
+        [2.0, 5.0, 10.0],
+        [8.0, 5.0, 0.0],
+        [8.0, 5.0, 10.0],
+    ]
+    tied_weights = [0.4, 0.1, 0.1, 0.4]
+    tied_reference_objective =
+        reference_weighted_W2(1.5, tied_demands, tied_weights)
+    tied_objective, _, _ =
+        W2_DRO_multi_item_newsvendor_objective_value_and_order(
+            1.5, tied_demands, tied_weights, 0,
+        )
+    @test tied_objective ≈ tied_reference_objective atol = 3.0e-3
+
+    radius_ratio = 0.2
+    intersection_reference_objective =
+        reference_intersection_W2(2.5, demands, radius_ratio)
+    compact_objective, compact_order, _ =
+        REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_order(
+            2.5,
+            demands,
+            REMK_intersection_weights(length(demands), radius_ratio),
+            0,
+        )
+    @test compact_objective ≈ intersection_reference_objective atol = 1.0e-3
+    @test all((0.0 .<= compact_order) .& (compact_order .<= number_of_consumers))
+
+    grid_radii = [4.0, 2.5, 3.25]
+    grid_weights = [
+        REMK_intersection_weights(length(demands), 0.2),
+        REMK_intersection_weights(length(demands), 0.0),
+    ]
+    grid_results = _multi_item_newsvendor_grid(
+        REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_order,
+        grid_radii,
+        demands,
+        grid_weights,
+        0,
+    )
+    for weight_index in eachindex(grid_weights), radius_index in eachindex(grid_radii)
+        scalar_result =
+            REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_order(
+                grid_radii[radius_index],
+                demands,
+                grid_weights[weight_index],
+                0,
+            )
+        grid_result = grid_results[radius_index, weight_index]
+        @test grid_result[1] ≈ scalar_result[1] atol = 1.0e-3
+        @test grid_result[2] ≈ scalar_result[2] atol = 1.0e-2
+        @test grid_result[3] == scalar_result[3]
+    end
+
+    extreme_ratio = 1.0e200
+    extreme_epsilon = 1.0e-200
+    extreme_demands = [fill(number_of_consumers / 2.0, number_of_items)]
+    extreme_intersection_weights = [REMK_intersection_weights(1, extreme_ratio)]
+    extreme_grid_result = _multi_item_newsvendor_grid(
+        REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_order,
+        [extreme_epsilon],
+        extreme_demands,
+        extreme_intersection_weights,
+        0,
+    )[1, 1]
+    extreme_scalar_result =
+        REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_order(
+            extreme_epsilon,
+            extreme_demands,
+            extreme_intersection_weights[1],
+            0,
+        )
+    @test extreme_grid_result[1] ≈ extreme_scalar_result[1] atol = 1.0e-3
+    @test extreme_grid_result[2] ≈ extreme_scalar_result[2] atol = 1.0e-2
+
+    # One intersection ball is exactly an ordinary W2 ball with its REMK radius.
+    one_demand = [demands[1]]
+    radius_ratio = 0.25
+    intersection_objective, _, _ =
+        REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_order(
+            1.0,
+            one_demand,
+            REMK_intersection_weights(1, radius_ratio),
+            0,
+        )
+    weighted_objective, _, _ =
+        W2_DRO_multi_item_newsvendor_objective_value_and_order(
+            1.0 * (1.0 + radius_ratio), one_demand, [1.0], 0,
+        )
+    @test intersection_objective ≈ weighted_objective atol = 1.0e-3
+
+    outside_demand = [[-2.0, 4.0, 3.0]]
+    outside_ratio = 0.25
+    outside_epsilon = 1.68
+    outside_intersection_objective, _, _ =
+        REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_order(
+            outside_epsilon,
+            outside_demand,
+            REMK_intersection_weights(1, outside_ratio),
+            0,
+        )
+    outside_weighted_objective, _, _ =
+        W2_DRO_multi_item_newsvendor_objective_value_and_order(
+            outside_epsilon * (1.0 + outside_ratio),
+            outside_demand,
+            [1.0],
+            0,
+        )
+    @test outside_intersection_objective ≈ outside_weighted_objective atol = 1.0e-3
+
+    # A zero radius ratio intentionally arrives as an all-zero REMK vector.
+    zero_ratio_reference_objective = reference_intersection_W2(4.0, demands, 0.0)
+    zero_ratio_objective, _, _ =
+        REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_order(
+            4.0,
+            demands,
+            REMK_intersection_weights(length(demands), 0.0),
+            0,
+        )
+    @test zero_ratio_objective ≈ zero_ratio_reference_objective atol = 1.0e-3
+
+    saturated_intersection_objective, saturated_intersection_order, _ =
+        REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_order(
+            support_diameter,
+            demands,
+            REMK_intersection_weights(length(demands), 0.0),
+            0,
+        )
+    @test saturated_intersection_objective ≈ expected_saturated_objective atol = 1.0e-10
+    @test saturated_intersection_order ≈ saturated_order atol = 1.0e-10
+
+    @test_throws ArgumentError REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_order(
+        0.0,
+        [zeros(number_of_items), ones(number_of_items)],
+        REMK_intersection_weights(2, 0.0),
+        0,
+    )
+    zero_radius_objective, zero_radius_order, _ =
+        REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_order(
+            0.0,
+            [demands[1], copy(demands[1])],
+            REMK_intersection_weights(2, 0.0),
+            0,
+        )
+    @test zero_radius_objective ≈ 0.0
+    @test zero_radius_order == demands[1]
+
+    # Match the scalar implementation's convention for an empty intersection:
+    # return the point mass where the minimally enlarged balls first touch.
+    disjoint_demands = [zeros(number_of_items), fill(number_of_consumers, number_of_items)]
+    fallback_objective, fallback_order, _ =
+        REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_order(
+            1.0,
+            disjoint_demands,
+            REMK_intersection_weights(length(disjoint_demands), 0.0),
+            0,
+        )
+    @test fallback_objective ≈ 0.0 atol = 1.0e-8
+    @test fallback_order ≈ fill(number_of_consumers / 2.0, number_of_items) atol = 1.0e-2
+
+    tangent_demands = [zeros(number_of_items), [2.0, 0.0, 0.0]]
+    tangent_objective, tangent_order, _ =
+        REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_order(
+            1.0,
+            tangent_demands,
+            REMK_intersection_weights(length(tangent_demands), 0.0),
+            0,
+        )
+    @test tangent_objective ≈ 0.0 atol = 1.0e-8
+    @test tangent_order ≈ [1.0, 0.0, 0.0] atol = 1.0e-3
+
+    saa_objective, saa_order, _ =
+        SO_multi_item_newsvendor_objective_value_and_order(
+            0.0, demands, weights, 0,
+        )
+    @test saa_order == [4.0, 6.0, 7.0]
+    @test saa_objective ≈ 4.0
+
+    active_objective, _, _ =
+        W2_DRO_multi_item_newsvendor_objective_value_and_order(
+            1.2, demands[2:end], weights[2:end], 0,
+        )
+    zero_weight_objective, _, _ =
+        W2_DRO_multi_item_newsvendor_objective_value_and_order(
+            1.2, demands, [0.0; weights[2:end]], 0,
+        )
+    @test zero_weight_objective ≈ active_objective atol = 1.0e-3
+
+    extreme_weight_objective, extreme_weight_order, _ =
+        SO_multi_item_newsvendor_objective_value_and_order(
+            0.0,
+            demands[1:2],
+            [floatmax(Float64), floatmax(Float64)],
+            0,
+        )
+    balanced_objective, balanced_order, _ =
+        SO_multi_item_newsvendor_objective_value_and_order(
+            0.0, demands[1:2], [0.5, 0.5], 0,
+        )
+    @test extreme_weight_objective ≈ balanced_objective
+    @test extreme_weight_order == balanced_order
+
+    # With multiple Julia threads this executes the two solver callbacks on
+    # separate, statically pinned Gurobi environments.
+    threaded_objectives = zeros(2)
+    Threads.@threads :static for callback_index in 1:2
+        if callback_index == 1
+            threaded_objectives[callback_index], _, _ =
+                W2_DRO_multi_item_newsvendor_objective_value_and_order(
+                    1.2, demands, weights, 0,
+                )
+        else
+            threaded_objectives[callback_index], _, _ =
+                REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_order(
+                    2.5,
+                    demands,
+                    REMK_intersection_weights(length(demands), 0.2),
+                    0,
+                )
+        end
+    end
+    @test threaded_objectives[1] ≈ weighted_reference_objective atol = 1.0e-3
+    @test threaded_objectives[2] ≈ intersection_reference_objective atol = 1.0e-3
+end

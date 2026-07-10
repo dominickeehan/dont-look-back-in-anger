@@ -1,14 +1,14 @@
 using Random, Statistics, StatsBase, Distributions
-using ProgressBars, IterTools
+using ProgressBars
 
 
-number_of_items = 1
+number_of_items = 2
 number_of_modes = 2
 mixture_weights = [0.9, 0.1]
 initial_demand_probabilities = [0.1*ones(number_of_items), 0.5*ones(number_of_items)]
 construct_drift_distribution(δ) = TriangularDist(-δ, δ, 0.0) # Same for each item.
 #drifts = [1.00e-3, 1.79e-3, 3.16e-3, 5.62e-3, 1.00e-2, 1.79e-2, 3.16e-2, 5.62e-2, 1.00e-1, 1.79e-1, 3.16e-1, 5.62e-1, 1.00e-0] # exp10.(LinRange(log10(1),log10(10),5))
-drifts = [1.00e-3, 1.00e-2, 1.00e-1]
+drifts = [1.00e-2, 3.16e-2, 1.00e-1, 3.16e-1, 1.00e0]
 number_of_consumers = 1000.0
 cu = 4.0 # Per-unit underage cost.
 co = 1.0 # Per-unit overage cost.
@@ -17,8 +17,8 @@ co = 1.0 # Per-unit overage cost.
 include("weights.jl")
 include("multi-item-newsvendor-optimizations.jl")
 
-number_of_repetitions = 60
-history_length = 30
+number_of_repetitions = 100
+history_length = 100
 
 function expected_newsvendor_cost_with_binomial_demand(order, binomial_demand_probability, number_of_consumers)
 
@@ -38,10 +38,66 @@ function expected_multi_item_newsvendor_cost_with_binomial_demands(order, demand
 
 end
 
+function precompute_expected_costs_at_order_knots(
+    grid_results, final_demand_probabilities,
+)
+    order_knots = [Set{Int}() for _ in 1:number_of_items]
+    for result in grid_results
+        order = result[2]
+        for item_index in 1:number_of_items
+            bounded_order = clamp(order[item_index], 0.0, number_of_consumers)
+            push!(order_knots[item_index], floor(Int, bounded_order))
+            push!(order_knots[item_index], ceil(Int, bounded_order))
+        end
+    end
+
+    expected_costs = [Dict{Int,Float64}() for _ in 1:number_of_items]
+    for item_index in 1:number_of_items, integer_order in order_knots[item_index]
+        expected_costs[item_index][integer_order] = mean(
+            sum(
+                mixture_weights[mode_index] *
+                expected_newsvendor_cost_with_binomial_demand(
+                    integer_order,
+                    demand_probabilities[mode_index][item_index],
+                    number_of_consumers,
+                )
+                for mode_index in 1:number_of_modes
+            )
+            for demand_probabilities in final_demand_probabilities
+        )
+    end
+    return expected_costs
+end
+
+function expected_multi_item_cost_from_order_knots(order, expected_costs)
+    total_cost = 0.0
+    for item_index in 1:number_of_items
+        bounded_order = clamp(order[item_index], 0.0, number_of_consumers)
+        lower_order = floor(Int, bounded_order)
+        upper_order = ceil(Int, bounded_order)
+        lower_cost = expected_costs[item_index][lower_order]
+        if lower_order == upper_order
+            total_cost += lower_cost
+        else
+            interpolation_weight = bounded_order - lower_order
+            total_cost +=
+                (1.0 - interpolation_weight) * lower_cost +
+                interpolation_weight * expected_costs[item_index][upper_order]
+        end
+    end
+    return total_cost
+end
+
 function line_to_plot(newsvendor_objective_value_and_order, ambiguity_radii, compute_weights, weight_parameters)
 
     average_costs = zeros(length(drifts))
     standard_deviations = zeros(length(drifts))
+
+    precomputed_weights = [zeros(history_length) for _ in eachindex(weight_parameters)]
+    Threads.@threads for weight_parameter_index in eachindex(weight_parameters)
+        precomputed_weights[weight_parameter_index] =
+            compute_weights(history_length, weight_parameters[weight_parameter_index])
+    end
 
     for drift_index in eachindex(drifts)
 
@@ -76,26 +132,27 @@ function line_to_plot(newsvendor_objective_value_and_order, ambiguity_radii, com
         costs = [zeros((length(ambiguity_radii),length(weight_parameters))) for _ in 1:number_of_repetitions]
         doubling_count = [zeros((length(ambiguity_radii),length(weight_parameters))) for _ in 1:number_of_repetitions]
 
-        precomputed_weights = [zeros(history_length) for _ in eachindex(weight_parameters)]
+        Threads.@threads :static for repetition_index in ProgressBar(1:number_of_repetitions)
+            local demand_samples = demand_sequences[repetition_index][1:history_length]
+            local grid_results = _multi_item_newsvendor_grid(
+                newsvendor_objective_value_and_order,
+                ambiguity_radii,
+                demand_samples,
+                precomputed_weights,
+                0,
+            )
+            local expected_costs = precompute_expected_costs_at_order_knots(
+                grid_results,
+                final_demand_probabilities[repetition_index],
+            )
 
-        Threads.@threads for weight_parameter_index in eachindex(weight_parameters)
-            precomputed_weights[weight_parameter_index] = compute_weights(history_length, weight_parameters[weight_parameter_index])
-
-        end
-
-        Threads.@threads for (ambiguity_radius_index, weight_parameter_index) in
-        #for (ambiguity_radius_index, weight_parameter_index) in
-            ProgressBar(collect(IterTools.product(eachindex(ambiguity_radii), eachindex(weight_parameters))))
-            for repetition_index in 1:number_of_repetitions
-                local weights = precomputed_weights[weight_parameter_index]
-                local demand_samples = demand_sequences[repetition_index][1:history_length]
-
-                local _, order, doubling_count[repetition_index][ambiguity_radius_index, weight_parameter_index] =
-                    newsvendor_objective_value_and_order(ambiguity_radii[ambiguity_radius_index], demand_samples, weights, 0)
-
+            for weight_parameter_index in eachindex(weight_parameters),
+                ambiguity_radius_index in eachindex(ambiguity_radii)
+                local _, order, count =
+                    grid_results[ambiguity_radius_index, weight_parameter_index]
+                doubling_count[repetition_index][ambiguity_radius_index, weight_parameter_index] = count
                 costs[repetition_index][ambiguity_radius_index, weight_parameter_index] =
-                    mean([sum(mixture_weights[j]*expected_multi_item_newsvendor_cost_with_binomial_demands(order, final_demand_probabilities[repetition_index][i][j], number_of_consumers) for j in 1:number_of_modes) for i in eachindex(final_demand_probabilities[repetition_index])])
-
+                    expected_multi_item_cost_from_order_knots(order, expected_costs)
             end
         end
 
@@ -132,6 +189,8 @@ LogRange(start, stop, len) = exp.(LinRange(log(start), log(stop), len))
 s = unique(round.(Int, LogRange(1,history_length,30)))
 α = [0.0; LogRange(1.0e-4,1.0e0,30)]
 ρ╱ε = [0.0; LogRange(1.0e-4,1.0e0,30)]
+intersection_ε = sqrt(number_of_items)*number_of_consumers*unique([LinRange(1.0e-3,1.0e-2,10); LinRange(1.0e-2,1.0e-1,10); LinRange(1.0e-1,1.0e-0,10)])
+intersection_ρ╱ε = [0.0; LogRange(1.0e-4,1.0e0,30)]
 
 
 using Plots, Measures
@@ -190,6 +249,16 @@ plot!(drifts, average_costs./normalizer, ribbon = sems./normalizer, fillalpha = 
         markerstrokewidth = 0.0,
         label = "Smoothing (\$ε=0\$)")
 
+        #=
+average_costs, sems = line_to_plot(REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_order, intersection_ε, REMK_intersection_weights, intersection_ρ╱ε)
+plot!(drifts, average_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
+        color = palette(:tab10)[1],
+        linestyle = :solid,
+        markershape = :circle,
+        markersize = 4.0,
+        markerstrokewidth = 0.0,
+        label = "Intersection")=#
+
 average_costs, sems = line_to_plot(W2_DRO_multi_item_newsvendor_objective_value_and_order, ε, W2_weights, ρ╱ε)
 plot!(drifts, average_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
         color = palette(:tab10)[2],
@@ -200,7 +269,7 @@ plot!(drifts, average_costs./normalizer, ribbon = sems./normalizer, fillalpha = 
         label = "Weighted")
 
 
-xticks!([1.0e-5, 1.0e-4, 1.0e-3, 1.0e-2, 1.0e-1, 1.0e0])
-xlims!((0.99999*drifts[1], 1.00001*drifts[end]))
+#xticks!([1.0e-5, 1.0e-4, 1.0e-3, 1.0e-2, 1.0e-1, 1.0e0])
+#xlims!((0.99999*drifts[1], 1.00001*drifts[end]))
 
 display(plt)
