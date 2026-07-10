@@ -28,7 +28,7 @@ history_length = 100 # 100
 training_length = 30 # 30
 
 # Open results file and wipe it to empty.
-job_number = parse(Int64, ENV["PBS_ARRAY_INDEX"])
+job_number = parse(Int64, get(ENV, "PBS_ARRAY_INDEX", "0"))
 open("$job_number.csv", "w") do file; end
 results_file = open("$job_number.csv", "a")
 println(results_file, "drift, repetition index, method name, ambiguity radius, weight parameter, average training cost, doubling count, objective value, expected next period cost, time elapsed")

@@ -1,6 +1,17 @@
-#!/bin/sh
-#PBS -l select=1:ncpus=1:mem=8GB
-#PBS -l walltime=7:59:59
+#!/bin/bash
+#PBS -N drifting_newsvendor
+#PBS -l select=1:ncpus=1:mem=8gb
+#PBS -l walltime=07:59:59
 
-cd $HOME/Dominic
-julia generate-train-test-multi-modal-drifting-newsvendor-data.jl
+module load tools/prod
+module load Julia/1.11.6-linux-x86_64
+module load Gurobi/11.0.0-GCCcore-12.3.0
+
+cd "$HOME/dont-look-back-in-anger" || exit 1
+
+export JULIA_CPU_TARGET="${JULIA_CPU_TARGET:-generic}"
+
+julia --startup-file=no \
+      --project=. \
+      --threads=1 \
+      generate-train-and-test-multi-modal-drifting-newsvendor-data.jl
