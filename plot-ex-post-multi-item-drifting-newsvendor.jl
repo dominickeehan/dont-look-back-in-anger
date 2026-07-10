@@ -2,7 +2,7 @@ using Random, Statistics, StatsBase, Distributions
 using ProgressBars
 
 
-number_of_items = 2
+number_of_items = 1
 number_of_modes = 2
 mixture_weights = [0.9, 0.1]
 initial_demand_probabilities = [0.1*ones(number_of_items), 0.5*ones(number_of_items)]
@@ -158,6 +158,17 @@ function line_to_plot(newsvendor_objective_value_and_order, ambiguity_radii, com
 
         display(compute_weights)
 
+        solver_statistics = multi_item_solver_statistics_summary()
+        if solver_statistics.touching_solutions +
+           solver_statistics.zero_multiplier_solutions +
+           solver_statistics.single_ball_solutions +
+           solver_statistics.dual_solver_solutions +
+           solver_statistics.conic_solutions +
+           solver_statistics.numeric_retry_solves > 0
+            println(solver_statistics)
+        end
+        multi_item_reset_solver_statistics!()
+
         digits = 4
 
         ambiguity_radius_index, weight_parameter_index = Tuple(argmin(mean(costs)))
@@ -249,7 +260,7 @@ plot!(drifts, average_costs./normalizer, ribbon = sems./normalizer, fillalpha = 
         markerstrokewidth = 0.0,
         label = "Smoothing (\$ε=0\$)")
 
-        #=
+        
 average_costs, sems = line_to_plot(REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_order, intersection_ε, REMK_intersection_weights, intersection_ρ╱ε)
 plot!(drifts, average_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,
         color = palette(:tab10)[1],
@@ -257,7 +268,7 @@ plot!(drifts, average_costs./normalizer, ribbon = sems./normalizer, fillalpha = 
         markershape = :circle,
         markersize = 4.0,
         markerstrokewidth = 0.0,
-        label = "Intersection")=#
+        label = "Intersection")
 
 average_costs, sems = line_to_plot(W2_DRO_multi_item_newsvendor_objective_value_and_order, ε, W2_weights, ρ╱ε)
 plot!(drifts, average_costs./normalizer, ribbon = sems./normalizer, fillalpha = fillalpha,

@@ -1,5 +1,6 @@
 using Test
 using LinearAlgebra
+using Random
 
 
 number_of_items = 3
@@ -398,4 +399,146 @@ weights = [0.1, 0.2, 0.3, 0.4]
     end
     @test threaded_objectives[1] ≈ weighted_reference_objective atol = 1.0e-3
     @test threaded_objectives[2] ≈ intersection_reference_objective atol = 1.0e-3
+end
+
+
+@testset "intersection ball pruning" begin
+    # Exact duplicates keep exactly the first occurrence.
+    @test _active_intersection_ball_indices(
+        [[0.5, 0.5, 0.5], [0.5, 0.5, 0.5]], [0.3, 0.3],
+    ) == [1]
+    # Concentric balls keep only the smaller one.
+    @test _active_intersection_ball_indices(
+        [[0.5, 0.5, 0.5], [0.5, 0.5, 0.5]], [0.3, 0.2],
+    ) == [2]
+    # ||d_1 - d_2|| = 0.1 sqrt(3) <= 0.5 - 0.2, so ball 1 contains ball 2.
+    @test _active_intersection_ball_indices(
+        [[0.6, 0.6, 0.6], [0.5, 0.5, 0.5]], [0.5, 0.2],
+    ) == [2]
+    # Neither ball contains the other.
+    @test _active_intersection_ball_indices(
+        [[0.9, 0.5, 0.5], [0.1, 0.5, 0.5]], [0.3, 0.3],
+    ) == [1, 2]
+    # A ball covering the whole support box is vacuous: the farthest corner
+    # from (0.5, 0.5, 0.5) is at squared distance 0.75 < 0.9^2.
+    @test _active_intersection_ball_indices(
+        [[0.5, 0.5, 0.5], [0.2, 0.2, 0.2]], [0.9, 0.2],
+    ) == [2]
+    @test isempty(
+        _active_intersection_ball_indices([[0.5, 0.5, 0.5]], [2.0]),
+    )
+end
+
+
+@testset "intersection optimizations equivalence" begin
+    # The zero-multiplier threshold agrees with the per-ball check on both
+    # sides of the boundary, exercised through the grid entry point.
+    threshold_demands = [demands[k] for k in 1:3]
+    threshold_ratio = 0.3
+    K = length(threshold_demands)
+    relative_radii = [1.0 + (K - k + 1) * threshold_ratio for k in 1:K]
+    normalized_threshold = _zero_multiplier_epsilon_threshold(
+        [demand ./ number_of_consumers for demand in threshold_demands],
+        relative_radii,
+    )
+    threshold_epsilon = normalized_threshold * number_of_consumers
+    boundary_radii = [0.999 * threshold_epsilon, 1.001 * threshold_epsilon]
+    boundary_weights = [REMK_intersection_weights(K, threshold_ratio)]
+    boundary_grid = _multi_item_newsvendor_grid(
+        REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_order,
+        boundary_radii,
+        threshold_demands,
+        boundary_weights,
+        0,
+    )
+    for radius_index in eachindex(boundary_radii)
+        scalar_result =
+            REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_order(
+                boundary_radii[radius_index],
+                threshold_demands,
+                boundary_weights[1],
+                0,
+            )
+        @test boundary_grid[radius_index, 1][1] ≈ scalar_result[1] atol = 1.0e-3
+        @test boundary_grid[radius_index, 1][2] ≈ scalar_result[2] atol = 1.0e-2
+    end
+
+    # Randomized instances compared against the exhaustive oracle, both with
+    # the closed-form dual solver enabled (default) and disabled (conic
+    # solves with pruned multipliers), across ratios and radii that exercise
+    # touching, interior, and saturated regimes.
+    rng = MersenneTwister(20260710)
+    for trial in 1:8
+        K = rand(rng, 2:5)
+        trial_demands = [
+            round.(number_of_consumers .* rand(rng, number_of_items); digits = 2)
+            for _ in 1:K
+        ]
+        trial_ratio = rand(rng, [0.0, 0.05, 0.3, 1.0])
+        trial_weights = REMK_intersection_weights(K, trial_ratio)
+        normalized_trial_demands =
+            [demand ./ number_of_consumers for demand in trial_demands]
+        minimum_epsilon, _ = _compute_minimum_intersection_epsilon_and_point(
+            normalized_trial_demands, trial_ratio,
+        )
+        for epsilon_scale in [1.1, 2.0, 8.0]
+            trial_epsilon = max(
+                number_of_consumers * minimum_epsilon * epsilon_scale,
+                0.05 * number_of_consumers,
+            )
+            oracle_objective =
+                reference_intersection_W2(trial_epsilon, trial_demands, trial_ratio)
+
+            multi_item_enable_intersection_dual_solver[] = true
+            dual_objective, dual_order, _ =
+                REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_order(
+                    trial_epsilon, trial_demands, trial_weights, 0,
+                )
+            multi_item_enable_intersection_dual_solver[] = false
+            conic_objective, conic_order, _ =
+                REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_order(
+                    trial_epsilon, trial_demands, trial_weights, 0,
+                )
+            multi_item_enable_intersection_dual_solver[] = true
+
+            @test dual_objective ≈ oracle_objective atol = 2.0e-3 rtol = 1.0e-4
+            @test conic_objective ≈ oracle_objective atol = 2.0e-3 rtol = 1.0e-4
+            @test dual_objective ≈ conic_objective atol = 2.0e-3 rtol = 1.0e-4
+            @test all(isapprox.(
+                dual_order,
+                conic_order;
+                atol = 5.0e-4 * number_of_consumers,
+                rtol = 5.0e-4,
+            ))
+            @test all((0.0 .<= dual_order) .& (dual_order .<= number_of_consumers))
+            @test all((0.0 .<= conic_order) .& (conic_order .<= number_of_consumers))
+        end
+    end
+
+    # Grid and single-call paths agree on a radius sweep spanning all regimes
+    # for a longer history with duplicated demand points.
+    sweep_demands = [
+        demands[1], demands[2], copy(demands[1]), demands[3], demands[4],
+        copy(demands[2]),
+    ]
+    sweep_K = length(sweep_demands)
+    for sweep_ratio in [0.0, 0.1, 1.0]
+        sweep_weights = [REMK_intersection_weights(sweep_K, sweep_ratio)]
+        sweep_radii = number_of_consumers .* [1.0e-3, 0.05, 0.2, 0.5, 1.0, 3.0]
+        sweep_grid = _multi_item_newsvendor_grid(
+            REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_order,
+            sweep_radii,
+            sweep_demands,
+            sweep_weights,
+            0,
+        )
+        for radius_index in eachindex(sweep_radii)
+            scalar_result =
+                REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_order(
+                    sweep_radii[radius_index], sweep_demands, sweep_weights[1], 0,
+                )
+            @test sweep_grid[radius_index, 1][1] ≈ scalar_result[1] atol = 1.0e-3 rtol = 1.0e-4
+            @test sweep_grid[radius_index, 1][2] ≈ scalar_result[2] atol = 1.0e-2 rtol = 1.0e-3
+        end
+    end
 end
