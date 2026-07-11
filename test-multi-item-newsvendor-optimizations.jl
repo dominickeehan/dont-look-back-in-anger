@@ -131,6 +131,31 @@ function reference_intersection_W2(epsilon, demands, radius_ratio)
 end
 
 
+# Geometry oracle that deliberately bypasses all closed-form shortcuts.
+function reference_minimum_intersection_geometry(normalized_demands, relative_radii)
+    problem = _new_multi_item_model()
+    @variables(problem, begin
+        1.0 >= feasible_point[i = 1:multi_item_dimension] >= 0.0
+        minimum_normalized_epsilon >= 0.0
+    end)
+    for k in eachindex(normalized_demands)
+        @constraint(
+            problem,
+            [
+                relative_radii[k] * minimum_normalized_epsilon;
+                [
+                    feasible_point[i] - normalized_demands[k][i]
+                    for i in 1:multi_item_dimension
+                ]
+            ] in MathOptInterface.SecondOrderCone(multi_item_dimension + 1),
+        )
+    end
+    @objective(problem, Min, minimum_normalized_epsilon)
+    _optimize_multi_item_model!(problem; high_precision = true)
+    return value(minimum_normalized_epsilon), value.(feasible_point)
+end
+
+
 demands = [
     [2.0, 4.0, 3.0],
     [5.0, 3.0, 6.0],
@@ -138,6 +163,71 @@ demands = [
     [4.0, 5.0, 7.0],
 ]
 weights = [0.1, 0.2, 0.3, 0.4]
+
+
+@testset "maximizing-pair intersection certificate" begin
+    first_center = [0.1, 0.2, 0.3]
+    last_center = [0.9, 0.8, 0.7]
+    for radius_ratio in [0.0, 0.05, 0.3, 1.0]
+        K = 5
+        relative_radii = [
+            1.0 + (K - k + 1) * radius_ratio
+            for k in 1:K
+        ]
+        pair_point = first_center .+ (
+            relative_radii[1] / (relative_radii[1] + relative_radii[end])
+        ) .* (last_center .- first_center)
+        normalized_demands = [
+            first_center,
+            copy(pair_point),
+            copy(pair_point),
+            copy(pair_point),
+            last_center,
+        ]
+        reference_epsilon, _ =
+            reference_minimum_intersection_geometry(
+                normalized_demands, relative_radii,
+            )
+
+        multi_item_reset_solver_statistics!()
+        minimum_epsilon, feasible_point =
+            _compute_minimum_intersection_epsilon_and_point(
+                normalized_demands, radius_ratio,
+            )
+        statistics = multi_item_solver_statistics_summary()
+
+        @test minimum_epsilon ≈ reference_epsilon atol = 1.0e-8 rtol = 1.0e-8
+        @test feasible_point ≈ pair_point atol = 1.0e-12 rtol = 1.0e-12
+        @test statistics.geometry_solves == 1
+        @test statistics.pair_certificate_solutions == 1
+        @test statistics.geometry_socp_solves == 0
+    end
+
+    # Three genuinely active balls cannot be certified by any pair and must
+    # retain the high-precision conic fallback in dimensions above two.
+    fallback_demands = [
+        [0.2, 0.2, 0.5],
+        [0.8, 0.2, 0.5],
+        [0.5, 0.8, 0.5],
+    ]
+    fallback_radii = ones(length(fallback_demands))
+    reference_epsilon, _ = reference_minimum_intersection_geometry(
+        fallback_demands, fallback_radii,
+    )
+    multi_item_reset_solver_statistics!()
+    minimum_epsilon, feasible_point =
+        _compute_minimum_intersection_epsilon_and_point(fallback_demands, 0.0)
+    statistics = multi_item_solver_statistics_summary()
+
+    @test minimum_epsilon ≈ reference_epsilon atol = 1.0e-8 rtol = 1.0e-8
+    @test maximum(
+        sqrt(_squared_euclidean_distance(feasible_point, demand))
+        for demand in fallback_demands
+    ) <= minimum_epsilon * (1.0 + 1.0e-9) + 1.0e-12
+    @test statistics.geometry_solves == 1
+    @test statistics.pair_certificate_solutions == 0
+    @test statistics.geometry_socp_solves == 1
+end
 
 
 @testset "compact multi-item newsvendor formulations" begin

@@ -38,6 +38,44 @@ function reference_minimum_intersection_epsilon(normalized_demands, relative_rad
 end
 
 
+@testset "planar maximizing-pair certificate" begin
+    radius_ratio = 0.4
+    K = 4
+    relative_radii = [
+        1.0 + (K - k + 1) * radius_ratio
+        for k in 1:K
+    ]
+    first_center = [0.1, 0.25]
+    last_center = [0.9, 0.75]
+    pair_point = first_center .+ (
+        relative_radii[1] / (relative_radii[1] + relative_radii[end])
+    ) .* (last_center .- first_center)
+    normalized_demands = [
+        first_center,
+        copy(pair_point),
+        copy(pair_point),
+        last_center,
+    ]
+    reference_epsilon =
+        reference_minimum_intersection_epsilon(
+            normalized_demands, relative_radii,
+        )
+
+    multi_item_reset_solver_statistics!()
+    minimum_epsilon, feasible_point =
+        _compute_minimum_intersection_epsilon_and_point(
+            normalized_demands, radius_ratio,
+        )
+    statistics = multi_item_solver_statistics_summary()
+
+    @test minimum_epsilon ≈ reference_epsilon atol = 1.0e-8 rtol = 1.0e-8
+    @test feasible_point ≈ pair_point atol = 1.0e-12 rtol = 1.0e-12
+    @test statistics.geometry_solves == 1
+    @test statistics.pair_certificate_solutions == 1
+    @test statistics.geometry_socp_solves == 0
+end
+
+
 @testset "planar weighted one-center geometry" begin
     rng = MersenneTwister(31415)
     for trial in 1:40

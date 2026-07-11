@@ -65,6 +65,11 @@ const multi_item_intersection_dual_relative_gap_tolerance = 1.0e-6
 const multi_item_intersection_dual_absolute_gap_tolerance = 1.0e-8
 const multi_item_intersection_dual_max_iterations = 2000
 const multi_item_enable_intersection_dual_solver = Ref(true)
+# A maximizing pair supplies a rigorous lower bound on the intersection
+# radius. Accept its equalizer only when its feasible upper bound closes that
+# gap to substantially tighter accuracy than the downstream conic solves.
+const multi_item_pair_certificate_relative_gap_tolerance = 1.0e-12
+const multi_item_pair_certificate_absolute_gap_tolerance = 1.0e-14
 
 
 Base.@kwdef mutable struct _MultiItemSolverStatistics
@@ -76,6 +81,7 @@ Base.@kwdef mutable struct _MultiItemSolverStatistics
     conic_solutions::Int = 0
     numeric_retry_solves::Int = 0
     geometry_solves::Int = 0
+    pair_certificate_solutions::Int = 0
     geometry_socp_solves::Int = 0
     cheap_interior_bound_hits::Int = 0
     active_ball_count_sum::Int = 0
@@ -126,6 +132,7 @@ function multi_item_solver_statistics_summary()
         conic_solutions = aggregate.conic_solutions,
         numeric_retry_solves = aggregate.numeric_retry_solves,
         geometry_solves = aggregate.geometry_solves,
+        pair_certificate_solutions = aggregate.pair_certificate_solutions,
         geometry_socp_solves = aggregate.geometry_socp_solves,
         cheap_interior_bound_hits = aggregate.cheap_interior_bound_hits,
         mean_active_balls = mean_active_balls,
@@ -283,6 +290,61 @@ function _pairwise_intersection_epsilon_lower_bound(normalized_demands, relative
         end
     end
     return best_bound, best_first, best_second
+end
+
+
+# The equalizer of a maximizing pair attains the pairwise lower bound. If that
+# point lies in the support box and covers every other ball at the same radius,
+# it is therefore globally optimal. Floating-point evaluation produces an
+# explicit feasible upper bound; returning that upper bound keeps the reported
+# point feasible while the tolerance below limits its gap from the rigorous
+# pairwise lower bound. Any uncertain case falls through to the exact planar
+# solver or the high-precision conic model.
+function _maximizing_pair_intersection_certificate(
+    normalized_demands,
+    relative_radii,
+    epsilon_lower_bound,
+    first_index,
+    second_index,
+)
+    length(normalized_demands) >= 2 || return nothing
+    first_radius = relative_radii[first_index]
+    second_radius = relative_radii[second_index]
+    radius_sum = first_radius + second_radius
+    isfinite(radius_sum) && radius_sum > 0.0 || return nothing
+
+    segment_fraction = first_radius / radius_sum
+    feasible_point = Vector{Float64}(undef, multi_item_dimension)
+    for i in 1:multi_item_dimension
+        first_value = normalized_demands[first_index][i]
+        candidate_value = first_value + segment_fraction * (
+            normalized_demands[second_index][i] - first_value
+        )
+        isfinite(candidate_value) && 0.0 <= candidate_value <= 1.0 ||
+            return nothing
+        feasible_point[i] = candidate_value
+    end
+
+    epsilon_upper_bound = 0.0
+    for k in eachindex(normalized_demands)
+        radius = relative_radii[k]
+        isfinite(radius) && radius > 0.0 || return nothing
+        required_epsilon =
+            sqrt(_squared_euclidean_distance(feasible_point, normalized_demands[k])) /
+            radius
+        isfinite(required_epsilon) || return nothing
+        epsilon_upper_bound = max(epsilon_upper_bound, required_epsilon)
+    end
+
+    certificate_tolerance = max(
+        multi_item_pair_certificate_absolute_gap_tolerance,
+        multi_item_pair_certificate_relative_gap_tolerance * max(
+            abs(epsilon_lower_bound), abs(epsilon_upper_bound),
+        ),
+    )
+    epsilon_upper_bound <= epsilon_lower_bound + certificate_tolerance ||
+        return nothing
+    return max(epsilon_lower_bound, epsilon_upper_bound), feasible_point
 end
 
 
@@ -509,8 +571,19 @@ function _compute_minimum_intersection_epsilon_and_point(
     end
 
     _multi_item_statistics().geometry_solves += 1
-    epsilon_lower_bound, _, _ =
+    epsilon_lower_bound, initial_first, initial_second =
         _pairwise_intersection_epsilon_lower_bound(normalized_demands, relative_radii)
+    pair_certificate = _maximizing_pair_intersection_certificate(
+        normalized_demands,
+        relative_radii,
+        epsilon_lower_bound,
+        initial_first,
+        initial_second,
+    )
+    if !isnothing(pair_certificate)
+        _multi_item_statistics().pair_certificate_solutions += 1
+        return pair_certificate
+    end
     constraining_indices = _geometry_constraining_ball_indices(
         normalized_demands, relative_radii, epsilon_lower_bound,
     )
