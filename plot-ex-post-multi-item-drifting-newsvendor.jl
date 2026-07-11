@@ -288,12 +288,12 @@ const window_size_grid = unique(round.(
 ))
 const smoothing_parameter_grid = [0.0; LogRange(1.0e-4, 1.0e0, 30)]
 const radius_ratio_grid = [0.0; LogRange(1.0e-4, 1.0e0, 30)]
-const intersection_epsilon_grid =
-    sqrt(number_of_items) * number_of_consumers * unique([
-        LinRange(1.0e-3, 1.0e-2, 10);
-        LinRange(1.0e-2, 1.0e-1, 10);
-        LinRange(1.0e-1, 1.0e0, 10)
-    ])
+const intersection_epsilon_grid = sqrt(number_of_items) * number_of_consumers * unique([
+    0.0;
+    LinRange(1.0e-3, 1.0e-2, 10);
+    LinRange(1.0e-2, 1.0e-1, 10);
+    LinRange(1.0e-1, 1.0e0, 10)
+])
 const intersection_radius_ratio_grid = [
     0.0;
     LogRange(1.0e-4, 1.0e0, 30)
@@ -412,12 +412,15 @@ end
 function _display_and_reset_solver_statistics!()
     solver_statistics = multi_item_solver_statistics_summary()
     if solver_statistics.touching_solutions +
+       solver_statistics.additive_radius_repairs +
        solver_statistics.zero_multiplier_solutions +
        solver_statistics.single_ball_solutions +
        solver_statistics.dual_solver_solutions +
        solver_statistics.conic_solutions +
        solver_statistics.numeric_retry_solves +
-       solver_statistics.pair_certificate_solutions > 0
+       solver_statistics.pair_certificate_solutions +
+       solver_statistics.additive_candidate_certificate_solutions +
+       solver_statistics.additive_geometry_socp_solves > 0
         println(solver_statistics)
     end
     multi_item_reset_solver_statistics!()

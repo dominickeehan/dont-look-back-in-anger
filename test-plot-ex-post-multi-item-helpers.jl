@@ -225,3 +225,41 @@ end
         end
     end
 end
+
+
+@testset "scalar additive-rho intersection grid" begin
+    scalar_demands = [[0.0], [Float64(number_of_consumers)]]
+    scalar_epsilons = [0.0, 0.1 * number_of_consumers]
+    scalar_weights = [
+        REMK_intersection_weights(2, 0.2),
+        REMK_intersection_weights(2, 0.0),
+        REMK_intersection_weights(2, 0.1),
+    ]
+
+    multi_item_reset_solver_statistics!()
+    scalar_grid = _multi_item_newsvendor_grid(
+        REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_order,
+        scalar_epsilons,
+        scalar_demands,
+        scalar_weights,
+        0,
+    )
+    statistics = multi_item_solver_statistics_summary()
+
+    @test statistics.geometry_solves == 0 # The homogeneous 1D path is closed form.
+    @test statistics.additive_geometry_solves == length(scalar_epsilons)
+    @test statistics.additive_geometry_socp_solves == 0
+    @test statistics.additive_radius_repairs ==
+        length(scalar_epsilons) * length(scalar_weights)
+
+    expected_orders = [
+        (2.0 / 3.0) * number_of_consumers,
+        (19.0 / 30.0) * number_of_consumers,
+    ]
+    for radius_index in eachindex(scalar_epsilons),
+        weight_index in eachindex(scalar_weights)
+        objective, order, _ = scalar_grid[radius_index, weight_index]
+        @test objective ≈ 0.0 atol = 1.0e-10
+        @test order ≈ [expected_orders[radius_index]] atol = 1.0e-8
+    end
+end
