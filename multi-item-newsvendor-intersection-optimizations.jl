@@ -103,54 +103,9 @@ function multi_item_solver_statistics_summary()
 end
 
 
-const multi_item_positive_loss_slopes = hcat(overage_costs, underage_costs)
-const multi_item_transformed_order_coefficients = hcat(overage_costs, -underage_costs)
-const multi_item_transformed_loss_constants = hcat(-overage_costs, zeros(number_of_items))
-
-
-function _minimum_scalar_intersection_epsilon_and_point(
-    scalar_demands, relative_radii,
-)
-    K = length(scalar_demands)
-    minimum_epsilon = 0.0
-    for k in 1:K
-        minimum_epsilon = max(
-            minimum_epsilon,
-            (scalar_demands[k] - 1.0) / relative_radii[k],
-            -scalar_demands[k] / relative_radii[k],
-        )
-        for j in 1:k-1
-            minimum_epsilon = max(
-                minimum_epsilon,
-                abs(scalar_demands[j] - scalar_demands[k]) /
-                (relative_radii[j] + relative_radii[k]),
-            )
-        end
-    end
-
-    feasible_lower_bound = max(
-        0.0,
-        maximum(
-            scalar_demands[k] - relative_radii[k] * minimum_epsilon
-            for k in 1:K
-        ),
-    )
-    feasible_upper_bound = min(
-        1.0,
-        minimum(
-            scalar_demands[k] + relative_radii[k] * minimum_epsilon
-            for k in 1:K
-        ),
-    )
-    feasible_point = (feasible_lower_bound + feasible_upper_bound) / 2.0
-    return minimum_epsilon, [feasible_point]
-end
-
-
 # Any feasible point of the geometry problem satisfies both scaled-distance
 # constraints of a pair, so every pair certifies eps >= ||d_j - d_k|| /
-# (relative_j + relative_k); the maximizing pair is also the initial active
-# set of the planar solver.
+# (relative_j + relative_k).
 function _pairwise_intersection_epsilon_lower_bound(normalized_demands, relative_radii)
     K = length(normalized_demands)
     best_bound = 0.0
@@ -238,174 +193,11 @@ function _geometry_constraining_ball_indices(
 end
 
 
-function _planar_pair_point(ax, ay, wa, bx, by, wb)
-    dx = bx - ax
-    dy = by - ay
-    fraction = wa / (wa + wb)
-    return ax + fraction * dx, ay + fraction * dy
-end
-
-
-function _planar_apollonius_points(ax, ay, wa, bx, by, wb, cx, cy, wc)
-    alpha_ab = wb^2 - wa^2
-    beta_ab_x = wb^2 * ax - wa^2 * bx
-    beta_ab_y = wb^2 * ay - wa^2 * by
-    gamma_ab = wb^2 * (ax^2 + ay^2) - wa^2 * (bx^2 + by^2)
-    alpha_ac = wc^2 - wa^2
-    beta_ac_x = wc^2 * ax - wa^2 * cx
-    beta_ac_y = wc^2 * ay - wa^2 * cy
-    gamma_ac = wc^2 * (ax^2 + ay^2) - wa^2 * (cx^2 + cy^2)
-
-    if iszero(alpha_ab) && iszero(alpha_ac)
-        determinant = 4.0 * (beta_ab_x * beta_ac_y - beta_ab_y * beta_ac_x)
-        iszero(determinant) && return 0, NaN, NaN, NaN, NaN
-        px = 2.0 * (gamma_ab * beta_ac_y - gamma_ac * beta_ab_y) / determinant
-        py = 2.0 * (beta_ab_x * gamma_ac - beta_ac_x * gamma_ab) / determinant
-        return 1, px, py, NaN, NaN
-    end
-
-    line_x = 2.0 * (alpha_ac * beta_ab_x - alpha_ab * beta_ac_x)
-    line_y = 2.0 * (alpha_ac * beta_ab_y - alpha_ab * beta_ac_y)
-    line_constant = alpha_ac * gamma_ab - alpha_ab * gamma_ac
-    squared_line_norm = line_x^2 + line_y^2
-    squared_line_norm > 0.0 || return 0, NaN, NaN, NaN, NaN
-    base_x = line_x * line_constant / squared_line_norm
-    base_y = line_y * line_constant / squared_line_norm
-    inverse_line_norm = 1.0 / sqrt(squared_line_norm)
-    tangent_x = -line_y * inverse_line_norm
-    tangent_y = line_x * inverse_line_norm
-
-    if abs(alpha_ab) >= abs(alpha_ac)
-        alpha, beta_x, beta_y, gamma = alpha_ab, beta_ab_x, beta_ab_y, gamma_ab
-    else
-        alpha, beta_x, beta_y, gamma = alpha_ac, beta_ac_x, beta_ac_y, gamma_ac
-    end
-    quadratic_b =
-        2.0 * alpha * (base_x * tangent_x + base_y * tangent_y) -
-        2.0 * (beta_x * tangent_x + beta_y * tangent_y)
-    quadratic_c =
-        alpha * (base_x^2 + base_y^2) -
-        2.0 * (beta_x * base_x + beta_y * base_y) + gamma
-    discriminant = quadratic_b^2 - 4.0 * alpha * quadratic_c
-    discriminant >= 0.0 || return 0, NaN, NaN, NaN, NaN
-    root = sqrt(discriminant)
-    first_step = (-quadratic_b + root) / (2.0 * alpha)
-    second_step = (-quadratic_b - root) / (2.0 * alpha)
-    return 2,
-        base_x + first_step * tangent_x, base_y + first_step * tangent_y,
-        base_x + second_step * tangent_x, base_y + second_step * tangent_y
-end
-
-
-function _planar_active_set_optimum(active, coordinates_x, coordinates_y, scaled_radii)
-    candidates = Tuple{Float64,Float64}[]
-    m = length(active)
-    for a_position in 1:m
-        a = active[a_position]
-        push!(candidates, (coordinates_x[a], coordinates_y[a]))
-        for b_position in a_position+1:m
-            b = active[b_position]
-            push!(
-                candidates,
-                _planar_pair_point(
-                    coordinates_x[a], coordinates_y[a], scaled_radii[a],
-                    coordinates_x[b], coordinates_y[b], scaled_radii[b],
-                ),
-            )
-            for c_position in b_position+1:m
-                c = active[c_position]
-                count, first_x, first_y, second_x, second_y =
-                    _planar_apollonius_points(
-                        coordinates_x[a], coordinates_y[a], scaled_radii[a],
-                        coordinates_x[b], coordinates_y[b], scaled_radii[b],
-                        coordinates_x[c], coordinates_y[c], scaled_radii[c],
-                    )
-                count >= 1 && push!(candidates, (first_x, first_y))
-                count >= 2 && push!(candidates, (second_x, second_y))
-            end
-        end
-    end
-
-    best_value = Inf
-    best_x = NaN
-    best_y = NaN
-    for (raw_x, raw_y) in candidates
-        point_x = clamp(raw_x, 0.0, 1.0)
-        point_y = clamp(raw_y, 0.0, 1.0)
-        worst = 0.0
-        for k in active
-            worst = max(
-                worst,
-                sqrt(
-                    (point_x - coordinates_x[k])^2 +
-                    (point_y - coordinates_y[k])^2,
-                ) / scaled_radii[k],
-            )
-        end
-        if worst < best_value
-            best_value = worst
-            best_x = point_x
-            best_y = point_y
-        end
-    end
-    return best_value, best_x, best_y
-end
-
-
-function _solve_planar_weighted_one_center(
-    normalized_demands, relative_radii, initial_first, initial_second,
-)
-    K = length(normalized_demands)
-    coordinates_x = [demand[1] for demand in normalized_demands]
-    coordinates_y = [demand[2] for demand in normalized_demands]
-    radius_scale = maximum(relative_radii)
-    scaled_radii = relative_radii ./ radius_scale
-    all(radius -> radius^2 > 0.0, scaled_radii) || return nothing
-
-    if K == 1
-        return 0.0, [
-            clamp(coordinates_x[1], 0.0, 1.0),
-            clamp(coordinates_y[1], 0.0, 1.0),
-        ]
-    end
-
-    active = [initial_first, initial_second]
-    for _ in 1:12
-        value, point_x, point_y = _planar_active_set_optimum(
-            active, coordinates_x, coordinates_y, scaled_radii,
-        )
-        certificate_threshold = value * (1.0 + 1.0e-12) + 1.0e-15
-        worst_index = 0
-        worst_value = certificate_threshold
-        for k in 1:K
-            coverage = sqrt(
-                (point_x - coordinates_x[k])^2 +
-                (point_y - coordinates_y[k])^2,
-            ) / scaled_radii[k]
-            if coverage > worst_value
-                worst_value = coverage
-                worst_index = k
-            end
-        end
-        worst_index == 0 && return value / radius_scale, [point_x, point_y]
-        worst_index in active && return nothing
-        push!(active, worst_index)
-    end
-    return nothing
-end
-
-
 function _compute_minimum_intersection_epsilon_and_point(
     normalized_demands, radius_ratio,
 )
     K = length(normalized_demands)
     relative_radii = [1.0 + (K - k + 1) * radius_ratio for k in 1:K]
-
-    if number_of_items == 1
-        return _minimum_scalar_intersection_epsilon_and_point(
-            [normalized_demands[k][1] for k in 1:K], relative_radii,
-        )
-    end
 
     _multi_item_statistics().geometry_solves += 1
     epsilon_lower_bound, initial_first, initial_second =
@@ -426,16 +218,6 @@ function _compute_minimum_intersection_epsilon_and_point(
     )
     constraining_demands = normalized_demands[constraining_indices]
     constraining_radii = relative_radii[constraining_indices]
-
-    if number_of_items == 2
-        _, initial_first, initial_second = _pairwise_intersection_epsilon_lower_bound(
-            constraining_demands, constraining_radii,
-        )
-        planar_solution = _solve_planar_weighted_one_center(
-            constraining_demands, constraining_radii, initial_first, initial_second,
-        )
-        isnothing(planar_solution) || return planar_solution
-    end
 
     _multi_item_statistics().geometry_socp_solves += 1
     geometry_problem = _new_multi_item_model()
@@ -473,118 +255,6 @@ function _minimum_intersection_epsilon_and_point(normalized_demands, radius_rati
             normalized_demands, radius_ratio,
         )
     end
-end
-
-
-struct _ScalarAdditiveIntersectionGeometry
-    demands::Vector{Float64}
-    coefficients::Vector{Float64}
-    support_distances::Vector{Float64}
-    maximum_pair_distances_by_coefficient_sum::Vector{Float64}
-end
-
-
-function _prepare_scalar_additive_intersection_geometry(scalar_demands)
-    K = length(scalar_demands)
-    demands = Float64.(scalar_demands)
-    coefficients = Float64[K - k + 1 for k in 1:K]
-    support_distances = [max(0.0, -demand, demand - 1.0) for demand in demands]
-
-    maximum_pair_distances_by_coefficient_sum = fill(-Inf, 2 * K)
-    for j in 1:K, k in j+1:K
-        coefficient_sum = (K - j + 1) + (K - k + 1)
-        pair_distance = abs(demands[j] - demands[k])
-        maximum_pair_distances_by_coefficient_sum[coefficient_sum] = max(
-            maximum_pair_distances_by_coefficient_sum[coefficient_sum],
-            pair_distance,
-        )
-    end
-    return _ScalarAdditiveIntersectionGeometry(
-        demands,
-        coefficients,
-        support_distances,
-        maximum_pair_distances_by_coefficient_sum,
-    )
-end
-
-
-function _minimum_scalar_additive_intersection_rho_and_point(
-    geometry::_ScalarAdditiveIntersectionGeometry, normalized_epsilon,
-)
-    K = length(geometry.demands)
-    minimum_normalized_rho = 0.0
-    for k in 1:K
-        minimum_normalized_rho = max(
-            minimum_normalized_rho,
-            (geometry.support_distances[k] - normalized_epsilon) /
-            geometry.coefficients[k],
-        )
-    end
-    for coefficient_sum in eachindex(
-        geometry.maximum_pair_distances_by_coefficient_sum,
-    )
-        pair_distance =
-            geometry.maximum_pair_distances_by_coefficient_sum[coefficient_sum]
-        pair_distance == -Inf && continue
-        minimum_normalized_rho = max(
-            minimum_normalized_rho,
-            (pair_distance - 2.0 * normalized_epsilon) / coefficient_sum,
-        )
-    end
-
-    feasible_lower_bound = 0.0
-    feasible_upper_bound = 1.0
-    for k in 1:K
-        radius =
-            normalized_epsilon +
-            geometry.coefficients[k] * minimum_normalized_rho
-        feasible_lower_bound = max(
-            feasible_lower_bound,
-            geometry.demands[k] - radius,
-        )
-        feasible_upper_bound = min(
-            feasible_upper_bound,
-            geometry.demands[k] + radius,
-        )
-    end
-    feasible_point = clamp(
-        (feasible_lower_bound + feasible_upper_bound) / 2.0,
-        0.0,
-        1.0,
-    )
-    for _ in 1:8
-        corrected_rho = minimum_normalized_rho
-        feasible = true
-        for k in 1:K
-            coefficient = geometry.coefficients[k]
-            distance = abs(feasible_point - geometry.demands[k])
-            radius = normalized_epsilon + coefficient * corrected_rho
-            if radius < distance
-                feasible = false
-                gap_increment = (distance - radius) / coefficient
-                direct_requirement =
-                    (distance - normalized_epsilon) / coefficient
-                corrected_rho = max(
-                    corrected_rho,
-                    nextfloat(corrected_rho + gap_increment),
-                    nextfloat(direct_requirement),
-                )
-            end
-        end
-        minimum_normalized_rho = corrected_rho
-        feasible && return minimum_normalized_rho, [feasible_point]
-    end
-    error("failed to construct the scalar additive intersection point")
-end
-
-
-function _minimum_scalar_additive_intersection_rho_and_point(
-    scalar_demands, normalized_epsilon,
-)
-    return _minimum_scalar_additive_intersection_rho_and_point(
-        _prepare_scalar_additive_intersection_geometry(scalar_demands),
-        normalized_epsilon,
-    )
 end
 
 
@@ -719,21 +389,9 @@ end
 
 function _compute_minimum_additive_intersection_rho_and_point(
     normalized_demands,
-    normalized_epsilon;
-    scalar_geometry = nothing,
+    normalized_epsilon,
 )
     _multi_item_statistics().additive_geometry_solves += 1
-
-    if number_of_items == 1
-        geometry = isnothing(scalar_geometry) ?
-            _prepare_scalar_additive_intersection_geometry(
-                [demand[1] for demand in normalized_demands],
-            ) :
-            scalar_geometry
-        return _minimum_scalar_additive_intersection_rho_and_point(
-            geometry, normalized_epsilon,
-        )
-    end
 
     K = length(normalized_demands)
     coefficients = Float64[K - k + 1 for k in 1:K]
@@ -859,13 +517,17 @@ function _active_intersection_ball_indices(normalized_demands, normalized_ball_r
 end
 
 
-function _zero_multiplier_normalized_order()
-    critical_fractiles = underage_costs ./ (underage_costs .+ overage_costs)
+function _zero_multiplier_normalized_order(
+    instance_underage_costs, instance_overage_costs,
+)
+    critical_fractiles =
+        instance_underage_costs ./
+        (instance_underage_costs .+ instance_overage_costs)
     order = zeros(number_of_items)
     remaining_budget = normalized_order_budget
 
-    for underage_cost in sort(unique(underage_costs); rev = true)
-        item_indices = findall(==(underage_cost), underage_costs)
+    for underage_cost in sort(unique(instance_underage_costs); rev = true)
+        item_indices = findall(==(underage_cost), instance_underage_costs)
         group_capacity = sum(critical_fractiles[item_indices])
         allocation_fraction = min(1.0, remaining_budget / group_capacity)
         order[item_indices] .= allocation_fraction .* critical_fractiles[item_indices]
@@ -876,9 +538,19 @@ function _zero_multiplier_normalized_order()
 end
 
 
-function _zero_multiplier_epsilon_threshold(normalized_demands, relative_radii)
-    critical_fractiles = underage_costs ./ (underage_costs .+ overage_costs)
-    zero_multiplier_order = _zero_multiplier_normalized_order()
+function _zero_multiplier_epsilon_threshold(
+    normalized_demands,
+    relative_radii,
+    instance_underage_costs,
+    instance_overage_costs,
+)
+    critical_fractiles =
+        instance_underage_costs ./
+        (instance_underage_costs .+ instance_overage_costs)
+    zero_multiplier_order = _zero_multiplier_normalized_order(
+        instance_underage_costs,
+        instance_overage_costs,
+    )
     threshold = 0.0
     for k in eachindex(normalized_demands)
         required_squared_radius = 0.0
@@ -936,9 +608,11 @@ function _minimum_intersection_epsilon_upper_bound_and_point(
 end
 
 
-function _build_intersection_DRO_model(normalized_demands)
+function _build_intersection_DRO_model(
+    normalized_demands, instance_underage_costs, instance_overage_costs,
+)
     K = length(normalized_demands)
-    number_of_loss_pieces = size(multi_item_positive_loss_slopes, 2)
+    number_of_loss_pieces = 2
     problem = _new_multi_item_model()
     @variables(problem, begin
         1.0 >= normalized_order[i = 1:number_of_items] >= 0.0
@@ -953,6 +627,16 @@ function _build_intersection_DRO_model(normalized_demands)
 
     lambda_sum = sum(lambda[k] for k in 1:K)
     for i in 1:number_of_items, l in 1:number_of_loss_pieces
+        positive_loss_slope =
+            l == 1 ?
+            instance_overage_costs[i] :
+            instance_underage_costs[i]
+        transformed_order_coefficient =
+            l == 1 ?
+            instance_overage_costs[i] :
+            -instance_underage_costs[i]
+        transformed_loss_constant =
+            l == 1 ? -instance_overage_costs[i] : 0.0
         weighted_demand = sum(
             lambda[k] * (
                 l == 1 ?
@@ -973,10 +657,10 @@ function _build_intersection_DRO_model(normalized_demands)
             [
                 2.0 * lambda_sum;
                 eta[i] -
-                multi_item_transformed_order_coefficients[i, l] * normalized_order[i] -
-                multi_item_transformed_loss_constants[i, l] +
+                transformed_order_coefficient * normalized_order[i] -
+                transformed_loss_constant +
                 weighted_squared_demand - z[i, l];
-                multi_item_positive_loss_slopes[i, l] +
+                positive_loss_slope +
                 2.0 * weighted_demand - z[i, l]
             ] in MathOptInterface.RotatedSecondOrderCone(3),
         )
@@ -989,12 +673,17 @@ function _build_intersection_DRO_model(normalized_demands)
 end
 
 
-function _zero_multiplier_solution()
-    normalized_order = _zero_multiplier_normalized_order()
+function _zero_multiplier_solution(
+    instance_underage_costs, instance_overage_costs,
+)
+    normalized_order = _zero_multiplier_normalized_order(
+        instance_underage_costs,
+        instance_overage_costs,
+    )
     normalized_objective = sum(
         max(
-            underage_costs[i] * (1.0 - normalized_order[i]),
-            overage_costs[i] * normalized_order[i],
+            instance_underage_costs[i] * (1.0 - normalized_order[i]),
+            instance_overage_costs[i] * normalized_order[i],
         )
         for i in 1:number_of_items
     )
@@ -1006,11 +695,19 @@ end
 
 
 function _intersection_zero_multiplier_solution(
-    normalized_demands, normalized_ball_radii,
+    normalized_demands,
+    normalized_ball_radii,
+    instance_underage_costs,
+    instance_overage_costs,
 )
     K = length(normalized_demands)
-    critical_fractiles = underage_costs ./ (underage_costs .+ overage_costs)
-    normalized_order = _zero_multiplier_normalized_order()
+    critical_fractiles =
+        instance_underage_costs ./
+        (instance_underage_costs .+ instance_overage_costs)
+    normalized_order = _zero_multiplier_normalized_order(
+        instance_underage_costs,
+        instance_overage_costs,
+    )
     is_optimal = all(1:K) do k
         required_squared_radius = sum(
             if normalized_order[i] < critical_fractiles[i]
@@ -1025,17 +722,27 @@ function _intersection_zero_multiplier_solution(
         normalized_ball_radii[k]^2 >= required_squared_radius
     end
     is_optimal || return nothing
-    return _zero_multiplier_solution()
+    return _zero_multiplier_solution(
+        instance_underage_costs,
+        instance_overage_costs,
+    )
 end
 
 
 function _single_ball_intersection_solution(
-    normalized_demand, normalized_radius,
+    normalized_demand,
+    normalized_radius,
+    instance_underage_costs,
+    instance_overage_costs,
 )
     demand = number_of_consumers .* normalized_demand
     epsilon = number_of_consumers * normalized_radius
     return W2_DRO_multi_item_newsvendor_objective_value_and_order(
-        epsilon, [demand], [1.0],
+        epsilon,
+        [demand],
+        [1.0],
+        instance_underage_costs,
+        instance_overage_costs,
     )
 end
 
@@ -1050,6 +757,8 @@ function _intersection_dual_objective_and_gradient!(
     lambda,
     demand_matrix,
     squared_radii,
+    instance_underage_costs,
+    instance_overage_costs,
 )
     K, n = size(demand_matrix)
     total_multiplier = 0.0
@@ -1061,8 +770,8 @@ function _intersection_dual_objective_and_gradient!(
     end
 
     for i in 1:n
-        underage = underage_costs[i]
-        overage = overage_costs[i]
+        underage = instance_underage_costs[i]
+        overage = instance_overage_costs[i]
         if total_multiplier > 0.0
             weighted_center = 0.0
             weighted_squared_center = 0.0
@@ -1076,16 +785,11 @@ function _intersection_dual_objective_and_gradient!(
                 underage * center + underage * upper_displacement -
                 total_multiplier * upper_displacement^2
             atom_upper[i] = center + upper_displacement
-            if overage > 0.0
-                lower_displacement = min(center, overage / (2.0 * total_multiplier))
-                overage_conjugate =
-                    -overage * (center - lower_displacement) -
-                    total_multiplier * lower_displacement^2
-                atom_lower[i] = center - lower_displacement
-            else
-                overage_conjugate = 0.0
-                atom_lower[i] = center
-            end
+            lower_displacement = min(center, overage / (2.0 * total_multiplier))
+            overage_conjugate =
+                -overage * (center - lower_displacement) -
+                total_multiplier * lower_displacement^2
+            atom_lower[i] = center - lower_displacement
             recentering_value =
                 total_multiplier * center^2 - weighted_squared_center
         else
@@ -1137,6 +841,8 @@ function _certified_intersection_dual_solution(
     weight_lower,
     order,
     interior_point,
+    instance_underage_costs,
+    instance_overage_costs,
 )
     K, n = size(demand_matrix)
 
@@ -1167,8 +873,8 @@ function _certified_intersection_dual_solution(
         lower_bound +=
             (atom_upper[i] - atom_lower[i]) *
             min(
-                weight_upper[i] * underage_costs[i],
-                weight_lower[i] * overage_costs[i],
+                weight_upper[i] * instance_underage_costs[i],
+                weight_lower[i] * instance_overage_costs[i],
             )
     end
     lower_bound *= 1.0 - contraction
@@ -1182,12 +888,19 @@ function _certified_intersection_dual_solution(
 end
 
 
-function _initial_intersection_dual_lambda(active_normalized_demands, squared_radii)
+function _initial_intersection_dual_lambda(
+    active_normalized_demands,
+    squared_radii,
+    instance_underage_costs,
+    instance_overage_costs,
+)
     lambda = zeros(length(squared_radii))
     smallest_index = argmin(squared_radii)
     closed_form_data = _prepare_weighted_W2_closed_form(
         [number_of_consumers .* active_normalized_demands[smallest_index]],
         [1.0],
+        instance_underage_costs,
+        instance_overage_costs,
     )
     _, _, displacement_terms = closed_form_data
     lambda[smallest_index] =
@@ -1201,6 +914,8 @@ function _solve_intersection_dual(
     active_normalized_ball_radii,
     interior_point,
     initial_lambda,
+    instance_underage_costs,
+    instance_overage_costs,
 )
     K = length(active_normalized_demands)
     n = number_of_items
@@ -1223,7 +938,11 @@ function _solve_intersection_dual(
 
     objective = _intersection_dual_objective_and_gradient!(
         gradient, atom_upper, atom_lower, weight_upper, weight_lower, order,
-        lambda, demand_matrix, squared_radii,
+        lambda,
+        demand_matrix,
+        squared_radii,
+        instance_underage_costs,
+        instance_overage_costs,
     )
 
     history_length = 10
@@ -1237,6 +956,8 @@ function _solve_intersection_dual(
             objective, lambda, demand_matrix, squared_radii,
             atom_upper, atom_lower, weight_upper, weight_lower, order,
             interior_point,
+            instance_underage_costs,
+            instance_overage_costs,
         )
         if !isnothing(certified)
             certified_objective, certified_order = certified
@@ -1261,7 +982,11 @@ function _solve_intersection_dual(
             trial_objective = _intersection_dual_objective_and_gradient!(
                 trial_gradient, atom_upper, atom_lower,
                 weight_upper, weight_lower, order,
-                trial_lambda, demand_matrix, squared_radii,
+                trial_lambda,
+                demand_matrix,
+                squared_radii,
+                instance_underage_costs,
+                instance_overage_costs,
             )
             if trial_objective <=
                reference_objective + 1.0e-4 * step * directional_derivative
@@ -1294,6 +1019,8 @@ function _solve_intersection_dual(
         objective, lambda, demand_matrix, squared_radii,
         atom_upper, atom_lower, weight_upper, weight_lower, order,
         interior_point,
+        instance_underage_costs,
+        instance_overage_costs,
     )
     isnothing(certified) && return nothing
     certified_objective, certified_order = certified
@@ -1302,7 +1029,11 @@ end
 
 
 function REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_order(
-    epsilon, demands, weights,
+    epsilon,
+    demands,
+    weights,
+    instance_underage_costs,
+    instance_overage_costs,
 )
     K = length(demands)
 
@@ -1311,7 +1042,10 @@ function REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_orde
     normalized_ball_radii = ball_radii ./ number_of_consumers
 
     zero_multiplier_solution = _intersection_zero_multiplier_solution(
-        normalized_demands, normalized_ball_radii,
+        normalized_demands,
+        normalized_ball_radii,
+        instance_underage_costs,
+        instance_overage_costs,
     )
     if !isnothing(zero_multiplier_solution)
         _multi_item_statistics().zero_multiplier_solutions += 1
@@ -1341,7 +1075,11 @@ function REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_orde
             _multi_item_statistics().touching_solutions += 1
             touching_demand = number_of_consumers .* additive_feasible_point
             return SO_multi_item_newsvendor_objective_value_and_order(
-                0.0, [touching_demand], [1.0],
+                0.0,
+                [touching_demand],
+                [1.0],
+                instance_underage_costs,
+                instance_overage_costs,
             )
         end
         feasible_point = additive_feasible_point
@@ -1354,15 +1092,14 @@ function REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_orde
     statistics.total_ball_count_sum += K
     statistics.pruned_solve_observations += 1
 
-    if isempty(active_indices)
-        statistics.zero_multiplier_solutions += 1
-        return _zero_multiplier_solution()
-    end
     if length(active_indices) == 1
         statistics.single_ball_solutions += 1
         k = active_indices[1]
         return _single_ball_intersection_solution(
-            normalized_demands[k], normalized_ball_radii[k],
+            normalized_demands[k],
+            normalized_ball_radii[k],
+            instance_underage_costs,
+            instance_overage_costs,
         )
     end
 
@@ -1373,7 +1110,14 @@ function REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_orde
             active_demands,
             active_radii,
             feasible_point,
-            _initial_intersection_dual_lambda(active_demands, active_radii .^ 2),
+            _initial_intersection_dual_lambda(
+                active_demands,
+                active_radii .^ 2,
+                instance_underage_costs,
+                instance_overage_costs,
+            ),
+            instance_underage_costs,
+            instance_overage_costs,
         )
         if !isnothing(dual_solution)
             normalized_objective, normalized_order_values, _ = dual_solution
@@ -1391,7 +1135,11 @@ function REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_orde
     end
 
     problem, normalized_order, lambda, radius_penalty, radius_penalty_constraint =
-        _build_intersection_DRO_model(active_demands)
+        _build_intersection_DRO_model(
+            active_demands,
+            instance_underage_costs,
+            instance_overage_costs,
+        )
     set_normalized_coefficient(
         fill(radius_penalty_constraint, length(active_indices)),
         collect(lambda),
@@ -1412,6 +1160,8 @@ function _multi_item_newsvendor_grid(
     ambiguity_radii,
     demands,
     weight_vectors,
+    instance_underage_costs,
+    instance_overage_costs,
 )
     K = length(demands)
     normalized_demands = [demand ./ number_of_consumers for demand in demands]
@@ -1442,8 +1192,6 @@ function _multi_item_newsvendor_grid(
         )
     minimum_ratio_geometry = nothing
     additive_geometries = Dict{Float64,Tuple{Float64,Vector{Float64}}}()
-    scalar_additive_geometry =
-        Ref{Union{Nothing,_ScalarAdditiveIntersectionGeometry}}(nothing)
 
     problem = nothing
     normalized_order = nothing
@@ -1458,7 +1206,12 @@ function _multi_item_newsvendor_grid(
         relative_radius_scale = maximum(relative_radii)
         scaled_relative_radii = relative_radii ./ relative_radius_scale
         zero_multiplier_threshold =
-            _zero_multiplier_epsilon_threshold(normalized_demands, relative_radii)
+            _zero_multiplier_epsilon_threshold(
+                normalized_demands,
+                relative_radii,
+                instance_underage_costs,
+                instance_overage_costs,
+            )
 
         radius_penalty_is_current = false
         warm_lambda_full = nothing
@@ -1469,7 +1222,10 @@ function _multi_item_newsvendor_grid(
             if normalized_epsilon >= zero_multiplier_threshold
                 statistics.zero_multiplier_solutions += 1
                 results[radius_index, weight_index] =
-                    _zero_multiplier_solution()
+                    _zero_multiplier_solution(
+                        instance_underage_costs,
+                        instance_overage_costs,
+                    )
                 continue
             end
 
@@ -1493,17 +1249,9 @@ function _multi_item_newsvendor_grid(
                     minimum_normalized_rho, additive_feasible_point = get!(
                         additive_geometries, normalized_epsilon,
                     ) do
-                        if number_of_items == 1 &&
-                           isnothing(scalar_additive_geometry[])
-                            scalar_additive_geometry[] =
-                                _prepare_scalar_additive_intersection_geometry(
-                                    [demand[1] for demand in normalized_demands],
-                                )
-                        end
                         _compute_minimum_additive_intersection_rho_and_point(
                             normalized_demands,
-                            normalized_epsilon;
-                            scalar_geometry = scalar_additive_geometry[],
+                            normalized_epsilon,
                         )
                     end
                     requested_normalized_rho = normalized_epsilon * radius_ratio
@@ -1522,6 +1270,8 @@ function _multi_item_newsvendor_grid(
                                 0.0,
                                 [touching_demand],
                                 [1.0],
+                                instance_underage_costs,
+                                instance_overage_costs,
                             )
                         continue
                     end
@@ -1541,12 +1291,6 @@ function _multi_item_newsvendor_grid(
             statistics.total_ball_count_sum += K
             statistics.pruned_solve_observations += 1
 
-            if isempty(active_indices)
-                statistics.zero_multiplier_solutions += 1
-                results[radius_index, weight_index] =
-                    _zero_multiplier_solution()
-                continue
-            end
             if length(active_indices) == 1
                 statistics.single_ball_solutions += 1
                 k = active_indices[1]
@@ -1554,6 +1298,8 @@ function _multi_item_newsvendor_grid(
                     _single_ball_intersection_solution(
                         normalized_demands[k],
                         normalized_ball_radii[k],
+                        instance_underage_costs,
+                        instance_overage_costs,
                     )
                 warm_lambda_full = nothing
                 continue
@@ -1564,11 +1310,19 @@ function _multi_item_newsvendor_grid(
             if multi_item_enable_intersection_dual_solver[]
                 initial_lambda = isnothing(warm_lambda_full) ?
                     _initial_intersection_dual_lambda(
-                        active_demands, active_radii .^ 2,
+                        active_demands,
+                        active_radii .^ 2,
+                        instance_underage_costs,
+                        instance_overage_costs,
                     ) :
                     warm_lambda_full[active_indices]
                 dual_solution = _solve_intersection_dual(
-                    active_demands, active_radii, interior_point, initial_lambda,
+                    active_demands,
+                    active_radii,
+                    interior_point,
+                    initial_lambda,
+                    instance_underage_costs,
+                    instance_overage_costs,
                 )
                 if !isnothing(dual_solution)
                     dual_objective, dual_order, dual_lambda = dual_solution
@@ -1594,7 +1348,11 @@ function _multi_item_newsvendor_grid(
                 lambda,
                 radius_penalty,
                 radius_penalty_constraint =
-                    _build_intersection_DRO_model(normalized_demands)
+                    _build_intersection_DRO_model(
+                        normalized_demands,
+                        instance_underage_costs,
+                        instance_overage_costs,
+                    )
             end
             if !radius_penalty_is_current
                 set_normalized_coefficient(

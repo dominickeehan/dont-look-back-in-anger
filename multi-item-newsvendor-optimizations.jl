@@ -4,11 +4,9 @@ using JuMP, MathOptInterface, Gurobi
 # This file expects the following experiment constants to be defined in the
 # main script before it is included:
 #
-# const number_of_items = 1
+# const number_of_items = 3
 # const number_of_consumers = 1000
-# const underage_costs = [4.0]
-# const overage_costs = [1.0]
-# const budget = 1000.0
+# const budget = number_of_items * number_of_consumers
 
 
 # Unit procurement costs are one, so `budget` limits the total order quantity.
@@ -48,8 +46,6 @@ const multi_item_first_attempt_barrier_gap_tolerance = 1.0e-6
 
 
 # Each item's newsvendor loss is the maximum of two affine functions.
-const multi_item_loss_demand_coefficients = hcat(-overage_costs, underage_costs)
-const multi_item_loss_order_coefficients = -multi_item_loss_demand_coefficients
 const multi_item_support_matrix = [-1.0, 1.0]
 const multi_item_normalized_support_rhs = [0.0, 1.0]
 
@@ -100,19 +96,22 @@ end
 function _weighted_newsvendor_quantile(values, weights, probability)
     permutation = sortperm(values)
     cumulative_weight = 0.0
-    for index in permutation
+    for position in eachindex(permutation)
+        index = permutation[position]
         cumulative_weight += weights[index]
-        cumulative_weight >= probability && return values[index]
+        (cumulative_weight >= probability || position == lastindex(permutation)) &&
+            return values[index]
     end
-    return values[permutation[end]]
 end
 
 
 function SO_multi_item_newsvendor_objective_value_and_order(
-    _, demands, weights,
+    _, demands, weights, instance_underage_costs, instance_overage_costs,
 )
     demands, weights = _normalized_positive_weights_and_demands(demands, weights)
-    critical_fractiles = underage_costs ./ (underage_costs .+ overage_costs)
+    critical_fractiles =
+        instance_underage_costs ./
+        (instance_underage_costs .+ instance_overage_costs)
 
     order = [
         clamp(
@@ -130,8 +129,10 @@ function SO_multi_item_newsvendor_objective_value_and_order(
     if _multi_item_order_satisfies_budget(order)
         objective = sum(
             weights[t] * sum(
-                underage_costs[i] * max(demands[t][i] - order[i], 0.0) +
-                overage_costs[i] * max(order[i] - demands[t][i], 0.0)
+                instance_underage_costs[i] *
+                max(demands[t][i] - order[i], 0.0) +
+                instance_overage_costs[i] *
+                max(order[i] - demands[t][i], 0.0)
                 for i in 1:number_of_items
             ) for t in eachindex(demands)
         )
@@ -157,8 +158,8 @@ function SO_multi_item_newsvendor_objective_value_and_order(
         Min,
         sum(
             weights[t] * (
-                underage_costs[i] * underage[t, i] +
-                overage_costs[i] * overage[t, i]
+                instance_underage_costs[i] * underage[t, i] +
+                instance_overage_costs[i] * overage[t, i]
             ) for t in 1:T, i in 1:number_of_items
         ),
     )
@@ -168,19 +169,17 @@ end
 
 
 function _conic_W2_DRO_multi_item_newsvendor_objective_value_and_order(
-    epsilon, demands, weights,
+    epsilon,
+    demands,
+    weights,
+    instance_underage_costs,
+    instance_overage_costs,
 )
-    if iszero(epsilon)
-        return SO_multi_item_newsvendor_objective_value_and_order(
-            epsilon, demands, weights,
-        )
-    end
-
     demands, weights = _normalized_positive_weights_and_demands(demands, weights)
     normalized_demands = [demand ./ number_of_consumers for demand in demands]
     normalized_epsilon = epsilon / number_of_consumers
     T = length(normalized_demands)
-    number_of_loss_pieces = size(multi_item_loss_demand_coefficients, 2)
+    number_of_loss_pieces = 2
 
     problem = _new_multi_item_model()
     @variables(problem, begin
@@ -196,15 +195,20 @@ function _conic_W2_DRO_multi_item_newsvendor_objective_value_and_order(
 
     for t in 1:T, i in 1:number_of_items, l in 1:number_of_loss_pieces
         demand = normalized_demands[t][i]
+        demand_coefficient =
+            l == 1 ?
+            -instance_overage_costs[i] :
+            instance_underage_costs[i]
+        order_coefficient = -demand_coefficient
         @constraint(
             problem,
             [
                 2.0 * lambda;
                 gamma[t, i] -
-                multi_item_loss_order_coefficients[i, l] * normalized_order[i] +
+                order_coefficient * normalized_order[i] +
                 lambda * demand^2 -
                 sum(z[t, i, l, m] * multi_item_normalized_support_rhs[m] for m in 1:2);
-                multi_item_loss_demand_coefficients[i, l] +
+                demand_coefficient +
                 2.0 * lambda * demand -
                 sum(multi_item_support_matrix[m] * z[t, i, l, m] for m in 1:2)
             ] in MathOptInterface.RotatedSecondOrderCone(3),
@@ -249,7 +253,9 @@ function _push_weighted_W2_displacement_term!(
 end
 
 
-function _prepare_weighted_W2_closed_form(demands, weights)
+function _prepare_weighted_W2_closed_form(
+    demands, weights, instance_underage_costs, instance_overage_costs,
+)
     T = length(demands)
     normalized_demands = Matrix{Float64}(undef, T, number_of_items)
     for t in 1:T, i in 1:number_of_items
@@ -260,8 +266,8 @@ function _prepare_weighted_W2_closed_form(demands, weights)
     displacement_terms = _WeightedW2DisplacementTerm[]
 
     for i in 1:number_of_items
-        underage_cost = underage_costs[i]
-        overage_cost = overage_costs[i]
+        underage_cost = instance_underage_costs[i]
+        overage_cost = instance_overage_costs[i]
         critical_fractile = underage_cost / (underage_cost + overage_cost)
         item_demands = view(normalized_demands, :, i)
         quantile_demand =
@@ -308,42 +314,6 @@ function _prepare_weighted_W2_closed_form(demands, weights)
 end
 
 
-function _weighted_W2_squared_displacement(lambda, displacement_terms)
-    return sum(
-        (
-            lambda < term.threshold ?
-            term.saturated_value :
-            term.inverse_square_coefficient / lambda^2
-            for term in displacement_terms
-        );
-        init = 0.0,
-    )
-end
-
-
-function _weighted_W2_lambda_by_bisection(
-    normalized_epsilon_squared, displacement_terms,
-)
-    lower = 0.0
-    upper = isempty(displacement_terms) ? 1.0 : displacement_terms[end].threshold
-    while _weighted_W2_squared_displacement(upper, displacement_terms) >
-          normalized_epsilon_squared
-        upper *= 2.0
-    end
-
-    for _ in 1:100
-        midpoint = (lower + upper) / 2.0
-        if _weighted_W2_squared_displacement(midpoint, displacement_terms) >
-           normalized_epsilon_squared
-            lower = midpoint
-        else
-            upper = midpoint
-        end
-    end
-    return (lower + upper) / 2.0
-end
-
-
 function _optimal_weighted_W2_lambda(
     normalized_epsilon_squared, displacement_terms,
 )
@@ -375,10 +345,7 @@ function _optimal_weighted_W2_lambda(
             end
         end
     end
-
-    return _weighted_W2_lambda_by_bisection(
-        normalized_epsilon_squared, displacement_terms,
-    )
+    error("failed to identify the weighted-W2 multiplier interval")
 end
 
 
@@ -401,6 +368,8 @@ function _solve_weighted_W2_closed_form(
     quantiles,
     displacement_terms,
     weights,
+    instance_underage_costs,
+    instance_overage_costs,
 )
     normalized_epsilon_squared = (epsilon / number_of_consumers)^2
     lambda = _optimal_weighted_W2_lambda(
@@ -409,11 +378,13 @@ function _solve_weighted_W2_closed_form(
 
     normalized_order = zeros(number_of_items)
     if iszero(lambda)
-        normalized_order .= underage_costs ./ (underage_costs .+ overage_costs)
+        normalized_order .=
+            instance_underage_costs ./
+            (instance_underage_costs .+ instance_overage_costs)
     else
         for i in 1:number_of_items
-            underage_cost = underage_costs[i]
-            overage_cost = overage_costs[i]
+            underage_cost = instance_underage_costs[i]
+            overage_cost = instance_overage_costs[i]
             normalized_order[i] = clamp(
                 (
                     _bounded_linear_quadratic_conjugate(
@@ -433,8 +404,8 @@ function _solve_weighted_W2_closed_form(
     normalized_objective = normalized_epsilon_squared * lambda
     for t in eachindex(weights), i in 1:number_of_items
         demand = normalized_demands[t, i]
-        underage_cost = underage_costs[i]
-        overage_cost = overage_costs[i]
+        underage_cost = instance_underage_costs[i]
+        overage_cost = instance_overage_costs[i]
         normalized_objective += weights[t] * max(
             -underage_cost * normalized_order[i] +
             _bounded_linear_quadratic_conjugate(
@@ -454,28 +425,47 @@ end
 
 
 function W2_DRO_multi_item_newsvendor_objective_value_and_order(
-    epsilon, demands, weights,
+    epsilon,
+    demands,
+    weights,
+    instance_underage_costs,
+    instance_overage_costs,
 )
     if iszero(epsilon)
         return SO_multi_item_newsvendor_objective_value_and_order(
-            epsilon, demands, weights,
+            epsilon,
+            demands,
+            weights,
+            instance_underage_costs,
+            instance_overage_costs,
         )
     end
 
     demands, weights = _normalized_positive_weights_and_demands(demands, weights)
     normalized_demands, quantiles, displacement_terms =
-        _prepare_weighted_W2_closed_form(demands, weights)
+        _prepare_weighted_W2_closed_form(
+            demands,
+            weights,
+            instance_underage_costs,
+            instance_overage_costs,
+        )
     closed_form_solution = _solve_weighted_W2_closed_form(
         epsilon,
         normalized_demands,
         quantiles,
         displacement_terms,
         weights,
+        instance_underage_costs,
+        instance_overage_costs,
     )
     _multi_item_order_satisfies_budget(closed_form_solution[2]) &&
         return closed_form_solution
     return _conic_W2_DRO_multi_item_newsvendor_objective_value_and_order(
-        epsilon, demands, weights,
+        epsilon,
+        demands,
+        weights,
+        instance_underage_costs,
+        instance_overage_costs,
     )
 end
 
@@ -485,6 +475,8 @@ function _multi_item_newsvendor_grid(
     ambiguity_radii,
     demands,
     weight_vectors,
+    instance_underage_costs,
+    instance_overage_costs,
 )
     result_type = Tuple{Float64,Vector{Float64}}
     results = Matrix{result_type}(
@@ -495,6 +487,8 @@ function _multi_item_newsvendor_grid(
             ambiguity_radii[radius_index],
             demands,
             weight_vectors[weight_index],
+            instance_underage_costs,
+            instance_overage_costs,
         )
     end
     return results
@@ -506,6 +500,8 @@ function _multi_item_newsvendor_grid(
     ambiguity_radii,
     demands,
     weight_vectors,
+    instance_underage_costs,
+    instance_overage_costs,
 )
     result_type = Tuple{Float64,Vector{Float64}}
     results = Matrix{result_type}(
@@ -517,7 +513,10 @@ function _multi_item_newsvendor_grid(
                 demands, weight_vectors[weight_index],
             )
         closed_form_data = _prepare_weighted_W2_closed_form(
-            active_demands, normalized_weights,
+            active_demands,
+            normalized_weights,
+            instance_underage_costs,
+            instance_overage_costs,
         )
 
         for radius_index in eachindex(ambiguity_radii)
@@ -528,6 +527,8 @@ function _multi_item_newsvendor_grid(
                         epsilon,
                         active_demands,
                         normalized_weights,
+                        instance_underage_costs,
+                        instance_overage_costs,
                     )
             else
                 normalized_demands, quantiles, displacement_terms = closed_form_data
@@ -537,6 +538,8 @@ function _multi_item_newsvendor_grid(
                     quantiles,
                     displacement_terms,
                     normalized_weights,
+                    instance_underage_costs,
+                    instance_overage_costs,
                 )
                 results[radius_index, weight_index] =
                     _multi_item_order_satisfies_budget(closed_form_solution[2]) ?
@@ -545,6 +548,8 @@ function _multi_item_newsvendor_grid(
                         epsilon,
                         active_demands,
                         normalized_weights,
+                        instance_underage_costs,
+                        instance_overage_costs,
                     )
             end
         end
