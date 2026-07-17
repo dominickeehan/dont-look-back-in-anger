@@ -1,9 +1,12 @@
+display(Threads.nthreads())
+
 # Demand is multinomial across items: each consumer buys at most one item, so
 # item demands are negatively correlated within a period. The mixture weights
 # over modes are fixed below; each repetition draws its own per-mode starting
 # purchase probabilities and per-item underage and overage costs uniformly at
-# random. The per-item demand marginals remain Binomial, so the expected-cost
-# evaluation below stays exact.
+# random. The no-purchase probability is stored implicitly as one minus the
+# sum of the item probabilities. The per-item demand marginals remain Binomial,
+# so the expected-cost evaluation below stays exact.
 
 using Random, Statistics, StatsBase, Distributions
 using ProgressBars
@@ -11,26 +14,30 @@ using ProgressBars
 
 # These bindings must exist before including the optimization routines, which
 # copy them into their own typed constants.
-const number_of_items = 5
+const number_of_items = 1
 const number_of_consumers = 1000
 const underage_cost_values = [3.0, 4.0, 5.0, 6.0]
 const overage_cost = 1.0
+const minimum_purchase_probability = 0.01
+const maximum_purchase_probability = 0.99
 # We set the budget to a fraction of the dimension-adjusted reference budget,
 # which captures total expected demand of order N and safety stock of order \sqrt{Nd},
-const budget = number_of_consumers + sqrt(number_of_consumers * number_of_items)
+const budget = 10*(number_of_consumers + 3 * sqrt(number_of_consumers * number_of_items))
+
+
 
 const mixture_weights = [0.9, 0.1]
 const number_of_modes = length(mixture_weights)
 construct_drift_distribution(delta) = TriangularDist(-delta, delta, 0.0)
-const drifts = [1.00e0]
+const drifts = [1.00e-1, 3.16e-1, 1.00e0]
 #const drifts = [1.00e-2, 1.79e-2, 3.16e-2, 5.62e-2, 1.00e-1, 1.79e-1, 3.16e-1, 5.62e-1, 1.00e0]
 
 include("weights.jl")
 include("multi-item-newsvendor-optimizations.jl")
 
-const number_of_repetitions = 100
-const number_of_future_samples = 1000
-const history_length = 20
+const number_of_repetitions = 1000
+const number_of_future_samples = 100
+const history_length = 100
 const simulation_seed = 42
 
 
@@ -170,20 +177,53 @@ sample_repetition_overage_costs() =
     [fill(overage_cost, number_of_items) for _ in 1:number_of_repetitions]
 
 
-# Project drifted item probabilities onto the nonnegative simplex. Any mass
-# below one is the probability of no purchase.
+# Euclidean projection onto the bounded sub-simplex for the explicitly stored
+# item probabilities. Probability mass below one belongs to the implicit
+# no-purchase category.
 function project_purchase_probabilities!(purchase_probabilities)
-    purchase_probabilities .= max.(purchase_probabilities, 0.0)
-    excess = sum(purchase_probabilities) - 1.0
-    while excess > 1.0e-12
-        positive_probabilities = purchase_probabilities .> 0.0
-        purchase_probabilities[positive_probabilities] .-=
-            excess / count(positive_probabilities)
-        purchase_probabilities .= max.(purchase_probabilities, 0.0)
-        excess = sum(purchase_probabilities) - 1.0
+    maximum_probability_sum = 1.0
+    length(purchase_probabilities) * minimum_purchase_probability <=
+        maximum_probability_sum || error(
+            "The purchase-probability bounds define an empty sub-simplex.",
+        )
+
+    box_projection = clamp.(
+        purchase_probabilities,
+        minimum_purchase_probability,
+        maximum_purchase_probability,
+    )
+    if sum(box_projection) <= maximum_probability_sum
+        purchase_probabilities .= box_projection
+        return purchase_probabilities
     end
-    sum(purchase_probabilities) > 1.0 &&
-        (purchase_probabilities ./= sum(purchase_probabilities))
+
+    # The sum constraint binds. Its Lagrange multiplier is the scalar shift in
+    # clamp.(purchase_probabilities .- shift, lower_bound, upper_bound).
+    lower_shift = 0.0
+    upper_shift = maximum(
+        purchase_probabilities .- minimum_purchase_probability,
+    )
+    for _ in 1:100
+        shift = (lower_shift + upper_shift) / 2.0
+        projected_sum = sum(
+            clamp(
+                probability - shift,
+                minimum_purchase_probability,
+                maximum_purchase_probability,
+            ) for probability in purchase_probabilities
+        )
+        if projected_sum > maximum_probability_sum
+            lower_shift = shift
+        else
+            upper_shift = shift
+        end
+    end
+
+    purchase_probabilities .= clamp.(
+        purchase_probabilities .- upper_shift,
+        minimum_purchase_probability,
+        maximum_purchase_probability,
+    )
     return purchase_probabilities
 end
 
@@ -218,8 +258,9 @@ function generate_drift_data(drift)
 
     for repetition_index in 1:number_of_repetitions
         demand_probabilities = [
-            rand(Dirichlet(number_of_items + 1, 1.0))[1:number_of_items]
-            for _ in 1:number_of_modes
+            project_purchase_probabilities!(
+                rand(Dirichlet(number_of_items + 1, 1.0))[1:number_of_items],
+            ) for _ in 1:number_of_modes
         ]
         demand_sequence = Vector{Vector{Float64}}(
             undef,
@@ -238,8 +279,9 @@ function generate_drift_data(drift)
             time_index == history_length && continue
             for mode_index in 1:number_of_modes
                 mode_probabilities = demand_probabilities[mode_index]
-                for item_index in 1:number_of_items
-                    mode_probabilities[item_index] += rand(drift_distribution)
+                for item_index in eachindex(mode_probabilities)
+                    mode_probabilities[item_index] +=
+                        rand(drift_distribution)
                 end
                 project_purchase_probabilities!(mode_probabilities)
             end

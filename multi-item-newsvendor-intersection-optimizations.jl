@@ -35,6 +35,8 @@ Base.@kwdef mutable struct _MultiItemSolverStatistics
     single_ball_solutions::Int = 0
     dual_solver_solutions::Int = 0
     dual_solver_failures::Int = 0
+    budget_dual_solutions::Int = 0
+    budget_dual_failures::Int = 0
     conic_solutions::Int = 0
     numeric_retry_solves::Int = 0
     geometry_solves::Int = 0
@@ -87,6 +89,8 @@ function multi_item_solver_statistics_summary()
         single_ball_solutions = aggregate.single_ball_solutions,
         dual_solver_solutions = aggregate.dual_solver_solutions,
         dual_solver_failures = aggregate.dual_solver_failures,
+        budget_dual_solutions = aggregate.budget_dual_solutions,
+        budget_dual_failures = aggregate.budget_dual_failures,
         conic_solutions = aggregate.conic_solutions,
         numeric_retry_solves = aggregate.numeric_retry_solves,
         geometry_solves = aggregate.geometry_solves,
