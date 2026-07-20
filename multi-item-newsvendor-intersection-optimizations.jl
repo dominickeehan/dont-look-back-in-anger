@@ -2,8 +2,8 @@
 # This file is included at the end of multi-item-newsvendor-optimizations.jl
 # and uses the shared model, SAA, and weighted-W2 functions defined there.
 
-const intersection_geometry_caches = [Dict{Any,Tuple{Float64,Vector{Float64}}}() for _ in 1:julia_thread_count]
 const additive_intersection_geometry_caches = [Dict{Any,Tuple{Float64,Vector{Float64}}}() for _ in 1:julia_thread_count]
+const minimax_center_caches = [Dict{Any,Tuple{Float64,Vector{Float64}}}() for _ in 1:julia_thread_count]
 
 const multi_item_intersection_dual_relative_gap_tolerance = 1.0e-6
 const multi_item_intersection_dual_absolute_gap_tolerance = 1.0e-8
@@ -35,17 +35,11 @@ Base.@kwdef mutable struct _MultiItemSolverStatistics
     single_ball_solutions::Int = 0
     dual_solver_solutions::Int = 0
     dual_solver_failures::Int = 0
-    budget_dual_solutions::Int = 0
-    budget_dual_failures::Int = 0
     conic_solutions::Int = 0
     numeric_retry_solves::Int = 0
-    geometry_solves::Int = 0
-    pair_certificate_solutions::Int = 0
-    geometry_socp_solves::Int = 0
     additive_geometry_solves::Int = 0
     additive_candidate_certificate_solutions::Int = 0
     additive_geometry_socp_solves::Int = 0
-    cheap_interior_bound_hits::Int = 0
     active_ball_count_sum::Int = 0
     total_ball_count_sum::Int = 0
     pruned_solve_observations::Int = 0
@@ -89,88 +83,15 @@ function multi_item_solver_statistics_summary()
         single_ball_solutions = aggregate.single_ball_solutions,
         dual_solver_solutions = aggregate.dual_solver_solutions,
         dual_solver_failures = aggregate.dual_solver_failures,
-        budget_dual_solutions = aggregate.budget_dual_solutions,
-        budget_dual_failures = aggregate.budget_dual_failures,
         conic_solutions = aggregate.conic_solutions,
         numeric_retry_solves = aggregate.numeric_retry_solves,
-        geometry_solves = aggregate.geometry_solves,
-        pair_certificate_solutions = aggregate.pair_certificate_solutions,
-        geometry_socp_solves = aggregate.geometry_socp_solves,
         additive_geometry_solves = aggregate.additive_geometry_solves,
         additive_candidate_certificate_solutions =
             aggregate.additive_candidate_certificate_solutions,
         additive_geometry_socp_solves = aggregate.additive_geometry_socp_solves,
-        cheap_interior_bound_hits = aggregate.cheap_interior_bound_hits,
         mean_active_balls = mean_active_balls,
         mean_total_balls = mean_total_balls,
     )
-end
-
-
-# Any feasible point of the geometry problem satisfies both scaled-distance
-# constraints of a pair, so every pair certifies eps >= ||d_j - d_k|| /
-# (relative_j + relative_k).
-function _pairwise_intersection_epsilon_lower_bound(normalized_demands, relative_radii)
-    K = length(normalized_demands)
-    best_bound = 0.0
-    best_first = 1
-    best_second = min(2, K)
-    for j in 1:K, k in j+1:K
-        bound =
-            sqrt(_squared_euclidean_distance(normalized_demands[j], normalized_demands[k])) /
-            (relative_radii[j] + relative_radii[k])
-        if bound > best_bound
-            best_bound = bound
-            best_first = j
-            best_second = k
-        end
-    end
-    return best_bound, best_first, best_second
-end
-
-
-function _maximizing_pair_intersection_certificate(
-    normalized_demands,
-    relative_radii,
-    epsilon_lower_bound,
-    first_index,
-    second_index,
-)
-    length(normalized_demands) >= 2 || return nothing
-    first_radius = relative_radii[first_index]
-    second_radius = relative_radii[second_index]
-    radius_sum = first_radius + second_radius
-    radius_sum > 0.0 || return nothing
-
-    segment_fraction = first_radius / radius_sum
-    feasible_point = Vector{Float64}(undef, number_of_items)
-    for i in 1:number_of_items
-        first_value = normalized_demands[first_index][i]
-        candidate_value = first_value + segment_fraction * (
-            normalized_demands[second_index][i] - first_value
-        )
-        0.0 <= candidate_value <= 1.0 || return nothing
-        feasible_point[i] = candidate_value
-    end
-
-    epsilon_upper_bound = 0.0
-    for k in eachindex(normalized_demands)
-        radius = relative_radii[k]
-        radius > 0.0 || return nothing
-        required_epsilon =
-            sqrt(_squared_euclidean_distance(feasible_point, normalized_demands[k])) /
-            radius
-        epsilon_upper_bound = max(epsilon_upper_bound, required_epsilon)
-    end
-
-    certificate_tolerance = max(
-        multi_item_pair_certificate_absolute_gap_tolerance,
-        multi_item_pair_certificate_relative_gap_tolerance * max(
-            abs(epsilon_lower_bound), abs(epsilon_upper_bound),
-        ),
-    )
-    epsilon_upper_bound <= epsilon_lower_bound + certificate_tolerance || return nothing
-    return max(epsilon_lower_bound, epsilon_upper_bound), feasible_point
 end
 
 
@@ -194,71 +115,6 @@ function _geometry_constraining_ball_indices(
         contained || push!(kept, j)
     end
     return sort!(kept)
-end
-
-
-function _compute_minimum_intersection_epsilon_and_point(
-    normalized_demands, radius_ratio,
-)
-    K = length(normalized_demands)
-    relative_radii = [1.0 + (K - k + 1) * radius_ratio for k in 1:K]
-
-    _multi_item_statistics().geometry_solves += 1
-    epsilon_lower_bound, initial_first, initial_second =
-        _pairwise_intersection_epsilon_lower_bound(normalized_demands, relative_radii)
-    pair_certificate = _maximizing_pair_intersection_certificate(
-        normalized_demands,
-        relative_radii,
-        epsilon_lower_bound,
-        initial_first,
-        initial_second,
-    )
-    if !isnothing(pair_certificate)
-        _multi_item_statistics().pair_certificate_solutions += 1
-        return pair_certificate
-    end
-    constraining_indices = _geometry_constraining_ball_indices(
-        normalized_demands, relative_radii, epsilon_lower_bound,
-    )
-    constraining_demands = normalized_demands[constraining_indices]
-    constraining_radii = relative_radii[constraining_indices]
-
-    _multi_item_statistics().geometry_socp_solves += 1
-    geometry_problem = _new_multi_item_model()
-    @variables(geometry_problem, begin
-        1.0 >= feasible_point[i = 1:number_of_items] >= 0.0
-        minimum_normalized_epsilon >= 0.0
-    end)
-    for k in eachindex(constraining_indices)
-        @constraint(
-            geometry_problem,
-            [
-                constraining_radii[k] * minimum_normalized_epsilon;
-                [
-                    feasible_point[i] - constraining_demands[k][i]
-                    for i in 1:number_of_items
-                ]
-            ] in MathOptInterface.SecondOrderCone(number_of_items + 1),
-        )
-    end
-    @objective(geometry_problem, Min, minimum_normalized_epsilon)
-    _optimize_multi_item_model!(geometry_problem; high_precision = true)
-
-    return value(minimum_normalized_epsilon), value.(feasible_point)
-end
-
-
-function _minimum_intersection_epsilon_and_point(normalized_demands, radius_ratio)
-    geometry_cache = intersection_geometry_caches[Threads.threadid()]
-    cache_key = (
-        Float64(radius_ratio),
-        Tuple(Tuple(demand) for demand in normalized_demands),
-    )
-    return get!(geometry_cache, cache_key) do
-        _compute_minimum_intersection_epsilon_and_point(
-            normalized_demands, radius_ratio,
-        )
-    end
 end
 
 
@@ -477,6 +333,113 @@ function _minimum_additive_intersection_rho_and_point(
 end
 
 
+# When the requested and minimum additive rho are both zero, every ball
+# carries the common radius epsilon and the additive geometry cannot separate
+# tangency from a full interior. The constrained 1-center of the demands
+# decides: the intersection has interior exactly when the minimax distance is
+# below epsilon. The geometry is epsilon-independent, so it is cached per
+# demand history.
+function _compute_minimax_distance_and_center(normalized_demands)
+    K = length(normalized_demands)
+
+    lower_bound = 0.0
+    best_first = 0
+    best_second = 0
+    for k in 1:K
+        projected = clamp.(normalized_demands[k], 0.0, 1.0)
+        support_distance = sqrt(
+            _squared_euclidean_distance(normalized_demands[k], projected),
+        )
+        lower_bound = max(lower_bound, support_distance)
+    end
+    for j in 1:K, k in j+1:K
+        pair_bound = 0.5 * sqrt(
+            _squared_euclidean_distance(normalized_demands[j], normalized_demands[k]),
+        )
+        if pair_bound > lower_bound
+            lower_bound = pair_bound
+            best_first = j
+            best_second = k
+        end
+    end
+
+    mean_point = zeros(number_of_items)
+    for demand in normalized_demands
+        mean_point .+= demand
+    end
+    mean_point ./= K
+    clamp!(mean_point, 0.0, 1.0)
+
+    best_radius = Inf
+    best_point = mean_point
+    candidate = similar(mean_point)
+    for candidate_index in 0:K+1
+        if candidate_index == 0
+            candidate .= mean_point
+        elseif candidate_index <= K
+            candidate .= normalized_demands[candidate_index]
+            clamp!(candidate, 0.0, 1.0)
+        elseif best_first > 0
+            candidate .= 0.5 .* (
+                normalized_demands[best_first] .+ normalized_demands[best_second]
+            )
+            clamp!(candidate, 0.0, 1.0)
+        else
+            continue
+        end
+        candidate_radius = 0.0
+        for k in 1:K
+            candidate_radius = max(
+                candidate_radius,
+                sqrt(_squared_euclidean_distance(candidate, normalized_demands[k])),
+            )
+        end
+        if candidate_radius < best_radius
+            best_radius = candidate_radius
+            best_point = copy(candidate)
+        end
+    end
+
+    certificate_tolerance = max(
+        multi_item_pair_certificate_absolute_gap_tolerance,
+        multi_item_pair_certificate_relative_gap_tolerance * max(
+            abs(lower_bound), abs(best_radius),
+        ),
+    )
+    if best_radius <= lower_bound + certificate_tolerance
+        return max(lower_bound, best_radius), best_point
+    end
+
+    problem = _new_multi_item_model()
+    @variables(problem, begin
+        1.0 >= center[i = 1:number_of_items] >= 0.0
+        minimax_distance >= 0.0
+    end)
+    for k in 1:K
+        @constraint(
+            problem,
+            [
+                minimax_distance;
+                [center[i] - normalized_demands[k][i] for i in 1:number_of_items]
+            ] in MathOptInterface.SecondOrderCone(number_of_items + 1),
+        )
+    end
+    @objective(problem, Min, minimax_distance)
+    _optimize_multi_item_model!(problem; high_precision = true)
+    return max(lower_bound, value(minimax_distance)),
+        clamp.(value.(center), 0.0, 1.0)
+end
+
+
+function _minimax_distance_and_center(normalized_demands)
+    cache = minimax_center_caches[Threads.threadid()]
+    cache_key = Tuple(Tuple(demand) for demand in normalized_demands)
+    return get!(cache, cache_key) do
+        _compute_minimax_distance_and_center(normalized_demands)
+    end
+end
+
+
 function _squared_euclidean_distance(first_point, second_point)
     total = 0.0
     for i in eachindex(first_point)
@@ -521,27 +484,6 @@ function _active_intersection_ball_indices(normalized_demands, normalized_ball_r
 end
 
 
-function _zero_multiplier_normalized_order(
-    instance_underage_costs, instance_overage_costs,
-)
-    critical_fractiles =
-        instance_underage_costs ./
-        (instance_underage_costs .+ instance_overage_costs)
-    order = zeros(number_of_items)
-    remaining_budget = normalized_order_budget
-
-    for underage_cost in sort(unique(instance_underage_costs); rev = true)
-        item_indices = findall(==(underage_cost), instance_underage_costs)
-        group_capacity = sum(critical_fractiles[item_indices])
-        allocation_fraction = min(1.0, remaining_budget / group_capacity)
-        order[item_indices] .= allocation_fraction .* critical_fractiles[item_indices]
-        remaining_budget -= allocation_fraction * group_capacity
-        remaining_budget <= 0.0 && break
-    end
-    return order
-end
-
-
 function _zero_multiplier_epsilon_threshold(
     normalized_demands,
     relative_radii,
@@ -551,64 +493,17 @@ function _zero_multiplier_epsilon_threshold(
     critical_fractiles =
         instance_underage_costs ./
         (instance_underage_costs .+ instance_overage_costs)
-    zero_multiplier_order = _zero_multiplier_normalized_order(
-        instance_underage_costs,
-        instance_overage_costs,
-    )
     threshold = 0.0
     for k in eachindex(normalized_demands)
-        required_squared_radius = 0.0
-        for i in 1:number_of_items
-            value = normalized_demands[k][i]
-            if zero_multiplier_order[i] < critical_fractiles[i]
-                required_squared_radius += (1.0 - value)^2
-            else
-                required_squared_radius +=
-                    (1.0 - critical_fractiles[i]) * (1.0 - value)^2 +
-                    critical_fractiles[i] * value^2
-            end
-        end
+        required_squared_radius = sum(
+            (1.0 - critical_fractiles[i]) *
+            (1.0 - normalized_demands[k][i])^2 +
+            critical_fractiles[i] * normalized_demands[k][i]^2
+            for i in 1:number_of_items
+        )
         threshold = max(threshold, sqrt(required_squared_radius) / relative_radii[k])
     end
     return threshold
-end
-
-
-function _minimum_intersection_epsilon_upper_bound_and_point(
-    normalized_demands, relative_radii,
-)
-    K = length(normalized_demands)
-    mean_point = zeros(number_of_items)
-    for demand in normalized_demands
-        mean_point .+= demand
-    end
-    mean_point ./= K
-    clamp!(mean_point, 0.0, 1.0)
-
-    best_epsilon = Inf
-    best_point = mean_point
-    candidate = similar(mean_point)
-    for candidate_index in 0:K
-        if candidate_index == 0
-            candidate .= mean_point
-        else
-            candidate .= normalized_demands[candidate_index]
-            clamp!(candidate, 0.0, 1.0)
-        end
-        worst_scaled_distance = 0.0
-        for k in 1:K
-            worst_scaled_distance = max(
-                worst_scaled_distance,
-                sqrt(_squared_euclidean_distance(candidate, normalized_demands[k])) /
-                relative_radii[k],
-            )
-        end
-        if worst_scaled_distance < best_epsilon
-            best_epsilon = worst_scaled_distance
-            best_point = copy(candidate)
-        end
-    end
-    return best_epsilon, best_point
 end
 
 
@@ -625,9 +520,6 @@ function _build_intersection_DRO_model(
         eta[i = 1:number_of_items]
         z[i = 1:number_of_items, l = 1:number_of_loss_pieces] >= 0.0
     end)
-    if !order_budget_is_not_binding
-        @constraint(problem, sum(normalized_order) <= normalized_order_budget)
-    end
 
     lambda_sum = sum(lambda[k] for k in 1:K)
     for i in 1:number_of_items, l in 1:number_of_loss_pieces
@@ -680,10 +572,9 @@ end
 function _zero_multiplier_solution(
     instance_underage_costs, instance_overage_costs,
 )
-    normalized_order = _zero_multiplier_normalized_order(
-        instance_underage_costs,
-        instance_overage_costs,
-    )
+    normalized_order =
+        instance_underage_costs ./
+        (instance_underage_costs .+ instance_overage_costs)
     normalized_objective = sum(
         max(
             instance_underage_costs[i] * (1.0 - normalized_order[i]),
@@ -708,19 +599,11 @@ function _intersection_zero_multiplier_solution(
     critical_fractiles =
         instance_underage_costs ./
         (instance_underage_costs .+ instance_overage_costs)
-    normalized_order = _zero_multiplier_normalized_order(
-        instance_underage_costs,
-        instance_overage_costs,
-    )
     is_optimal = all(1:K) do k
         required_squared_radius = sum(
-            if normalized_order[i] < critical_fractiles[i]
-                (1.0 - normalized_demands[k][i])^2
-            else
-                (1.0 - critical_fractiles[i]) *
-                (1.0 - normalized_demands[k][i])^2 +
-                critical_fractiles[i] * normalized_demands[k][i]^2
-            end
+            (1.0 - critical_fractiles[i]) *
+            (1.0 - normalized_demands[k][i])^2 +
+            critical_fractiles[i] * normalized_demands[k][i]^2
             for i in 1:number_of_items
         )
         normalized_ball_radii[k]^2 >= required_squared_radius
@@ -1056,37 +939,43 @@ function REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_orde
         return zero_multiplier_solution
     end
 
-    minimum_normalized_epsilon, feasible_point =
-        _minimum_intersection_epsilon_and_point(normalized_demands, weights[end])
+    # The intersection at (epsilon, rho) is nonempty exactly when the minimum
+    # additive rho at this epsilon does not exceed the requested rho. At or
+    # below that threshold the ambiguity set collapses to the point mass at
+    # the additive first-contact point.
     normalized_epsilon = epsilon / number_of_consumers
-
-    epsilon_relation = _intersection_geometry_threshold_relation(
-        minimum_normalized_epsilon, normalized_epsilon,
-    )
-    if epsilon_relation >= 0
-        minimum_normalized_rho, additive_feasible_point =
-            _minimum_additive_intersection_rho_and_point(
-                normalized_demands, normalized_epsilon,
-            )
-        requested_normalized_rho = normalized_epsilon * weights[end]
-        rho_relation = _intersection_geometry_threshold_relation(
-            minimum_normalized_rho, requested_normalized_rho,
+    minimum_normalized_rho, feasible_point =
+        _minimum_additive_intersection_rho_and_point(
+            normalized_demands, normalized_epsilon,
         )
-        if rho_relation >= 0
-            if rho_relation > 0
-                _multi_item_statistics().additive_radius_repairs += 1
-            end
-            _multi_item_statistics().touching_solutions += 1
-            touching_demand = number_of_consumers .* additive_feasible_point
-            return SO_multi_item_newsvendor_objective_value_and_order(
-                0.0,
-                [touching_demand],
-                [1.0],
-                instance_underage_costs,
-                instance_overage_costs,
-            )
+    requested_normalized_rho = normalized_epsilon * weights[end]
+    rho_relation = _intersection_geometry_threshold_relation(
+        minimum_normalized_rho, requested_normalized_rho,
+    )
+    is_touching = rho_relation >= 0
+    if rho_relation == 0 &&
+       _intersection_geometry_threshold_relation(minimum_normalized_rho, 0.0) == 0
+        minimax_distance, minimax_center =
+            _minimax_distance_and_center(normalized_demands)
+        if _intersection_geometry_threshold_relation(
+               minimax_distance, normalized_epsilon,
+           ) < 0
+            is_touching = false
         end
-        feasible_point = additive_feasible_point
+        feasible_point = minimax_center
+    elseif rho_relation > 0
+        _multi_item_statistics().additive_radius_repairs += 1
+    end
+    if is_touching
+        _multi_item_statistics().touching_solutions += 1
+        touching_demand = number_of_consumers .* feasible_point
+        return SO_multi_item_newsvendor_objective_value_and_order(
+            0.0,
+            [touching_demand],
+            [1.0],
+            instance_underage_costs,
+            instance_overage_costs,
+        )
     end
 
     statistics = _multi_item_statistics()
@@ -1129,10 +1018,8 @@ function REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_orde
                 number_of_consumers * normalized_objective,
                 number_of_consumers .* normalized_order_values,
             )
-            if _multi_item_order_satisfies_budget(candidate_solution[2])
-                statistics.dual_solver_solutions += 1
-                return candidate_solution
-            end
+            statistics.dual_solver_solutions += 1
+            return candidate_solution
         else
             statistics.dual_solver_failures += 1
         end
@@ -1187,14 +1074,8 @@ function _multi_item_newsvendor_grid(
         radius_ratios[weight_index] = weights[end]
     end
 
-    minimum_radius_ratio = minimum(radius_ratios)
-    minimum_ratio_relative_radii =
-        Float64[1.0 + (K - k + 1) * minimum_radius_ratio for k in 1:K]
-    minimum_ratio_interior_bound_epsilon, minimum_ratio_interior_bound_point =
-        _minimum_intersection_epsilon_upper_bound_and_point(
-            normalized_demands, minimum_ratio_relative_radii,
-        )
-    minimum_ratio_geometry = nothing
+    # The additive geometry is independent of the radius ratio, so one solve
+    # per epsilon is shared by value across all weight columns.
     additive_geometries = Dict{Float64,Tuple{Float64,Vector{Float64}}}()
 
     problem = nothing
@@ -1233,59 +1114,47 @@ function _multi_item_newsvendor_grid(
                 continue
             end
 
-            interior_point = nothing
-            interior_bound_relation = _intersection_geometry_threshold_relation(
-                minimum_ratio_interior_bound_epsilon, normalized_epsilon,
-            )
-            if interior_bound_relation >= 0
-                if isnothing(minimum_ratio_geometry)
-                    minimum_ratio_geometry =
-                        _compute_minimum_intersection_epsilon_and_point(
-                            normalized_demands, minimum_radius_ratio,
-                        )
-                end
-                minimum_normalized_epsilon, minimum_ratio_feasible_point =
-                    minimum_ratio_geometry
-                minimum_ratio_relation = _intersection_geometry_threshold_relation(
-                    minimum_normalized_epsilon, normalized_epsilon,
+            minimum_normalized_rho, additive_feasible_point = get!(
+                additive_geometries, normalized_epsilon,
+            ) do
+                _compute_minimum_additive_intersection_rho_and_point(
+                    normalized_demands,
+                    normalized_epsilon,
                 )
-                if minimum_ratio_relation >= 0
-                    minimum_normalized_rho, additive_feasible_point = get!(
-                        additive_geometries, normalized_epsilon,
-                    ) do
-                        _compute_minimum_additive_intersection_rho_and_point(
-                            normalized_demands,
-                            normalized_epsilon,
-                        )
-                    end
-                    requested_normalized_rho = normalized_epsilon * radius_ratio
-                    rho_relation = _intersection_geometry_threshold_relation(
-                        minimum_normalized_rho, requested_normalized_rho,
-                    )
-                    if rho_relation >= 0
-                        if rho_relation > 0
-                            statistics.additive_radius_repairs += 1
-                        end
-                        statistics.touching_solutions += 1
-                        touching_demand =
-                            number_of_consumers .* additive_feasible_point
-                        results[radius_index, weight_index] =
-                            SO_multi_item_newsvendor_objective_value_and_order(
-                                0.0,
-                                [touching_demand],
-                                [1.0],
-                                instance_underage_costs,
-                                instance_overage_costs,
-                            )
-                        continue
-                    end
-                    interior_point = additive_feasible_point
-                else
-                    interior_point = minimum_ratio_feasible_point
+            end
+            requested_normalized_rho = normalized_epsilon * radius_ratio
+            rho_relation = _intersection_geometry_threshold_relation(
+                minimum_normalized_rho, requested_normalized_rho,
+            )
+            interior_point = additive_feasible_point
+            is_touching = rho_relation >= 0
+            if rho_relation == 0 &&
+               _intersection_geometry_threshold_relation(
+                   minimum_normalized_rho, 0.0,
+               ) == 0
+                minimax_distance, minimax_center =
+                    _minimax_distance_and_center(normalized_demands)
+                if _intersection_geometry_threshold_relation(
+                       minimax_distance, normalized_epsilon,
+                   ) < 0
+                    is_touching = false
                 end
-            else
-                statistics.cheap_interior_bound_hits += 1
-                interior_point = minimum_ratio_interior_bound_point
+                interior_point = minimax_center
+            elseif rho_relation > 0
+                statistics.additive_radius_repairs += 1
+            end
+            if is_touching
+                statistics.touching_solutions += 1
+                touching_demand = number_of_consumers .* interior_point
+                results[radius_index, weight_index] =
+                    SO_multi_item_newsvendor_objective_value_and_order(
+                        0.0,
+                        [touching_demand],
+                        [1.0],
+                        instance_underage_costs,
+                        instance_overage_costs,
+                    )
+                continue
             end
 
             active_indices = _active_intersection_ball_indices(
@@ -1336,11 +1205,9 @@ function _multi_item_newsvendor_grid(
                     )
                     warm_lambda_full = zeros(K)
                     warm_lambda_full[active_indices] .= dual_lambda
-                    if _multi_item_order_satisfies_budget(candidate_solution[2])
-                        statistics.dual_solver_solutions += 1
-                        results[radius_index, weight_index] = candidate_solution
-                        continue
-                    end
+                    statistics.dual_solver_solutions += 1
+                    results[radius_index, weight_index] = candidate_solution
+                    continue
                 else
                     statistics.dual_solver_failures += 1
                 end

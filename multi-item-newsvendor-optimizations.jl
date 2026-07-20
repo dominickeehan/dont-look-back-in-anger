@@ -6,18 +6,6 @@ using JuMP, MathOptInterface, Gurobi
 #
 # const number_of_items = 3
 # const number_of_consumers = 1000
-# const budget = number_of_items * number_of_consumers
-
-
-# Unit procurement costs are one, so `budget` limits the total order quantity.
-const normalized_order_budget = min(budget / number_of_consumers, Float64(number_of_items))
-const order_budget_is_not_binding = normalized_order_budget >= number_of_items
-const order_budget_feasibility_tolerance = 1.0e-8 * max(1.0, budget)
-
-
-function _multi_item_order_satisfies_budget(order)
-    return order_budget_is_not_binding || sum(order) <= budget + order_budget_feasibility_tolerance
-end
 
 
 # Each Julia thread reuses its own single-threaded Gurobi environment.
@@ -122,111 +110,15 @@ function SO_multi_item_newsvendor_objective_value_and_order(
         for i in 1:number_of_items
     ]
 
-    if _multi_item_order_satisfies_budget(order)
-        objective = sum(
-            weights[t] * sum(
-                instance_underage_costs[i] *
-                max(demands[t][i] - order[i], 0.0) +
-                instance_overage_costs[i] *
-                max(order[i] - demands[t][i], 0.0)
-                for i in 1:number_of_items
-            ) for t in eachindex(demands)
-        )
-        return objective, order
-    end
-
-    T = length(demands)
-    problem = _new_multi_item_model()
-    @variables(problem, begin
-        number_of_consumers >= order[i = 1:number_of_items] >= 0.0
-        underage[t = 1:T, i = 1:number_of_items] >= 0.0
-        overage[t = 1:T, i = 1:number_of_items] >= 0.0
-    end)
-    @constraint(problem, sum(order) <= budget)
-    @constraints(problem, begin
-        [t = 1:T, i = 1:number_of_items],
-            underage[t, i] >= demands[t][i] - order[i]
-        [t = 1:T, i = 1:number_of_items],
-            overage[t, i] >= order[i] - demands[t][i]
-    end)
-    @objective(
-        problem,
-        Min,
-        sum(
-            weights[t] * (
-                instance_underage_costs[i] * underage[t, i] +
-                instance_overage_costs[i] * overage[t, i]
-            ) for t in 1:T, i in 1:number_of_items
-        ),
+    objective = sum(
+        weights[t] * sum(
+            instance_underage_costs[i] *
+            max(demands[t][i] - order[i], 0.0) +
+            instance_overage_costs[i] *
+            max(order[i] - demands[t][i], 0.0)
+            for i in 1:number_of_items
+        ) for t in eachindex(demands)
     )
-    _optimize_multi_item_model!(problem)
-    return objective_value(problem), value.(order)
-end
-
-
-function _conic_W2_DRO_multi_item_newsvendor_objective_value_and_order(
-    epsilon,
-    demands,
-    weights,
-    instance_underage_costs,
-    instance_overage_costs,
-)
-    demands, weights = _normalized_positive_weights_and_demands(demands, weights)
-    normalized_demands = [demand ./ number_of_consumers for demand in demands]
-    normalized_epsilon = epsilon / number_of_consumers
-    T = length(normalized_demands)
-    number_of_loss_pieces = 2
-
-    problem = _new_multi_item_model()
-    @variables(problem, begin
-        1.0 >= normalized_order[i = 1:number_of_items] >= 0.0
-        lambda >= 0.0
-        gamma[t = 1:T, i = 1:number_of_items]
-        z[t = 1:T, i = 1:number_of_items, l = 1:number_of_loss_pieces] >= 0.0
-    end)
-    if !order_budget_is_not_binding
-        @constraint(problem, sum(normalized_order) <= normalized_order_budget)
-    end
-
-    # Each loss piece keeps only the support multiplier its worst case can
-    # reach: the overage piece has negative xi-slope, so its maximizer
-    # xi = d - o / (2 lambda) <= d never leaves xi >= 0, and symmetrically the
-    # underage piece only needs xi <= 1. The dropped multipliers are zero at
-    # an optimum, so the formulation stays exact.
-    for t in 1:T, i in 1:number_of_items, l in 1:number_of_loss_pieces
-        demand = normalized_demands[t][i]
-        demand_coefficient =
-            l == 1 ?
-            -instance_overage_costs[i] :
-            instance_underage_costs[i]
-        order_coefficient = -demand_coefficient
-        support_sign = l == 1 ? -1.0 : 1.0
-        support_rhs = l == 1 ? 0.0 : 1.0
-        @constraint(
-            problem,
-            [
-                2.0 * lambda;
-                gamma[t, i] -
-                order_coefficient * normalized_order[i] +
-                lambda * demand^2 -
-                support_rhs * z[t, i, l];
-                demand_coefficient +
-                2.0 * lambda * demand -
-                support_sign * z[t, i, l]
-            ] in MathOptInterface.RotatedSecondOrderCone(3),
-        )
-    end
-
-    @objective(
-        problem,
-        Min,
-        normalized_epsilon^2 * lambda +
-        sum(weights[t] * gamma[t, i] for t in 1:T, i in 1:number_of_items),
-    )
-    _optimize_multi_item_model!(problem)
-
-    objective = number_of_consumers * objective_value(problem)
-    order = number_of_consumers .* value.(normalized_order)
     return objective, order
 end
 
@@ -255,15 +147,8 @@ function _push_weighted_W2_displacement_term!(
 end
 
 
-# The optional budget multiplier prices ordered units (it is the Lagrange
-# multiplier of the order budget). Charging it shifts each item's critical
-# fractile from u/(u + o) to (u - mu)/(u + o) while leaving the transport
-# displacements' marginal costs at u and o, so the displacement terms below
-# remain valid for the budget Lagrangian.
 function _prepare_weighted_W2_closed_form(
-    demands, weights, instance_underage_costs, instance_overage_costs;
-    budget_multiplier = 0.0,
-    sort_permutations = nothing,
+    demands, weights, instance_underage_costs, instance_overage_costs,
 )
     T = length(demands)
     normalized_demands = Matrix{Float64}(undef, T, number_of_items)
@@ -277,14 +162,10 @@ function _prepare_weighted_W2_closed_form(
     for i in 1:number_of_items
         underage_cost = instance_underage_costs[i]
         overage_cost = instance_overage_costs[i]
-        critical_fractile =
-            (underage_cost - budget_multiplier) /
-            (underage_cost + overage_cost)
+        critical_fractile = underage_cost / (underage_cost + overage_cost)
         item_demands = view(normalized_demands, :, i)
-        permutation = isnothing(sort_permutations) ?
-            sortperm(item_demands) : sort_permutations[i]
         quantile_demand = _weighted_newsvendor_quantile(
-            item_demands, weights, critical_fractile, permutation,
+            item_demands, weights, critical_fractile,
         )
         quantiles[i] = quantile_demand
 
@@ -460,161 +341,6 @@ function _solve_weighted_W2_closed_form(
 end
 
 
-const multi_item_budget_dual_bisection_iterations = 60
-const multi_item_budget_dual_multiplier_tolerance = 1.0e-12
-const multi_item_budget_dual_relative_gap_tolerance = 1.0e-8
-const multi_item_budget_dual_absolute_gap_tolerance = 1.0e-10
-
-
-# Minimizes the weighted-W2 Lagrangian at a fixed budget multiplier: the
-# unconstrained closed form at the shifted critical fractile. An item whose
-# underage cost is not above the multiplier orders nothing.
-function _weighted_W2_lagrangian_lambda_and_order(
-    normalized_epsilon_squared,
-    demands,
-    weights,
-    instance_underage_costs,
-    instance_overage_costs,
-    budget_multiplier,
-    sort_permutations,
-)
-    _, quantiles, displacement_terms = _prepare_weighted_W2_closed_form(
-        demands, weights, instance_underage_costs, instance_overage_costs;
-        budget_multiplier,
-        sort_permutations,
-    )
-    lambda = _optimal_weighted_W2_lambda(
-        normalized_epsilon_squared, displacement_terms,
-    )
-    normalized_order = zeros(number_of_items)
-    for i in 1:number_of_items
-        underage_cost = instance_underage_costs[i]
-        overage_cost = instance_overage_costs[i]
-        budget_multiplier >= underage_cost && continue
-        normalized_order[i] = clamp(
-            (
-                _bounded_linear_quadratic_conjugate(
-                    underage_cost, quantiles[i], lambda,
-                ) -
-                _bounded_linear_quadratic_conjugate(
-                    -overage_cost, quantiles[i], lambda,
-                )
-            ) / (underage_cost + overage_cost),
-            0.0,
-            1.0,
-        )
-    end
-    return lambda, normalized_order
-end
-
-
-# Solves the budget-constrained weighted-W2 problem by dualizing the budget,
-# whose multiplier is the only coupling between items. The total Lagrangian
-# order is nonincreasing in the multiplier, so bisection brackets the value at
-# which the budget binds; the primal candidate interpolates between the final
-# bracket's orders because the optimal order can lie between fractile jumps.
-# A duality-gap certificate guards the result, returning nothing to request
-# the conic fallback.
-function _budget_dual_weighted_W2_solution(
-    epsilon,
-    demands,
-    weights,
-    instance_underage_costs,
-    instance_overage_costs,
-)
-    normalized_epsilon_squared = (epsilon / number_of_consumers)^2
-    T = length(demands)
-    normalized_demands = Matrix{Float64}(undef, T, number_of_items)
-    for t in 1:T, i in 1:number_of_items
-        normalized_demands[t, i] = demands[t][i] / number_of_consumers
-    end
-    # The demand sort order does not depend on the budget multiplier, so sort
-    # once here instead of at every quantile evaluation in the bisection.
-    sort_permutations = [
-        sortperm(view(normalized_demands, :, i)) for i in 1:number_of_items
-    ]
-    lagrangian_lambda_and_order(budget_multiplier) =
-        _weighted_W2_lagrangian_lambda_and_order(
-            normalized_epsilon_squared,
-            demands,
-            weights,
-            instance_underage_costs,
-            instance_overage_costs,
-            budget_multiplier,
-            sort_permutations,
-        )
-    objective_at(lambda, normalized_order) = _weighted_W2_normalized_objective(
-        normalized_epsilon_squared,
-        lambda,
-        normalized_order,
-        normalized_demands,
-        weights,
-        instance_underage_costs,
-        instance_overage_costs,
-    )
-
-    lower_multiplier = 0.0
-    lower_lambda, lower_order = lagrangian_lambda_and_order(lower_multiplier)
-    upper_multiplier = maximum(instance_underage_costs)
-    upper_lambda, upper_order = lagrangian_lambda_and_order(upper_multiplier)
-    multiplier_tolerance =
-        multi_item_budget_dual_multiplier_tolerance * upper_multiplier
-    for _ in 1:multi_item_budget_dual_bisection_iterations
-        upper_multiplier - lower_multiplier <= multiplier_tolerance && break
-        multiplier = 0.5 * (lower_multiplier + upper_multiplier)
-        lambda, normalized_order = lagrangian_lambda_and_order(multiplier)
-        if sum(normalized_order) > normalized_order_budget
-            lower_multiplier, lower_lambda, lower_order =
-                multiplier, lambda, normalized_order
-        else
-            upper_multiplier, upper_lambda, upper_order =
-                multiplier, lambda, normalized_order
-        end
-    end
-
-    lower_total = sum(lower_order)
-    upper_total = sum(upper_order)
-    interpolation = lower_total > upper_total ?
-        clamp(
-            (normalized_order_budget - upper_total) /
-            (lower_total - upper_total),
-            0.0,
-            1.0,
-        ) :
-        0.0
-    normalized_order =
-        interpolation .* lower_order .+ (1.0 - interpolation) .* upper_order
-
-    # The Lagrangian objective is jointly convex in (lambda, order), so the
-    # interpolated pair is itself Lagrangian-optimal at the bracketed
-    # multiplier and evaluating the primal candidate there closes the duality
-    # gap; the endpoint lambdas would overestimate it and force the conic
-    # fallback below.
-    interpolated_lambda =
-        interpolation * lower_lambda + (1.0 - interpolation) * upper_lambda
-    primal_value = objective_at(interpolated_lambda, normalized_order)
-    dual_value = max(
-        objective_at(lower_lambda, lower_order) +
-            lower_multiplier * (lower_total - normalized_order_budget),
-        objective_at(upper_lambda, upper_order) +
-            upper_multiplier * (upper_total - normalized_order_budget),
-    )
-    gap_tolerance =
-        multi_item_budget_dual_absolute_gap_tolerance +
-        multi_item_budget_dual_relative_gap_tolerance * abs(primal_value)
-    if primal_value - dual_value > gap_tolerance
-        _multi_item_statistics().budget_dual_failures += 1
-        return nothing
-    end
-
-    _multi_item_statistics().budget_dual_solutions += 1
-    return (
-        number_of_consumers * primal_value,
-        number_of_consumers .* normalized_order,
-    )
-end
-
-
 function W2_DRO_multi_item_newsvendor_objective_value_and_order(
     epsilon,
     demands,
@@ -640,28 +366,11 @@ function W2_DRO_multi_item_newsvendor_objective_value_and_order(
             instance_underage_costs,
             instance_overage_costs,
         )
-    closed_form_solution = _solve_weighted_W2_closed_form(
+    return _solve_weighted_W2_closed_form(
         epsilon,
         normalized_demands,
         quantiles,
         displacement_terms,
-        weights,
-        instance_underage_costs,
-        instance_overage_costs,
-    )
-    _multi_item_order_satisfies_budget(closed_form_solution[2]) &&
-        return closed_form_solution
-    budget_dual_solution = _budget_dual_weighted_W2_solution(
-        epsilon,
-        demands,
-        weights,
-        instance_underage_costs,
-        instance_overage_costs,
-    )
-    isnothing(budget_dual_solution) || return budget_dual_solution
-    return _conic_W2_DRO_multi_item_newsvendor_objective_value_and_order(
-        epsilon,
-        demands,
         weights,
         instance_underage_costs,
         instance_overage_costs,
@@ -731,36 +440,16 @@ function _multi_item_newsvendor_grid(
                     )
             else
                 normalized_demands, quantiles, displacement_terms = closed_form_data
-                closed_form_solution = _solve_weighted_W2_closed_form(
-                    epsilon,
-                    normalized_demands,
-                    quantiles,
-                    displacement_terms,
-                    normalized_weights,
-                    instance_underage_costs,
-                    instance_overage_costs,
-                )
                 results[radius_index, weight_index] =
-                    if _multi_item_order_satisfies_budget(closed_form_solution[2])
-                        closed_form_solution
-                    else
-                        budget_dual_solution = _budget_dual_weighted_W2_solution(
-                            epsilon,
-                            active_demands,
-                            normalized_weights,
-                            instance_underage_costs,
-                            instance_overage_costs,
-                        )
-                        isnothing(budget_dual_solution) ?
-                        _conic_W2_DRO_multi_item_newsvendor_objective_value_and_order(
-                            epsilon,
-                            active_demands,
-                            normalized_weights,
-                            instance_underage_costs,
-                            instance_overage_costs,
-                        ) :
-                        budget_dual_solution
-                    end
+                    _solve_weighted_W2_closed_form(
+                        epsilon,
+                        normalized_demands,
+                        quantiles,
+                        displacement_terms,
+                        normalized_weights,
+                        instance_underage_costs,
+                        instance_overage_costs,
+                    )
             end
         end
     end

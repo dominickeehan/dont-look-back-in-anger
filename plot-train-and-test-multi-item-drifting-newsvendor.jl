@@ -1,10 +1,10 @@
 # Demand is multinomial across items: each consumer buys at most one item, so
-# item demands are negatively correlated within a period. The mixture weights
-# over modes are fixed below; each repetition draws its own per-mode starting
-# purchase probabilities and per-item underage and overage costs uniformly at
-# random. The no-purchase probability is stored implicitly as one minus the
-# sum of the item probabilities. The per-item demand marginals remain Binomial,
-# so the expected-cost evaluation below stays exact.
+# item demands are negatively correlated within a period. Each repetition
+# draws its own mixture weights, per-mode starting purchase probabilities, and
+# per-item underage and overage costs uniformly at random. The no-purchase
+# probability is stored implicitly as one minus the sum of the item
+# probabilities. The per-item demand marginals remain Binomial, so the
+# expected-cost evaluation below stays exact.
 
 using Random, Statistics, StatsBase, Distributions
 using ProgressBars
@@ -12,28 +12,25 @@ using ProgressBars
 
 # These bindings must exist before including the optimization routines, which
 # copy them into their own typed constants.
-const number_of_items = 5
+const number_of_items = 1
 const number_of_consumers = 1000
 const underage_cost_values = [3.0, 4.0, 5.0, 6.0]
-const overage_cost = 1.0
+const overage_cost_values = [1.0]
 const minimum_purchase_probability = 0.01
 const maximum_purchase_probability = 0.99
-# We set the budget to a fraction of the dimension-adjusted reference budget,
-# which captures total expected demand of order N and safety stock of order \sqrt{Nd},
-const budget = 10 * (number_of_consumers + sqrt(number_of_consumers * number_of_items))
 
-const mixture_weights = [0.9, 0.1]
-const number_of_modes = length(mixture_weights)
+const first_mode_weight_values = [0.925] #[0.9, 0.95, 0.99]
+const number_of_modes = 2
 construct_drift_distribution(delta) = TriangularDist(-delta, delta, 0.0)
-const drifts = [1.00e0]
 #const drifts = [1.00e-1, 3.16e-1, 1.00e0]
-#const drifts = [1.00e-2, 1.79e-2, 3.16e-2, 5.62e-2, 1.00e-1, 1.79e-1, 3.16e-1, 5.62e-1, 1.00e0]
+const drifts = [5.62e-3, 1.00e-2, 3.16e-2, 1.00e-1, 3.16e-1, 1.00e0]
+#const drifts = [5.62e-3, 1.00e-2, 1.79e-2, 3.16e-2, 5.62e-2, 1.00e-1, 1.79e-1, 3.16e-1, 5.62e-1, 1.00e0]
 
 include("weights.jl")
 include("multi-item-newsvendor-optimizations.jl")
 
-const number_of_repetitions = 500
-const number_of_future_samples = 100
+const number_of_repetitions = 1000
+const number_of_future_samples = 1000
 const history_length = 100
 const training_length = 30
 const simulation_seed = 42
@@ -88,7 +85,7 @@ function _mark_order_knots!(requested_orders, grid_results)
 end
 
 
-# All four methods use the same simulated future distributions. Build one
+# All five methods use the same simulated future distributions. Build one
 # lookup from the union of their integer order knots.
 function precompute_expected_costs_at_order_knots(
     method_grid_results,
@@ -171,8 +168,28 @@ function sample_repetition_underage_costs()
 end
 
 
-sample_repetition_overage_costs() =
-    [fill(overage_cost, number_of_items) for _ in 1:number_of_repetitions]
+function sample_repetition_overage_costs()
+    cost_rng = MersenneTwister(simulation_seed + 2)
+    return [
+        [
+            rand(cost_rng, overage_cost_values)
+            for _ in 1:number_of_items
+        ]
+        for _ in 1:number_of_repetitions
+    ]
+end
+
+
+function sample_repetition_mixture_weights()
+    weight_rng = MersenneTwister(simulation_seed + 3)
+    return [
+        begin
+            first_mode_weight = rand(weight_rng, first_mode_weight_values)
+            [first_mode_weight, 1.0 - first_mode_weight]
+        end
+        for _ in 1:number_of_repetitions
+    ]
+end
 
 
 function realized_multi_item_newsvendor_cost(
@@ -257,7 +274,7 @@ function sample_multinomial_demand(purchase_probabilities)
 end
 
 
-function generate_drift_data(drift)
+function generate_drift_data(drift, repetition_mixture_weights)
     Random.seed!(simulation_seed)
     drift_distribution = construct_drift_distribution(drift)
 
@@ -270,9 +287,10 @@ function generate_drift_data(drift)
             undef,
             number_of_repetitions,
         )
-    mode_sampler = Weights(mixture_weights)
-
     for repetition_index in 1:number_of_repetitions
+        mode_sampler = Weights(
+            repetition_mixture_weights[repetition_index],
+        )
         demand_probabilities = [
             project_purchase_probabilities!(
                 rand(Dirichlet(number_of_items + 1, 1.0))[1:number_of_items],
@@ -435,6 +453,10 @@ function compute_train_and_test_lines()
         smoothing_weights,
         smoothing_parameter_grid,
     )
+    saa_weight_vector_table = precompute_weight_vector_table(
+        windowing_weights,
+        [history_length],
+    )
     windowing_weight_vector_table = precompute_weight_vector_table(
         windowing_weights,
         window_size_grid,
@@ -451,6 +473,8 @@ function compute_train_and_test_lines()
     drift_count = length(drifts)
     smoothing_average_costs = zeros(drift_count)
     smoothing_standard_errors = zeros(drift_count)
+    saa_average_costs = zeros(drift_count)
+    saa_standard_errors = zeros(drift_count)
     windowing_average_costs = zeros(drift_count)
     windowing_standard_errors = zeros(drift_count)
     intersection_average_costs = zeros(drift_count)
@@ -459,14 +483,16 @@ function compute_train_and_test_lines()
     weighted_standard_errors = zeros(drift_count)
     repetition_underage_costs = sample_repetition_underage_costs()
     repetition_overage_costs = sample_repetition_overage_costs()
+    repetition_mixture_weights = sample_repetition_mixture_weights()
 
     for drift_index in eachindex(drifts)
         drift = drifts[drift_index]
         println("Binomial drift parameter: $drift")
         demand_sequences, final_demand_probabilities =
-            generate_drift_data(drift)
+            generate_drift_data(drift, repetition_mixture_weights)
 
         smoothing_costs = zeros(number_of_repetitions)
+        saa_costs = zeros(number_of_repetitions)
         windowing_costs = zeros(number_of_repetitions)
         intersection_costs = zeros(number_of_repetitions)
         weighted_costs = zeros(number_of_repetitions)
@@ -483,6 +509,14 @@ function compute_train_and_test_lines()
                 SO_multi_item_newsvendor_objective_value_and_order,
                 zero_ambiguity_radius,
                 smoothing_weight_vector_table,
+                demand_samples,
+                instance_underage_costs,
+                instance_overage_costs,
+            )
+            saa_grid_result = _train_and_test_grid_result(
+                SO_multi_item_newsvendor_objective_value_and_order,
+                zero_ambiguity_radius,
+                saa_weight_vector_table,
                 demand_samples,
                 instance_underage_costs,
                 instance_overage_costs,
@@ -514,6 +548,7 @@ function compute_train_and_test_lines()
 
             method_grid_results = (
                 smoothing_grid_result,
+                saa_grid_result,
                 windowing_grid_result,
                 intersection_grid_result,
                 weighted_grid_result,
@@ -521,7 +556,7 @@ function compute_train_and_test_lines()
             expected_costs = precompute_expected_costs_at_order_knots(
                 method_grid_results,
                 final_demand_probabilities[repetition_index],
-                mixture_weights,
+                repetition_mixture_weights[repetition_index],
                 instance_underage_costs,
                 instance_overage_costs,
             )
@@ -530,6 +565,12 @@ function compute_train_and_test_lines()
                 smoothing_costs,
                 repetition_index,
                 smoothing_grid_result,
+                expected_costs,
+            )
+            _fill_train_and_test_cost!(
+                saa_costs,
+                repetition_index,
+                saa_grid_result,
                 expected_costs,
             )
             _fill_train_and_test_cost!(
@@ -555,6 +596,9 @@ function compute_train_and_test_lines()
         (smoothing_average_costs[drift_index],
          smoothing_standard_errors[drift_index]) =
             summarize_method(smoothing_costs)
+        (saa_average_costs[drift_index],
+         saa_standard_errors[drift_index]) =
+            summarize_method(saa_costs)
         (windowing_average_costs[drift_index],
          windowing_standard_errors[drift_index]) =
             summarize_method(windowing_costs)
@@ -570,6 +614,10 @@ function compute_train_and_test_lines()
         smoothing = (
             average_costs = smoothing_average_costs,
             standard_errors = smoothing_standard_errors,
+        ),
+        saa = (
+            average_costs = saa_average_costs,
+            standard_errors = saa_standard_errors,
         ),
         windowing = (
             average_costs = windowing_average_costs,
@@ -594,7 +642,7 @@ results = compute_train_and_test_lines()
 using Plots, Measures
 
 default() # Reset plot defaults.
-gr(size = (275 + 6 + 8, 183 + 6) .* sqrt(3))
+gr(size = (275 + 6 + 8 + 3, 183 + 6 + 10) .* sqrt(3))
 
 fontfamily = "Computer Modern"
 default(
@@ -609,24 +657,33 @@ default(
     yminorticks = 0,
     fontfamily = fontfamily,
     guidefont = Plots.font(fontfamily; pointsize = 12),
-    legendfont = Plots.font(fontfamily; pointsize = 3),
+    legendfont = Plots.font(fontfamily; pointsize = 11),
     tickfont = Plots.font(fontfamily; pointsize = 10),
 )
 
 plt = plot(
     xscale = :log10,
-    xlabel = "Binomial drift parameter, \$δ\$",
-    ylabel = "Train-and-test next-period expected\ncost (relative to smoothing)",
-    topmargin = 0.0pt,
+    xlabel = "Multinomial drift parameter, \$δ\$",
+    ylabel = "Average train-and-test next-period\nexpected cost (relative to smoothing)",
+    topmargin = 10.0pt,
     leftmargin = 6.0pt,
     bottommargin = 6.0pt,
-    rightmargin = 0.0pt,
-    legend = :bottomleft,
+    rightmargin = 3.0pt,
 )
 
 fillalpha = 0.1
 normalizer = results.smoothing.average_costs
 
+plot!(
+    plt,
+    drifts,
+    results.saa.average_costs ./ normalizer;
+    ribbon = results.saa.standard_errors ./ normalizer,
+    fillalpha = fillalpha,
+    color = palette(:tab10)[8],
+    linestyle = :solid,
+    label = "SAA",
+)
 plot!(
     plt,
     drifts,
@@ -638,7 +695,7 @@ plot!(
     markershape = :pentagon,
     markersize = 4.0,
     markerstrokewidth = 0.0,
-    label = "Windowing (\$ε=0\$)",
+    label = "Windowing",
 )
 plot!(
     plt,
@@ -652,7 +709,7 @@ plot!(
     markershape = :star4,
     markersize = 6.0,
     markerstrokewidth = 0.0,
-    label = "Smoothing (\$ε=0\$)",
+    label = "Smoothing",
 )
 plot!(
     plt,
@@ -680,5 +737,8 @@ plot!(
     markerstrokewidth = 0.0,
     label = "Weighted",
 )
-ylims!((0.8, 1.2))
+xticks!([1.0e-5, 1.0e-4, 1.0e-3, 1.0e-2, 1.0e-1, 1.0e0])
+xlims!((0.99999 * first(drifts), 1.00001 * last(drifts)))
+yticks!([0.8, 0.90, 1.00, 1.10, 1.20, 1.30])
+ylims!((0.79999, 1.30001))
 display(plt)
