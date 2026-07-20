@@ -14,14 +14,14 @@ using ProgressBars
 
 # These bindings must exist before including the optimization routines, which
 # copy them into their own typed constants.
-const number_of_items = 3
+const number_of_items = 1
 const number_of_consumers = 1000
 const underage_cost_values = [3.0, 4.0, 5.0, 6.0]
 const overage_cost = 1.0
 const minimum_purchase_probability = 0.01
 const maximum_purchase_probability = 0.99
 
-const mixture_weights = [1.0, 0.0]
+const mixture_weights = [0.9]
 const number_of_modes = length(mixture_weights)
 construct_drift_distribution(delta) = TriangularDist(-delta, delta, 0.0)
 const drifts = [1.00e-2, 3.16e-2, 1.00e-1, 3.16e-1, 1.00e0]

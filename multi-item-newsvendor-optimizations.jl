@@ -60,7 +60,6 @@ function _optimize_multi_item_model!(problem; high_precision = false)
     optimize!(problem)
     is_solved_and_feasible(problem) && return nothing
 
-    _multi_item_statistics().numeric_retry_solves += 1
     set_attribute(problem, "BarHomogeneous", 1)
     set_attribute(problem, "NumericFocus", 3)
     !high_precision && set_attribute(problem, "BarQCPConvTol", 1.0e-6)

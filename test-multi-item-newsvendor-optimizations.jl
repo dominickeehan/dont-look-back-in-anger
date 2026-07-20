@@ -7,7 +7,6 @@ number_of_items = 3
 number_of_consumers = 10.0
 underage_costs = fill(4.0, number_of_items)
 overage_costs = fill(1.0, number_of_items)
-budget = number_of_items * number_of_consumers
 cu = underage_costs[1]
 co = overage_costs[1]
 
@@ -134,7 +133,9 @@ function reference_intersection_W2(epsilon, demands, radius_ratio)
 end
 
 
-# Geometry oracle that deliberately bypasses all closed-form shortcuts.
+# Test-only oracle for the smallest epsilon with a nonempty intersection at a
+# fixed radius profile; used to place randomized trial radii in the interior
+# regime.
 function reference_minimum_intersection_geometry(normalized_demands, relative_radii)
     problem = _new_multi_item_model()
     @variables(problem, begin
@@ -159,21 +160,19 @@ function reference_minimum_intersection_geometry(normalized_demands, relative_ra
 end
 
 
-function reference_minimum_additive_intersection_geometry(
-    normalized_demands, normalized_epsilon,
+function reference_minimum_radius_increase_geometry(
+    normalized_demands, normalized_base_radii,
 )
-    K = length(normalized_demands)
     problem = _new_multi_item_model()
     @variables(problem, begin
         1.0 >= feasible_point[i = 1:number_of_items] >= 0.0
-        minimum_normalized_rho >= 0.0
+        minimum_normalized_increase
     end)
     for k in eachindex(normalized_demands)
         @constraint(
             problem,
             [
-                normalized_epsilon +
-                (K - k + 1) * minimum_normalized_rho;
+                normalized_base_radii[k] + minimum_normalized_increase;
                 [
                     feasible_point[i] - normalized_demands[k][i]
                     for i in 1:number_of_items
@@ -181,10 +180,14 @@ function reference_minimum_additive_intersection_geometry(
             ] in MathOptInterface.SecondOrderCone(number_of_items + 1),
         )
     end
-    @objective(problem, Min, minimum_normalized_rho)
+    @objective(problem, Min, minimum_normalized_increase)
     _optimize_multi_item_model!(problem; high_precision = true)
-    return value(minimum_normalized_rho), value.(feasible_point)
+    return value(minimum_normalized_increase), value.(feasible_point)
 end
+
+
+normalized_intersection_radii(K, normalized_epsilon, radius_ratio) =
+    [normalized_epsilon * (1.0 + (K - k + 1) * radius_ratio) for k in 1:K]
 
 
 demands = [
@@ -196,97 +199,52 @@ demands = [
 weights = [0.1, 0.2, 0.3, 0.4]
 
 
-@testset "maximizing-pair intersection certificate" begin
-    first_center = [0.1, 0.2, 0.3]
-    last_center = [0.9, 0.8, 0.7]
-    for radius_ratio in [0.0, 0.05, 0.3, 1.0]
-        K = 5
-        relative_radii = [
-            1.0 + (K - k + 1) * radius_ratio
-            for k in 1:K
-        ]
-        pair_point = first_center .+ (
-            relative_radii[1] / (relative_radii[1] + relative_radii[end])
-        ) .* (last_center .- first_center)
-        normalized_demands = [
-            first_center,
-            copy(pair_point),
-            copy(pair_point),
-            copy(pair_point),
-            last_center,
-        ]
-        reference_epsilon, _ =
-            reference_minimum_intersection_geometry(
-                normalized_demands, relative_radii,
-            )
-
-        multi_item_reset_solver_statistics!()
-        minimum_epsilon, feasible_point =
-            _compute_minimum_intersection_epsilon_and_point(
-                normalized_demands, radius_ratio,
-            )
-        statistics = multi_item_solver_statistics_summary()
-
-        @test minimum_epsilon ≈ reference_epsilon atol = 1.0e-8 rtol = 1.0e-8
-        @test feasible_point ≈ pair_point atol = 1.0e-12 rtol = 1.0e-12
-        @test statistics.geometry_solves == 1
-        @test statistics.pair_certificate_solutions == 1
-        @test statistics.geometry_socp_solves == 0
-    end
-
-    # Three genuinely active balls cannot be certified by any pair and must
-    # retain the high-precision conic fallback in dimensions above two.
-    fallback_demands = [
-        [0.2, 0.2, 0.5],
-        [0.8, 0.2, 0.5],
-        [0.5, 0.8, 0.5],
-    ]
-    fallback_radii = ones(length(fallback_demands))
-    reference_epsilon, _ = reference_minimum_intersection_geometry(
-        fallback_demands, fallback_radii,
-    )
-    multi_item_reset_solver_statistics!()
-    minimum_epsilon, feasible_point =
-        _compute_minimum_intersection_epsilon_and_point(fallback_demands, 0.0)
-    statistics = multi_item_solver_statistics_summary()
-
-    @test minimum_epsilon ≈ reference_epsilon atol = 1.0e-8 rtol = 1.0e-8
-    @test maximum(
-        sqrt(_squared_euclidean_distance(feasible_point, demand))
-        for demand in fallback_demands
-    ) <= minimum_epsilon * (1.0 + 1.0e-9) + 1.0e-12
-    @test statistics.geometry_solves == 1
-    @test statistics.pair_certificate_solutions == 0
-    @test statistics.geometry_socp_solves == 1
-end
-
-
-@testset "additive-rho intersection geometry" begin
+@testset "shared radius increase geometry" begin
+    # Equal radii: the shared increase closes the gap symmetrically, so first
+    # contact is the midpoint of the two centers.
     pair_demands = [zeros(number_of_items), [1.0, 0.0, 0.0]]
-    normalized_epsilon = 0.1
-    reference_rho, _ = reference_minimum_additive_intersection_geometry(
-        pair_demands, normalized_epsilon,
+    equal_radii = [0.1, 0.1]
+    reference_increase, _ = reference_minimum_radius_increase_geometry(
+        pair_demands, equal_radii,
     )
-    multi_item_reset_solver_statistics!()
-    minimum_rho, feasible_point =
-        _compute_minimum_additive_intersection_rho_and_point(
-            pair_demands, normalized_epsilon,
-        )
-    statistics = multi_item_solver_statistics_summary()
+    pair_certificate, _ = _certified_radius_increase_and_lower_bound(
+        pair_demands, equal_radii,
+    )
+    minimum_increase, feasible_point =
+        _compute_minimum_radius_increase_and_point(pair_demands, equal_radii)
 
-    @test minimum_rho ≈ 0.8 / 3.0 atol = 1.0e-12
-    @test minimum_rho ≈ reference_rho atol = 1.0e-8 rtol = 1.0e-8
-    @test feasible_point ≈ [19.0 / 30.0, 0.0, 0.0] atol = 1.0e-12
-    @test statistics.additive_geometry_solves == 1
-    @test statistics.additive_candidate_certificate_solutions == 1
-    @test statistics.additive_geometry_socp_solves == 0
+    @test minimum_increase ≈ 0.4 atol = 1.0e-12
+    @test minimum_increase ≈ reference_increase atol = 1.0e-8 rtol = 1.0e-8
+    @test feasible_point ≈ [0.5, 0.0, 0.0] atol = 1.0e-12
+    @test !isnothing(pair_certificate)
 
+    # Unequal radii shift first contact toward the smaller ball, and the two
+    # enlarged radii still meet exactly at the contact point.
+    unequal_radii = [0.3, 0.1]
+    minimum_increase, feasible_point =
+        _compute_minimum_radius_increase_and_point(pair_demands, unequal_radii)
+    @test minimum_increase ≈ 0.3 atol = 1.0e-12
+    @test feasible_point ≈ [0.6, 0.0, 0.0] atol = 1.0e-12
+
+    # A strictly interior intersection gives a negative increase: the balls
+    # could be shrunk by that much and still meet.
+    interior_radii = [0.6, 0.6]
+    minimum_increase, feasible_point =
+        _compute_minimum_radius_increase_and_point(pair_demands, interior_radii)
+    @test minimum_increase ≈ -0.1 atol = 1.0e-12
+    @test feasible_point ≈ [0.5, 0.0, 0.0] atol = 1.0e-12
+
+    # A single ball inside the support box can shrink to its own center.
+    single_increase, single_point =
+        _compute_minimum_radius_increase_and_point([[0.5, 0.4, 0.5]], [0.2])
+    @test single_increase ≈ -0.2 atol = 1.0e-12
+    @test single_point ≈ [0.5, 0.4, 0.5] atol = 1.0e-12
+
+    # The support box binds before the balls do.
     support_demands = [[-0.3, 0.4, 0.5]]
-    support_rho, support_point =
-        _compute_minimum_additive_intersection_rho_and_point(
-            support_demands, normalized_epsilon,
-        )
-    @test support_rho ≈ 0.2 atol = 1.0e-12
+    support_increase, support_point =
+        _compute_minimum_radius_increase_and_point(support_demands, [0.1])
+    @test support_increase ≈ 0.2 atol = 1.0e-12
     @test support_point ≈ [0.0, 0.4, 0.5] atol = 1.0e-12
 
     # Three active balls have pairwise lower bounds below the true optimum, so
@@ -297,48 +255,51 @@ end
         [-0.5, sqrt(3.0) / 2.0, 0.0],
         [-0.5, -sqrt(3.0) / 2.0, 0.0],
     ]
-    target_rho = 0.2
+    target_increase = 0.2
     target_radii = [0.7, 0.5, 0.3]
     three_active_demands = [
-        target_point .+ target_radii[k] .* directions[k] for k in 1:3
+        target_point .+ (target_radii[k] + target_increase) .* directions[k]
+        for k in 1:3
     ]
-    reference_rho, _ = reference_minimum_additive_intersection_geometry(
-        three_active_demands, normalized_epsilon,
+    reference_increase, _ = reference_minimum_radius_increase_geometry(
+        three_active_demands, target_radii,
     )
-    multi_item_reset_solver_statistics!()
-    minimum_rho, feasible_point =
-        _compute_minimum_additive_intersection_rho_and_point(
-            three_active_demands, normalized_epsilon,
+    three_ball_certificate, _ = _certified_radius_increase_and_lower_bound(
+        three_active_demands, target_radii,
+    )
+    minimum_increase, feasible_point =
+        _compute_minimum_radius_increase_and_point(
+            three_active_demands, target_radii,
         )
-    statistics = multi_item_solver_statistics_summary()
 
-    @test minimum_rho ≈ target_rho atol = 1.0e-8 rtol = 1.0e-8
-    @test minimum_rho ≈ reference_rho atol = 1.0e-8 rtol = 1.0e-8
+    @test minimum_increase ≈ target_increase atol = 1.0e-8 rtol = 1.0e-8
+    @test minimum_increase ≈ reference_increase atol = 1.0e-8 rtol = 1.0e-8
     @test feasible_point ≈ target_point atol = 1.0e-7 rtol = 1.0e-7
-    @test statistics.additive_geometry_solves == 1
-    @test statistics.additive_candidate_certificate_solutions == 0
-    @test statistics.additive_geometry_socp_solves == 1
+    @test isnothing(three_ball_certificate)
 
     rng = MersenneTwister(314159)
-    for _ in 1:6
-        K = rand(rng, 2:6)
+    for _ in 1:10
+        K = rand(rng, 1:6)
         trial_demands = [rand(rng, number_of_items) for _ in 1:K]
-        trial_epsilon = rand(rng) * 0.2
-        reference_rho, _ = reference_minimum_additive_intersection_geometry(
-            trial_demands, trial_epsilon,
+        trial_radii = normalized_intersection_radii(
+            K, rand(rng) * 0.2, rand(rng) * 0.5,
         )
-        trial_rho, trial_point =
-            _compute_minimum_additive_intersection_rho_and_point(
-                trial_demands, trial_epsilon,
-            )
-        @test trial_rho ≈ reference_rho atol = 1.0e-8 rtol = 1.0e-8
+        reference_increase, _ = reference_minimum_radius_increase_geometry(
+            trial_demands, trial_radii,
+        )
+        trial_increase, trial_point =
+            _compute_minimum_radius_increase_and_point(trial_demands, trial_radii)
+        @test trial_increase ≈ reference_increase atol = 1.0e-8 rtol = 1.0e-8
         @test all(value -> 0.0 <= value <= 1.0, trial_point)
-        for k in 1:K
-            radius = trial_epsilon + (K - k + 1) * trial_rho
-            @test sqrt(
-                _squared_euclidean_distance(trial_point, trial_demands[k]),
-            ) <= radius * (1.0 + 1.0e-9) + 1.0e-12
-        end
+        # The returned point must be feasible for the enlarged balls, and at
+        # least one enlarged ball must be tight.
+        slacks = [
+            trial_radii[k] + trial_increase -
+            sqrt(_squared_euclidean_distance(trial_point, trial_demands[k]))
+            for k in 1:K
+        ]
+        @test minimum(slacks) >= -1.0e-8
+        @test minimum(abs.(slacks)) <= 1.0e-7
     end
 end
 
@@ -510,7 +471,9 @@ end
             overage_costs,
         )
     @test zero_radius_distinct_objective ≈ 0.0 atol = 1.0e-10
-    @test zero_radius_distinct_order ≈ fill(2.0 / 3.0, number_of_items) atol = 1.0e-8
+    # Both radii are zero, so the shared increase closes the gap symmetrically
+    # and first contact is the midpoint of the two centers.
+    @test zero_radius_distinct_order ≈ fill(0.5, number_of_items) atol = 1.0e-8
     zero_radius_objective, zero_radius_order =
         REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_order(
             0.0,
@@ -522,12 +485,10 @@ end
     @test zero_radius_objective ≈ 0.0
     @test zero_radius_order == demands[1]
 
-    # For an empty intersection, keep epsilon fixed and add the smallest common
-    # increment to rho. The older ball grows twice as fast as the newer ball,
-    # so the new contact point is no longer the midpoint produced by a common
-    # multiplicative enlargement.
+    # For an empty intersection, keep epsilon and rho fixed and grow every
+    # radius by the smallest shared increase. At rho = 0 both radii are equal,
+    # so first contact is the midpoint of the two centers.
     disjoint_demands = [zeros(number_of_items), fill(number_of_consumers, number_of_items)]
-    multi_item_reset_solver_statistics!()
     fallback_objective, fallback_order =
         REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_order(
             1.0,
@@ -537,19 +498,8 @@ end
             overage_costs,
         )
     @test fallback_objective ≈ 0.0 atol = 1.0e-8
-    normalized_additive_rho =
-        (sqrt(number_of_items) - 2.0 / number_of_consumers) / 3.0
-    expected_additive_coordinate =
-        (1.0 / number_of_consumers + 2.0 * normalized_additive_rho) /
-        sqrt(number_of_items)
-    @test fallback_order ≈ fill(
-        number_of_consumers * expected_additive_coordinate,
-        number_of_items,
-    ) atol = 1.0e-8
-    fallback_statistics = multi_item_solver_statistics_summary()
-    @test fallback_statistics.touching_solutions == 1
-    @test fallback_statistics.additive_radius_repairs == 1
-
+    @test fallback_order ≈ fill(0.5 * number_of_consumers, number_of_items) atol =
+        1.0e-8
     ratio_fallback_objective, ratio_fallback_order =
         REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_order(
             1.0,
@@ -559,7 +509,15 @@ end
             overage_costs,
         )
     @test ratio_fallback_objective ≈ fallback_objective atol = 1.0e-10
-    @test ratio_fallback_order ≈ fallback_order atol = 1.0e-8
+    # A positive rho makes the older ball the larger one, so first contact
+    # shifts off the midpoint toward the newer, smaller ball. With
+    # epsilon = 1, rho = 0.2 the radii are 1.4 and 1.2, and the contact point
+    # sits at 0.5 + (r_1 - r_2) / (2 * ||d_1 - d_2||) along the segment.
+    expected_ratio_coordinate =
+        0.5 + 0.1 / (number_of_consumers * sqrt(number_of_items))
+    @test ratio_fallback_order ≈ fill(
+        number_of_consumers * expected_ratio_coordinate, number_of_items,
+    ) atol = 1.0e-8
 
     tangent_demands = [zeros(number_of_items), [2.0, 0.0, 0.0]]
     tangent_objective, tangent_order =
@@ -649,32 +607,19 @@ end
         _active_intersection_ball_indices([[0.5, 0.5, 0.5]], [2.0]),
     )
 
-    # In additive geometry the common epsilon cancels from containment. At
-    # beta = 0.1, the c=2 ball centered at 0.4 contains the c=1 ball centered
-    # 0.1 away, so only the latter constrains the first-contact SOCP.
-    @test _geometry_constraining_ball_indices(
-        [[0.4, 0.5, 0.5], [0.5, 0.5, 0.5]],
-        [2.0, 1.0],
-        0.1,
-    ) == [2]
 end
 
 
-@testset "additive repair grid sharing" begin
+@testset "shared increase repair grid" begin
     repair_demands = [
         zeros(number_of_items),
         fill(number_of_consumers, number_of_items),
     ]
     repair_epsilons = [0.5, 1.0]
-    # Deliberately leave the smallest ratio in the middle to verify that grid
-    # geometry is shared by value rather than relying on column order.
-    repair_weights = [
-        REMK_intersection_weights(2, 0.2),
-        REMK_intersection_weights(2, 0.0),
-        REMK_intersection_weights(2, 0.1),
-    ]
-
-    multi_item_reset_solver_statistics!()
+    # The duplicated ratio and out-of-order placement check that grid results
+    # depend on parameter values rather than column order.
+    repair_ratios = [0.2, 0.0, 0.1, 0.2]
+    repair_weights = [REMK_intersection_weights(2, ratio) for ratio in repair_ratios]
     repair_grid = _multi_item_newsvendor_grid(
         REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_order,
         repair_epsilons,
@@ -683,35 +628,37 @@ end
         underage_costs,
         overage_costs,
     )
-    statistics = multi_item_solver_statistics_summary()
+    # Every cell collapses to a point mass, and the contact point sits on the
+    # segment between the two centers, offset from the midpoint by half the
+    # radius difference. The two balls differ by exactly epsilon * ratio.
+    center_distance = sqrt(number_of_items)
+    for radius_index in eachindex(repair_epsilons), weight_index in eachindex(repair_weights)
+        objective, order = repair_grid[radius_index, weight_index]
+        @test objective ≈ 0.0 atol = 1.0e-10
+        radius_difference =
+            repair_epsilons[radius_index] * repair_ratios[weight_index] /
+            number_of_consumers
+        expected_coordinate = 0.5 + radius_difference / (2.0 * center_distance)
+        @test order ≈ fill(
+            number_of_consumers * expected_coordinate, number_of_items,
+        ) atol = 1.0e-8
+    end
 
-    @test statistics.geometry_solves == 1
-    @test statistics.additive_geometry_solves == length(repair_epsilons)
-    @test statistics.additive_radius_repairs ==
-        length(repair_epsilons) * length(repair_weights)
-    @test statistics.touching_solutions ==
-        length(repair_epsilons) * length(repair_weights)
+    # Equal radius profiles must give bit-identical cells regardless of column.
     for radius_index in eachindex(repair_epsilons)
-        @test all(
-            isapprox(
-                repair_grid[radius_index, weight_index][1], 0.0; atol = 1.0e-10,
-            )
-            for weight_index in eachindex(repair_weights)
-        )
-        reference_order = repair_grid[radius_index, 1][2]
-        @test all(
-            isapprox(
-                repair_grid[radius_index, weight_index][2],
-                reference_order;
-                atol = 1.0e-8,
-            )
-            for weight_index in eachindex(repair_weights)
-        )
+        @test repair_grid[radius_index, 1][2] ≈ repair_grid[radius_index, 4][2] atol =
+            1.0e-12
+    end
+    # A larger ratio makes the older ball larger and pushes contact away from
+    # the midpoint, toward the newer center.
+    for radius_index in eachindex(repair_epsilons)
+        @test repair_grid[radius_index, 2][2][1] < repair_grid[radius_index, 3][2][1]
+        @test repair_grid[radius_index, 3][2][1] < repair_grid[radius_index, 1][2][1]
     end
 
     # At the same epsilon, a sufficiently large requested rho is genuinely
-    # interior while rho = 0 still needs repair. The shared additive contact
-    # point must act as a strict-interior certificate for the former cell.
+    # interior while rho = 0 still needs repair. The shared contact point must
+    # act as a strict-interior certificate for the former cell.
     mixed_weights = [
         REMK_intersection_weights(2, 6.0),
         REMK_intersection_weights(2, 0.0),
@@ -735,9 +682,11 @@ end
     @test mixed_grid[1, 1][1] > 0.0
     @test mixed_grid[1, 2][1] ≈ 0.0 atol = 1.0e-10
 
+    # With two centers one unit apart and epsilon = 1, the ratio that makes the
+    # base radii sum to the center distance is exactly tangent, so it needs no
+    # increase while the rho = 0 column still does.
     axis_demands = [zeros(number_of_items), [number_of_consumers, 0.0, 0.0]]
     tangent_ratio = 8.0 / 3.0
-    multi_item_reset_solver_statistics!()
     tangent_grid = _multi_item_newsvendor_grid(
         REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_order,
         [1.0],
@@ -749,11 +698,10 @@ end
         underage_costs,
         overage_costs,
     )
-    tangent_statistics = multi_item_solver_statistics_summary()
-    @test tangent_statistics.touching_solutions == 2
-    @test tangent_statistics.additive_radius_repairs == 1
-    @test tangent_grid[1, 1][2] ≈ [19.0 / 3.0, 0.0, 0.0] atol = 1.0e-8
-    @test tangent_grid[1, 2][2] ≈ tangent_grid[1, 1][2] atol = 1.0e-8
+    # Equal radii: the midpoint.
+    @test tangent_grid[1, 1][2] ≈ [number_of_consumers / 2.0, 0.0, 0.0] atol = 1.0e-8
+    # Tangent radii 19/3 and 11/3: contact at the larger radius along the axis.
+    @test tangent_grid[1, 2][2] ≈ [19.0 / 3.0, 0.0, 0.0] atol = 1.0e-8
 end
 
 
@@ -809,8 +757,9 @@ end
         trial_weights = REMK_intersection_weights(K, trial_ratio)
         normalized_trial_demands =
             [demand ./ number_of_consumers for demand in trial_demands]
-        minimum_epsilon, _ = _compute_minimum_intersection_epsilon_and_point(
-            normalized_trial_demands, trial_ratio,
+        trial_relative_radii = [1.0 + (K - k + 1) * trial_ratio for k in 1:K]
+        minimum_epsilon, _ = reference_minimum_intersection_geometry(
+            normalized_trial_demands, trial_relative_radii,
         )
         for epsilon_scale in [1.1, 2.0, 8.0]
             trial_epsilon = max(
