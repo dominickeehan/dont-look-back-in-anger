@@ -1,7 +1,8 @@
 # Demand is multinomial across items: each consumer buys at most one item, so
 # item demands are negatively correlated within a period. Each repetition
-# draws its own mixture weights, per-mode starting purchase probabilities, and
-# per-item underage and overage costs uniformly at random. The no-purchase
+# draws its own mixture weights and per-item underage and overage costs
+# uniformly at random. Per-mode starting purchase probabilities are sampled
+# unless fixed one-item probabilities are supplied below. The no-purchase
 # probability is stored implicitly as one minus the sum of the item
 # probabilities. The per-item demand marginals remain Binomial, so the
 # expected-cost evaluation below stays exact.
@@ -15,17 +16,29 @@ using ProgressBars
 # copy them into their own typed constants.
 const number_of_items = 1
 const number_of_consumers = 1000
+#const underage_cost_values = [4.0]#[3.0, 4.0, 5.0, 6.0]
 const underage_cost_values = [3.0, 4.0, 5.0, 6.0]
 const overage_cost_values = [1.0]
+#const minimum_purchase_probability = 0.00
+#const maximum_purchase_probability = 1.00
 const minimum_purchase_probability = 0.01
 const maximum_purchase_probability = 0.99
 
-const first_mode_weight_values = [0.9] #[0.9, 0.95, 0.99]
+#const first_mode_weight_values = [0.9] #[0.9, 0.95, 0.99]
+const first_mode_weight_values = [0.9, 0.95, 0.99]
 const number_of_modes = 2
+
+# For one item, set this to [p_mode_1, p_mode_2] to fix the two modes'
+# starting purchase probabilities. Leave it as nothing to sample them using
+# the existing Dirichlet approach independently in every repetition.
+#const initial_demand_probabilities = [0.1, 0.5]#]nothing
+const initial_demand_probabilities = nothing
 construct_drift_distribution(delta) = TriangularDist(-delta, delta, 0.0)
-const drifts = [1.00e-1, 3.16e-1, 1.00e0]
+#const drifts = [1.00e-1, 3.16e-1, 1.00e0]
+#const drifts = [5.62e-3, 1.00e-2, 3.16e-2, 1.00e-1, 2.4e-1, 5.62e-1]
+#const drifts = [5.62e-3, 1.00e-2, 1.79e-2, 3.16e-2, 5.62e-2, 1.00e-1, 1.79e-1, 3.16e-1, 5.62e-1]
 #const drifts = [5.62e-3, 1.00e-2, 3.16e-2, 1.00e-1, 3.16e-1, 1.00e0]
-#const drifts = [5.62e-3, 1.00e-2, 1.79e-2, 3.16e-2, 5.62e-2, 1.00e-1, 1.79e-1, 3.16e-1, 5.62e-1, 1.00e0]
+const drifts = [5.62e-3, 1.00e-2, 1.79e-2, 3.16e-2, 5.62e-2, 1.00e-1, 1.79e-1, 3.16e-1, 5.62e-1, 1.00e0]
 
 include("weights.jl")
 include("multi-item-newsvendor-dual-optimizations.jl")
@@ -275,7 +288,70 @@ function sample_multinomial_demand(purchase_probabilities)
 end
 
 
+function validate_drift_configuration()
+    for (name, cost_values) in (
+        ("underage_cost_values", underage_cost_values),
+        ("overage_cost_values", overage_cost_values),
+    )
+        isempty(cost_values) && error(
+            "$name must contain at least one candidate cost.",
+        )
+        all(cost -> isfinite(cost) && cost > 0.0, cost_values) || error(
+            "Every candidate in $name must be finite and positive.",
+        )
+    end
+
+    isempty(first_mode_weight_values) && error(
+        "first_mode_weight_values must contain at least one candidate weight.",
+    )
+    all(
+        weight -> isfinite(weight) && 0.0 <= weight <= 1.0,
+        first_mode_weight_values,
+    ) || error(
+        "Every candidate in first_mode_weight_values must be finite and " *
+        "in [0, 1].",
+    )
+
+    isnothing(initial_demand_probabilities) && return nothing
+    number_of_items == 1 || error(
+        "initial_demand_probabilities is supported only when " *
+        "number_of_items == 1.",
+    )
+    length(initial_demand_probabilities) == number_of_modes || error(
+        "initial_demand_probabilities must contain one probability for " *
+        "each mode.",
+    )
+    all(
+        probability ->
+            isfinite(probability) &&
+            minimum_purchase_probability <= probability <=
+                maximum_purchase_probability,
+        initial_demand_probabilities,
+    ) || error(
+        "Every initial demand probability must be finite and within the " *
+        "configured purchase-probability bounds.",
+    )
+    return nothing
+end
+
+
+function initial_mode_demand_probabilities()
+    if isnothing(initial_demand_probabilities)
+        return [
+            project_purchase_probabilities!(
+                rand(Dirichlet(number_of_items + 1, 1.0))[1:number_of_items],
+            ) for _ in 1:number_of_modes
+        ]
+    end
+    return [
+        [Float64(probability)]
+        for probability in initial_demand_probabilities
+    ]
+end
+
+
 function generate_drift_data(drift, repetition_mixture_weights)
+    validate_drift_configuration()
     Random.seed!(simulation_seed)
     drift_distribution = construct_drift_distribution(drift)
 
@@ -292,11 +368,7 @@ function generate_drift_data(drift, repetition_mixture_weights)
         mode_sampler = Weights(
             repetition_mixture_weights[repetition_index],
         )
-        demand_probabilities = [
-            project_purchase_probabilities!(
-                rand(Dirichlet(number_of_items + 1, 1.0))[1:number_of_items],
-            ) for _ in 1:number_of_modes
-        ]
+        demand_probabilities = initial_mode_demand_probabilities()
         demand_sequence = Vector{Vector{Float64}}(
             undef,
             history_length,
@@ -355,14 +427,23 @@ const window_size_grid = unique(round.(Int, LogRange(1, history_length, 30)))
 
 
 function precompute_weight_vector_table(compute_weights, parameters)
-    return [
-        [
+    sample_counts = collect(
+        (history_length - training_length):history_length,
+    )
+    weight_vector_table = Vector{Vector{Vector{Float64}}}(
+        undef,
+        length(sample_counts),
+    )
+
+    Threads.@threads for sample_count_index in eachindex(sample_counts)
+        sample_count = sample_counts[sample_count_index]
+        weight_vector_table[sample_count_index] = [
             compute_weights(sample_count, parameter)
             for parameter in parameters
         ]
-        for sample_count in
-            (history_length - training_length):history_length
-    ]
+    end
+
+    return weight_vector_table
 end
 
 
@@ -670,6 +751,7 @@ plt = plot(
     leftmargin = 6.0pt,
     bottommargin = 6.0pt,
     rightmargin = 3.0pt,
+    legend = :topright,
 )
 
 fillalpha = 0.1
