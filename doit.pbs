@@ -14,4 +14,4 @@ export JULIA_CPU_TARGET="${JULIA_CPU_TARGET:-generic}"
 julia --startup-file=no \
       --project=. \
       --threads=1 \
-      generate-train-and-test-multi-modal-drifting-newsvendor-data.jl
+      generate-train-and-test-multi-item-drifting-newsvendor-data.jl
