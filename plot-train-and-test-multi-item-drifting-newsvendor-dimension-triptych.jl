@@ -30,7 +30,7 @@ const drift_panels = (
 const drifts = [panel.value for panel in drift_panels]
 
 include("weights.jl")
-include("multi-item-newsvendor-optimizations.jl")
+include("multi-item-newsvendor-dual-optimizations.jl")
 
 const number_of_repetitions = 300
 const number_of_future_samples = 300

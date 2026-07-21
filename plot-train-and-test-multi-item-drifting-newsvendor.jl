@@ -28,7 +28,7 @@ const drifts = [1.00e-1, 3.16e-1, 1.00e0]
 #const drifts = [5.62e-3, 1.00e-2, 1.79e-2, 3.16e-2, 5.62e-2, 1.00e-1, 1.79e-1, 3.16e-1, 5.62e-1, 1.00e0]
 
 include("weights.jl")
-include("multi-item-newsvendor-optimizations.jl")
+include("multi-item-newsvendor-dual-optimizations.jl")
 
 const number_of_repetitions = 1000
 const number_of_future_samples = 1000
