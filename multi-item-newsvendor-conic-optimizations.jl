@@ -38,6 +38,7 @@ end
 const multi_item_optimizer = optimizer_with_attributes(
     () -> Gurobi.Optimizer(_gurobi_environment_for_current_thread()),
 )
+const multi_item_geometry_tolerance = 1.0e-6
 
 
 function _new_multi_item_model()
@@ -47,16 +48,7 @@ function _new_multi_item_model()
 end
 
 
-function _optimize_multi_item_model!(Problem; high_precision = false)
-    if high_precision
-        set_attribute(Problem, "BarHomogeneous", 1)
-        set_attribute(Problem, "NumericFocus", 3)
-        set_attribute(Problem, "FeasibilityTol", 1.0e-9)
-        set_attribute(Problem, "BarQCPConvTol", 1.0e-10)
-    else
-        set_attribute(Problem, "BarHomogeneous", -1)
-        set_attribute(Problem, "NumericFocus", 0)
-    end
+function _optimize_multi_item_model!(Problem)
     optimize!(Problem)
     is_solved_and_feasible(Problem) && return nothing
 
@@ -70,16 +62,6 @@ function _optimize_multi_item_model!(Problem; high_precision = false)
         "termination_status=$(termination_status(Problem)), " *
         "primal_status=$(primal_status(Problem))",
     )
-end
-
-
-# Use the preceding solution as a starting point after changing a radius.
-function _set_multi_item_start_values!(Problem)
-    variables = all_variables(Problem)
-    variable_values = value.(variables)
-    for index in eachindex(variables)
-        set_start_value(variables[index], variable_values[index])
-    end
 end
 
 
@@ -163,6 +145,7 @@ function _build_W2_DRO_multi_item_newsvendor_problem(
     weights,
     instance_underage_costs,
     instance_overage_costs,
+    normalized_epsilon,
 )
     a, b, C, g = _multi_item_newsvendor_problem_data(
         instance_underage_costs, instance_overage_costs,
@@ -203,24 +186,21 @@ function _build_W2_DRO_multi_item_newsvendor_problem(
     @objective(
         Problem,
         Min,
+        normalized_epsilon^2 * λ +
         sum(weights[t] * γ[t] for t in 1:T),
     )
-    return Problem, order, λ
+    return Problem, order
 end
 
 
 function _solve_W2_DRO_multi_item_newsvendor_problem!(
-    Problem, order, λ, ε,
+    Problem, order,
 )
-    normalized_epsilon = ε / number_of_consumers
-    set_objective_coefficient(Problem, λ, normalized_epsilon^2)
-    _optimize_multi_item_model!(Problem; high_precision = true)
-    result = (
+    _optimize_multi_item_model!(Problem)
+    return (
         number_of_consumers * objective_value(Problem),
         number_of_consumers .* value.(order),
     )
-    _set_multi_item_start_values!(Problem)
-    return result
 end
 
 
@@ -244,96 +224,18 @@ function W2_DRO_multi_item_newsvendor_objective_value_and_order(
     demands, weights =
         _normalized_positive_weights_and_demands(demands, weights)
     normalized_demands = [demand ./ number_of_consumers for demand in demands]
-    Problem, order, λ =
+    Problem, order =
         _build_W2_DRO_multi_item_newsvendor_problem(
             normalized_demands,
             weights,
             instance_underage_costs,
             instance_overage_costs,
+            ε / number_of_consumers,
         )
     return _solve_W2_DRO_multi_item_newsvendor_problem!(
-        Problem, order, λ, ε,
+        Problem, order,
     )
 end
 
 
-function _multi_item_newsvendor_grid(
-    newsvendor_objective_value_and_order,
-    ambiguity_radii,
-    demands,
-    weight_vectors,
-    instance_underage_costs,
-    instance_overage_costs,
-)
-    result_type = Tuple{Float64,Vector{Float64}}
-    results = Matrix{result_type}(
-        undef, length(ambiguity_radii), length(weight_vectors),
-    )
-    for weight_index in eachindex(weight_vectors)
-        for radius_index in eachindex(ambiguity_radii)
-            results[radius_index, weight_index] =
-                newsvendor_objective_value_and_order(
-                    ambiguity_radii[radius_index],
-                    demands,
-                    weight_vectors[weight_index],
-                    instance_underage_costs,
-                    instance_overage_costs,
-                )
-        end
-    end
-    return results
-end
-
-
-# Reuse one exact conic model down each radius column. Only the coefficient of
-# λ changes, and the preceding solution supplies the next warm start.
-function _multi_item_newsvendor_grid(
-    ::typeof(W2_DRO_multi_item_newsvendor_objective_value_and_order),
-    ambiguity_radii,
-    demands,
-    weight_vectors,
-    instance_underage_costs,
-    instance_overage_costs,
-)
-    result_type = Tuple{Float64,Vector{Float64}}
-    results = Matrix{result_type}(
-        undef, length(ambiguity_radii), length(weight_vectors),
-    )
-
-    for weight_index in eachindex(weight_vectors)
-        active_demands, normalized_weights =
-            _normalized_positive_weights_and_demands(
-                demands, weight_vectors[weight_index],
-            )
-        normalized_demands = [
-            demand ./ number_of_consumers for demand in active_demands
-        ]
-        Problem, order, λ =
-            _build_W2_DRO_multi_item_newsvendor_problem(
-                normalized_demands,
-                normalized_weights,
-                instance_underage_costs,
-                instance_overage_costs,
-            )
-
-        for radius_index in eachindex(ambiguity_radii)
-            ε = ambiguity_radii[radius_index]
-            if ε == 0.0
-                results[radius_index, weight_index] =
-                    SO_multi_item_newsvendor_objective_value_and_order(
-                        ε,
-                        active_demands,
-                        normalized_weights,
-                        instance_underage_costs,
-                        instance_overage_costs,
-                    )
-            else
-                results[radius_index, weight_index] =
-                    _solve_W2_DRO_multi_item_newsvendor_problem!(
-                        Problem, order, λ, ε,
-                    )
-            end
-        end
-    end
-    return results
-end
+include("multi-item-newsvendor-intersection-conic-optimizations.jl")
