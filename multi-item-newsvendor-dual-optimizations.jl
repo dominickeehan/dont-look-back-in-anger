@@ -1,65 +1,8 @@
-using LinearAlgebra
-using JuMP, MathOptInterface, Gurobi
-
-
 # This file expects the following experiment constants to be defined in the
 # main script before it is included:
 #
 # const number_of_items = 3
 # const number_of_consumers = 1000
-
-
-# Each Julia thread reuses its own single-threaded Gurobi environment.
-const julia_thread_count =
-    Threads.nthreads(:default) + Threads.nthreads(:interactive)
-const gurobi_environments =
-    Union{Nothing,Gurobi.Env}[nothing for _ in 1:julia_thread_count]
-const gurobi_environment_locks =
-    [ReentrantLock() for _ in 1:julia_thread_count]
-
-
-function _gurobi_environment_for_current_thread()
-    thread_id = Threads.threadid()
-    environment = gurobi_environments[thread_id]
-    if isnothing(environment)
-        lock(gurobi_environment_locks[thread_id]) do
-            if isnothing(gurobi_environments[thread_id])
-                gurobi_environments[thread_id] = Gurobi.Env(
-                    Dict{String,Any}("OutputFlag" => 0, "Threads" => 1),
-                )
-            end
-            environment = gurobi_environments[thread_id]
-        end
-    end
-    return environment::Gurobi.Env
-end
-
-
-const multi_item_optimizer = optimizer_with_attributes(
-    () -> Gurobi.Optimizer(_gurobi_environment_for_current_thread()),
-    "BarHomogeneous" => 1,
-    "NumericFocus" => 3,
-    "FeasibilityTol" => 1.0e-9,
-    "BarQCPConvTol" => 1.0e-10,
-)
-
-
-function _new_multi_item_model()
-    Problem = Model(multi_item_optimizer)
-    set_string_names_on_creation(Problem, false)
-    return Problem
-end
-
-
-function _optimize_multi_item_model!(Problem)
-    optimize!(Problem)
-    is_solved_and_feasible(Problem) && return nothing
-    error(
-        "Gurobi did not solve the multi-item newsvendor model: " *
-        "termination_status=$(termination_status(Problem)), " *
-        "primal_status=$(primal_status(Problem))",
-    )
-end
 
 
 function _normalized_positive_weights_and_demands(demands, weights)
@@ -133,7 +76,7 @@ end
 # elementary closed form below, minimizing over the order for fixed λ is a
 # weighted-quantile problem over per-scenario breakpoints, and the remaining
 # one-dimensional function of λ is convex, so a golden-section search solves
-# the problem to machine precision.
+# the problem to the specified numerical tolerance.
 function _bounded_linear_quadratic_conjugate(slope, demand, λ)
     if iszero(λ)
         return max(0.0, slope)

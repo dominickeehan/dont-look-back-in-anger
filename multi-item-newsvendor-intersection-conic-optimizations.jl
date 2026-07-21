@@ -71,7 +71,7 @@ function _solve_ball_intersection_feasibility_problem!(
     Problem, ξ, a,
 )
     _optimize_multi_item_model!(Problem)
-    return value(a), clamp.(value.(ξ), 0.0, 1.0)
+    return value(a), value.(ξ)
 end
 
 

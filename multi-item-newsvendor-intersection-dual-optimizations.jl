@@ -1,10 +1,155 @@
+using LinearAlgebra
+using JuMP, MathOptInterface, Gurobi
+
+
 # First-order dual solver for an intersection of Wasserstein balls, replacing
 # the exact conic reformulation in
 # multi-item-newsvendor-intersection-conic-optimizations.jl.
 
 
-# In the following distributional ball-intersection feasibility problem the equivalence to working in R^m follows since
-# W₂(P,1_ξ) = sqrt(sum((E(P)_i-ξ_i)^2) + Tr(Cov(P))) which drives Tr(Cov(P)) -> 0 and P -> 1_E(P) at extremal distributions.
+# Each Julia thread reuses its own single-threaded Gurobi environment for the
+# exact ball-intersection feasibility fallback.
+const julia_thread_count =
+    Threads.nthreads(:default) + Threads.nthreads(:interactive)
+const gurobi_environments =
+    Union{Nothing,Gurobi.Env}[nothing for _ in 1:julia_thread_count]
+const gurobi_environment_locks =
+    [ReentrantLock() for _ in 1:julia_thread_count]
+
+
+function _gurobi_environment_for_current_thread()
+    thread_id = Threads.threadid()
+    environment = gurobi_environments[thread_id]
+    if isnothing(environment)
+        lock(gurobi_environment_locks[thread_id]) do
+            if isnothing(gurobi_environments[thread_id])
+                gurobi_environments[thread_id] = Gurobi.Env(
+                    Dict{String,Any}("OutputFlag" => 0, "Threads" => 1),
+                )
+            end
+            environment = gurobi_environments[thread_id]
+        end
+    end
+    return environment::Gurobi.Env
+end
+
+
+const multi_item_optimizer = optimizer_with_attributes(
+    () -> Gurobi.Optimizer(_gurobi_environment_for_current_thread()),
+)
+const multi_item_geometry_tolerance = 1.0e-6
+
+
+function _new_multi_item_model()
+    Problem = Model(multi_item_optimizer)
+    set_string_names_on_creation(Problem, false)
+    return Problem
+end
+
+
+function _optimize_multi_item_model!(Problem)
+    optimize!(Problem)
+    is_solved_and_feasible(Problem) && return nothing
+
+    set_attribute(Problem, "BarHomogeneous", 1)
+    set_attribute(Problem, "NumericFocus", 3)
+    optimize!(Problem)
+    is_solved_and_feasible(Problem) && return nothing
+
+    error(
+        "Gurobi did not solve the multi-item newsvendor model: " *
+        "termination_status=$(termination_status(Problem)), " *
+        "primal_status=$(primal_status(Problem))",
+    )
+end
+
+
+# In the following ball-intersection problem it is enough to work with points
+# ξ in R^m because
+# W₂(P, 1_ξ) = sqrt(sum((E(P)_i - ξ_i)^2) + Tr(Cov(P))). At first
+# contact the covariance is therefore zero and P is a point mass.
+
+
+function _pairwise_distances(demands)
+    K = length(demands)
+    distances = zeros(K, K)
+    for j in 1:K, k in j+1:K
+        distances[j, k] = distances[k, j] = norm(demands[j] - demands[k])
+    end
+    return distances
+end
+
+
+# If ball j contains ball k, ball j is redundant in their intersection. A
+# shared additive radius increase preserves the containment relation exactly.
+function _nonredundant_ball_indices(ball_radii, pair_distances)
+    kept_indices = Int[]
+    for j in sortperm(ball_radii)
+        contained_ball_already_kept = any(
+            pair_distances[j, k] + ball_radii[k] <= ball_radii[j]
+            for k in kept_indices
+        )
+        contained_ball_already_kept || push!(kept_indices, j)
+    end
+    return sort!(kept_indices)
+end
+
+
+# The shared radius increase required at a candidate point. A negative value
+# directly certifies a nonempty interior and hence Slater's condition.
+function _required_radius_increase_at_point(point, demands, ball_radii)
+    return maximum(
+        norm(point - demands[k]) - ball_radii[k] for k in eachindex(demands)
+    )
+end
+
+
+# Every pair supplies the lower bound
+#   a >= (‖d_j - d_k‖ - r_j - r_k) / 2.
+# The smallest radius also supplies a >= -min(r). If the contact point for the
+# largest bound satisfies every ball at that same value, its feasible upper
+# bound matches the lower bound and it is therefore globally optimal.
+function _certified_two_ball_radius_increase(
+    demands, ball_radii, pair_distances,
+)
+    K = length(demands)
+    lower_bound = -minimum(ball_radii)
+    critical_j = 0
+    critical_k = argmin(ball_radii)
+    for j in 1:K, k in j+1:K
+        bound =
+            (pair_distances[j, k] - ball_radii[j] - ball_radii[k]) / 2.0
+        if bound > lower_bound
+            lower_bound = bound
+            critical_j, critical_k = j, k
+        end
+    end
+
+    candidate = if critical_j == 0
+        demands[critical_k]
+    else
+        distance = pair_distances[critical_j, critical_k]
+        distance > 0.0 || return nothing
+        fraction = (ball_radii[critical_j] + lower_bound) / distance
+        0.0 <= fraction <= 1.0 || return nothing
+        demands[critical_j] +
+            fraction * (demands[critical_k] - demands[critical_j])
+    end
+    candidate_increase = _required_radius_increase_at_point(
+        candidate, demands, ball_radii,
+    )
+    tolerance = 1.0e-12 * max(
+        1.0, abs(lower_bound), abs(candidate_increase),
+    )
+    candidate_increase <= lower_bound + tolerance || return nothing
+    return max(lower_bound, candidate_increase), candidate
+end
+
+
+# Exact SOCP fallback:
+#   ‖ξ - demand[k]‖₂ <= ball_radius[k] + a.
+# A standard cone is both the direct formulation and one coordinate smaller
+# than the equivalent rotated-cone representation.
 function _build_ball_intersection_feasibility_problem(demands, ball_radii)
     K = length(demands)
     Problem = _new_multi_item_model()
@@ -13,47 +158,18 @@ function _build_ball_intersection_feasibility_problem(demands, ball_radii)
         a
     end)
 
-    ball_constraints = ConstraintRef[]
     for k in 1:K
-        push!(
-            ball_constraints,
-            @constraint(
-                Problem,
-                [
-                    0.5 * (ball_radii[k] + a);
-                    ball_radii[k] + a;
-                    [
-                        ξ[i] - demands[k][i]
-                        for i in 1:number_of_items
-                    ]
-                ] in MathOptInterface.RotatedSecondOrderCone(
-                    number_of_items + 2,
-                ),
-            ),
+        @constraint(
+            Problem,
+            [
+                ball_radii[k] + a;
+                [ξ[i] - demands[k][i] for i in 1:number_of_items]
+            ] in MathOptInterface.SecondOrderCone(number_of_items + 1),
         )
     end
 
     @objective(Problem, Min, a)
-    return Problem, ξ, a, ball_constraints
-end
-
-
-# Change only the radii in the simple feasibility problem above.
-function _set_ball_intersection_radii!(
-    Problem, ball_constraints, demands, ball_radii,
-)
-    for k in eachindex(ball_radii)
-        constants = [
-            0.5 * ball_radii[k];
-            ball_radii[k];
-            [-demands[k][i] for i in 1:number_of_items]
-        ]
-        MathOptInterface.modify(
-            backend(Problem),
-            index(ball_constraints[k]),
-            MathOptInterface.VectorConstantChange(constants),
-        )
-    end
+    return Problem, ξ, a
 end
 
 
@@ -61,19 +177,7 @@ function _solve_ball_intersection_feasibility_problem!(
     Problem, ξ, a,
 )
     _optimize_multi_item_model!(Problem)
-    return value(a), clamp.(value.(ξ), 0.0, 1.0)
-end
-
-
-# The shared radius increase that makes point feasible for every ball. A
-# strictly negative value at any single point certifies a nonempty interior,
-# so Slater's condition holds for the dual below and the exact feasibility
-# problem can be skipped; the callers try the mean of the ball centers, which
-# lies in the box and, away from the first-contact radius, inside every ball.
-function _required_radius_increase_at_point(point, demands, ball_radii)
-    return maximum(
-        norm(point - demands[k]) - ball_radii[k] for k in eachindex(demands)
-    )
+    return value(a), value.(ξ)
 end
 
 
@@ -147,6 +251,7 @@ function _intersection_dual_objective_and_gradient!(
     for i in 1:number_of_items
         underage_cost = instance_underage_costs[i]
         overage_cost = instance_overage_costs[i]
+        total_cost = underage_cost + overage_cost
 
         weighted_demand = 0.0
         weighted_squared_demand = 0.0
@@ -169,16 +274,17 @@ function _intersection_dual_objective_and_gradient!(
 
         # Observation 3: the optimal order is the crossing of the two pieces;
         # the trailing terms are the constant from observation 1.
-        order[i] =
-            (underage_value - overage_value) / (underage_cost + overage_cost)
-        objective += max(
-            underage_value - underage_cost * order[i],
-            overage_value + overage_cost * order[i],
-        ) + total_multiplier * center^2 - weighted_squared_demand
+        order[i] = (underage_value - overage_value) / total_cost
+        crossing_value = (
+            overage_cost * underage_value +
+            underage_cost * overage_value
+        ) / total_cost
+        objective += crossing_value +
+            total_multiplier * center^2 - weighted_squared_demand
 
         # Observation 4: the worst case mixes the atoms at the fractile.
-        upper_weight = overage_cost / (underage_cost + overage_cost)
-        lower_weight = underage_cost / (underage_cost + overage_cost)
+        upper_weight = overage_cost / total_cost
+        lower_weight = underage_cost / total_cost
         for k in 1:K
             gradient[k] -=
                 upper_weight * (upper_atom - normalized_demands[k][i])^2 +
@@ -202,19 +308,18 @@ end
 # makes the optimal multipliers large. The line search is sound because the
 # objective is continuously differentiable for Λ > 0: where a displacement
 # cap in observation 2 switches branch, the two branches agree in value and
-# first derivative. The iteration starts at initial_λ (warm-started by the
-# grid) and stops once the projected step is no longer a descent direction,
-# which happens only at (numerical) stationarity; from λ = 0 with large
-# radii it stops immediately, recovering the distribution-free newsvendor.
+# first derivative. The iteration starts at λ = 0 and stops once the
+# projected step is no longer a descent direction, which happens only at
+# (numerical) stationarity; with large radii it stops immediately, recovering
+# the distribution-free newsvendor.
 function _solve_intersection_dual(
     normalized_demands,
     normalized_ball_radii,
-    initial_λ,
     instance_underage_costs,
     instance_overage_costs,
 )
     K = length(normalized_demands)
-    λ = copy(initial_λ)
+    λ = zeros(K)
     trial_λ = similar(λ)
     gradient = similar(λ)
     trial_gradient = similar(λ)
@@ -278,7 +383,55 @@ function _solve_intersection_dual(
 
     # Rewrite order for the final λ; rejected trials may have overwritten it.
     objective = evaluate!(gradient, λ)
-    return objective, order, λ
+    return objective, order
+end
+
+
+function _normalized_intersection_objective_value_and_order(
+    normalized_demands,
+    normalized_ball_radii,
+    pair_distances,
+    instance_underage_costs,
+    instance_overage_costs,
+)
+    active_indices = _nonredundant_ball_indices(
+        normalized_ball_radii, pair_distances,
+    )
+    active_demands = normalized_demands[active_indices]
+    active_radii = normalized_ball_radii[active_indices]
+    active_distances = pair_distances[active_indices, active_indices]
+
+    # An empty or touching intersection is repaired exactly as in the conic
+    # formulation: every ball grows by the smallest shared radius increase that
+    # makes the intersection nonempty, collapsing the ambiguity set to the
+    # contact point. This is settled before the dual solver runs — the dual
+    # is unbounded below when the intersection is empty — and a strictly
+    # interior certificate is Slater's condition for the dual.
+    geometry = _certified_two_ball_radius_increase(
+        active_demands, active_radii, active_distances,
+    )
+    if isnothing(geometry)
+        Problem, ξ, a = _build_ball_intersection_feasibility_problem(
+            active_demands, active_radii,
+        )
+        geometry = _solve_ball_intersection_feasibility_problem!(
+            Problem, ξ, a,
+        )
+    end
+    minimum_increase, point = geometry
+
+    # At first contact the repaired ambiguity set is the point mass at point;
+    # ordering exactly that demand incurs zero loss.
+    if minimum_increase >= -multi_item_geometry_tolerance
+        return 0.0, point
+    end
+
+    return _solve_intersection_dual(
+        active_demands,
+        active_radii,
+        instance_underage_costs,
+        instance_overage_costs,
+    )
 end
 
 
@@ -294,33 +447,11 @@ function REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_orde
     normalized_ball_radii =
         REMK_intersection_ball_radii(K, ε, weights[end]) ./
         number_of_consumers
-
-    mean_normalized_demand = sum(normalized_demands) / K
-    if _required_radius_increase_at_point(
-        mean_normalized_demand, normalized_demands, normalized_ball_radii,
-    ) >= -1.0e-10
-        Ball_Intersection_Feasibility_Problem,
-        ξ,
-        a,
-        _ = _build_ball_intersection_feasibility_problem(
-            normalized_demands, normalized_ball_radii,
-        )
-        minimum_increase, point =
-            _solve_ball_intersection_feasibility_problem!(
-                Ball_Intersection_Feasibility_Problem, ξ, a,
-            )
-
-        # At first contact the repaired ambiguity set is the point mass at
-        # point; ordering exactly that demand incurs zero loss.
-        if minimum_increase >= -1.0e-10
-            return 0.0, number_of_consumers .* point
-        end
-    end
-
-    objective, order, _ = _solve_intersection_dual(
+    pair_distances = _pairwise_distances(normalized_demands)
+    objective, order = _normalized_intersection_objective_value_and_order(
         normalized_demands,
         normalized_ball_radii,
-        zeros(K),
+        pair_distances,
         instance_underage_costs,
         instance_overage_costs,
     )
@@ -328,8 +459,6 @@ function REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_orde
 end
 
 
-# Reuse the feasibility model across the grid and warm-start each dual solve
-# at the multipliers from the preceding radius.
 function _multi_item_newsvendor_grid(
     ::typeof(REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_order),
     ambiguity_radii,
@@ -340,58 +469,24 @@ function _multi_item_newsvendor_grid(
 )
     K = length(demands)
     normalized_demands = [demand ./ number_of_consumers for demand in demands]
-    mean_normalized_demand = sum(normalized_demands) / K
+    pair_distances = _pairwise_distances(normalized_demands)
     result_type = Tuple{Float64,Vector{Float64}}
     results = Matrix{result_type}(
         undef, length(ambiguity_radii), length(weight_vectors),
     )
 
-    Ball_Intersection_Feasibility_Problem,
-    ξ,
-    a,
-    ball_constraints = _build_ball_intersection_feasibility_problem(
-        normalized_demands, zeros(K),
-    )
-
     for weight_index in eachindex(weight_vectors)
         weights = weight_vectors[weight_index]
-        λ = zeros(K)
         for radius_index in eachindex(ambiguity_radii)
             ε = ambiguity_radii[radius_index]
             normalized_ball_radii = REMK_intersection_ball_radii(
                 K, ε, weights[end],
             ) ./ number_of_consumers
-
-            if _required_radius_increase_at_point(
-                mean_normalized_demand,
+            objective, order =
+                _normalized_intersection_objective_value_and_order(
                 normalized_demands,
                 normalized_ball_radii,
-            ) >= -1.0e-10
-                _set_ball_intersection_radii!(
-                    Ball_Intersection_Feasibility_Problem,
-                    ball_constraints,
-                    normalized_demands,
-                    normalized_ball_radii,
-                )
-                minimum_increase, point =
-                    _solve_ball_intersection_feasibility_problem!(
-                        Ball_Intersection_Feasibility_Problem,
-                        ξ,
-                        a,
-                    )
-
-                # The point-mass case, as in the scalar entry point above.
-                if minimum_increase >= -1.0e-10
-                    results[radius_index, weight_index] =
-                        0.0, number_of_consumers .* point
-                    continue
-                end
-            end
-
-            objective, order, λ = _solve_intersection_dual(
-                normalized_demands,
-                normalized_ball_radii,
-                λ,
+                pair_distances,
                 instance_underage_costs,
                 instance_overage_costs,
             )
