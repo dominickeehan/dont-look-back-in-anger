@@ -17,26 +17,22 @@ Random.seed!(job_number)
 # These bindings must exist before including the conic optimization routines.
 const number_of_items = 1
 const number_of_consumers = 1000
-const underage_cost_values = [4.0]
-#const underage_cost_values = [3.0, 4.0, 5.0, 6.0]
+const underage_cost_values = [3.0, 4.0, 5.0, 6.0]
 const overage_cost_values = [1.0]
-const minimum_purchase_probability = 0.00
-const maximum_purchase_probability = 1.00
-#const minimum_purchase_probability = 0.01
-#const maximum_purchase_probability = 0.99
+const minimum_purchase_probability = 0.01
+const maximum_purchase_probability = 0.99
 
 # A candidate first-mode weight w produces the two mode weights [w, 1-w].
-const mixture_weights = [0.9]
-#const mixture_weights = [0.9, 0.95, 0.99]
+const mixture_weights = [0.9, 0.95, 0.99]
 const number_of_modes = 2
 
 # For one item, set this to [p_mode_1, p_mode_2] to fix the two modes'
 # starting purchase probabilities. Leave it as nothing to sample them.
-const initial_demand_probabilities = [0.1, 0.5]
-#const initial_demand_probabilities = nothing
+const initial_demand_probabilities = nothing
 
 construct_drift_distribution(delta) = TriangularDist(-delta, delta, 0.0)
 const drifts = [
+    3.16e-3,    
     5.62e-3,
     1.00e-2,
     1.79e-2,
@@ -46,10 +42,11 @@ const drifts = [
     1.79e-1,
     3.16e-1,
     5.62e-1,
+    1.00e-0,
 ]
 
 const number_of_repetitions = 1
-const number_of_future_samples = 100
+const number_of_future_samples = 1000
 const history_length = 100
 const training_length = 30
 
@@ -509,7 +506,7 @@ intersection_weight_table =
 weighted_W2_weight_table =
     precompute_weights(W2_weights, radius_ratio_grid)
 
-results_file = open("$job_number.csv", "w")
+results_file = open("single-item-$job_number.csv", "w")
 try
     println(
         results_file,

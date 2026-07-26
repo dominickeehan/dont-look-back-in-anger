@@ -8,13 +8,13 @@ using Random, Statistics, StatsBase, Distributions
 using ProgressBars
 
 
-const dimensions_to_plot = (1, 2, 3)
+const dimensions_to_plot = (1, 2, 3, 4, 5)
 
 # The optimization routines refer to this experiment-level binding.
 number_of_items::Int = first(dimensions_to_plot)
 
 const number_of_consumers = 1000
-const underage_cost_values = [3.0, 4.0, 5.0, 6.0]
+const underage_cost_values = [3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
 const overage_cost_values = [1.0]
 const minimum_purchase_probability = 0.01
 const maximum_purchase_probability = 0.99
@@ -24,16 +24,16 @@ const number_of_modes = 2
 construct_drift_distribution(delta) = TriangularDist(-delta, delta, 0.0)
 const drift_panels = (
     (label = "Small", value = 0.01),
-    (label = "Medium", value = 0.1),
-    (label = "Large", value = 0.5),
+    (label = "Medium", value = 0.05),
+    (label = "Large", value = 0.1),
 )
 const drifts = [panel.value for panel in drift_panels]
 
 include("weights.jl")
 include("multi-item-newsvendor-dual-optimizations.jl")
 
-const number_of_repetitions = 300
-const number_of_future_samples = 300
+const number_of_repetitions = 1000
+const number_of_future_samples = 1000
 const history_length = 100
 const training_length = 30
 const simulation_seed = 42

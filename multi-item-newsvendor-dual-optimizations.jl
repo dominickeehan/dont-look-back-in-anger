@@ -5,6 +5,8 @@
 # const number_of_consumers = 1000
 
 
+# Zero-weight samples contribute nothing, so removing them exactly shortens all
+# later dual evaluations.
 function _normalized_positive_weights_and_demands(demands, weights)
     positive_weight_indices = weights .> 0.0
     weights = Float64.(weights[positive_weight_indices])
@@ -140,6 +142,8 @@ function W2_DRO_multi_item_newsvendor_objective_value_and_order(
     instance_underage_costs,
     instance_overage_costs,
 )
+    # A zero-radius ball contains only the empirical distribution. Solving that
+    # problem directly also avoids the dual bracket's division by ε.
     if ε == 0.0
         return SO_multi_item_newsvendor_objective_value_and_order(
             ε,
@@ -156,6 +160,8 @@ function W2_DRO_multi_item_newsvendor_objective_value_and_order(
     normalized_epsilon = ε / number_of_consumers
 
     order = zeros(number_of_items)
+    # This quantile position is independent of λ, so compute it once rather than
+    # repeat the same sorts during the golden-section search.
     quantile_demands = [
         _weighted_newsvendor_quantile(
             [demand[i] for demand in normalized_demands],

@@ -17,7 +17,7 @@ using ProgressBars
 const number_of_items = 1
 const number_of_consumers = 1000
 #const underage_cost_values = [4.0]#[3.0, 4.0, 5.0, 6.0]
-const underage_cost_values = [4.0]
+const underage_cost_values = [3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
 const overage_cost_values = [1.0]
 #const minimum_purchase_probability = 0.00
 #const maximum_purchase_probability = 1.00
@@ -25,7 +25,7 @@ const minimum_purchase_probability = 0.01
 const maximum_purchase_probability = 0.99
 
 #const first_mode_weight_values = [0.9] #[0.9, 0.95, 0.99]
-const first_mode_weight_values = [0.9]
+const first_mode_weight_values = [0.9, 0.95, 0.99]
 const number_of_modes = 2
 
 # For one item, set this to [p_mode_1, p_mode_2] to fix the two modes'
@@ -38,8 +38,8 @@ construct_drift_distribution(delta) = TriangularDist(-delta, delta, 0.0)
 #const drifts = [5.62e-3, 1.00e-2, 3.16e-2, 1.00e-1, 2.4e-1, 5.62e-1]
 #const drifts = [5.62e-3, 1.00e-2, 1.79e-2, 3.16e-2, 5.62e-2, 1.00e-1, 1.79e-1, 3.16e-1, 5.62e-1]
 #const drifts = [5.62e-3, 1.00e-2, 3.16e-2, 1.00e-1, 3.16e-1, 1.00e0]
-const drifts = [1.00e-3, 3.16e-3, 1.00e-2, 3.16e-2, 1.00e-1, 3.16e-1, 1.00e-0]
-#const drifts = [3.16e-3, 5.62e-3, 1.00e-2, 1.79e-2, 3.16e-2, 5.62e-2, 1.00e-1, 1.79e-1, 3.16e-1, 5.62e-1, 1.00e-0]
+const drifts = [3.16e-3, 1.00e-2, 3.16e-2, 1.00e-1, 3.16e-1]
+#const drifts = [1.00e-3, 1.79e-3, 3.16e-3, 5.62e-3, 1.00e-2, 1.79e-2, 3.16e-2, 5.62e-2, 1.00e-1, 1.79e-1, 3.16e-1, 5.62e-1, 1.00e-0]
 
 include("weights.jl")
 include("multi-item-newsvendor-dual-optimizations.jl")
@@ -814,5 +814,5 @@ plot!(
 xticks!([1.0e-5, 1.0e-4, 1.0e-3, 1.0e-2, 1.0e-1, 1.0e0])
 xlims!((0.99999 * first(drifts), 1.00001 * last(drifts)))
 #yticks!([0.8, 0.90, 1.00, 1.10, 1.20, 1.30])
-#ylims!((0.79999, 1.30001))
+ylims!((0.79999, 1.50001))
 display(plt)

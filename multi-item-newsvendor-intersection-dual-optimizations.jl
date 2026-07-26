@@ -64,8 +64,9 @@ end
 # Every pair supplies the lower bound
 #   a >= (‖d_j - d_k‖ - r_j - r_k) / 2.
 # The smallest radius also supplies a >= -min(r). If the contact point for the
-# largest bound satisfies every ball at that same value, its feasible upper
-# bound matches the lower bound and it is therefore globally optimal.
+# largest bound lies strictly inside every ball, it certifies nonemptiness. If
+# its feasible upper bound matches the lower bound, it is globally optimal. The
+# critical indices are also returned as an ordering hint for the exact fallback.
 function _certified_two_ball_radius_increase(
     demands, ball_radii, pair_distances,
 )
@@ -81,14 +82,16 @@ function _certified_two_ball_radius_increase(
             critical_j, critical_k = j, k
         end
     end
+    critical_indices =
+        critical_j == 0 ? [critical_k] : [critical_j, critical_k]
 
     candidate = if critical_j == 0
         demands[critical_k]
     else
         distance = pair_distances[critical_j, critical_k]
-        distance > 0.0 || return nothing
+        distance > 0.0 || return nothing, critical_indices
         fraction = (ball_radii[critical_j] + lower_bound) / distance
-        0.0 <= fraction <= 1.0 || return nothing
+        0.0 <= fraction <= 1.0 || return nothing, critical_indices
         demands[critical_j] +
             fraction * (demands[critical_k] - demands[critical_j])
     end
@@ -98,8 +101,13 @@ function _certified_two_ball_radius_increase(
     tolerance = 1.0e-6 * max(
         1.0, abs(lower_bound), abs(candidate_increase),
     )
-    candidate_increase <= lower_bound + tolerance || return nothing
-    return max(lower_bound, candidate_increase), candidate
+    # Any strictly interior point is enough to justify the dual, so this branch
+    # does not need the exact minimum radius increase.
+    candidate_increase < -tolerance &&
+        return (candidate_increase, candidate), critical_indices
+    candidate_increase <= lower_bound + tolerance ||
+        return nothing, critical_indices
+    return (max(lower_bound, candidate_increase), candidate), critical_indices
 end
 
 
@@ -119,16 +127,23 @@ function _ball_from_support(demands, ball_radii, support)
     for (column, index) in enumerate(other_indices)
         differences[:, column] = demands[index] - first_demand
     end
-    rank(differences) == length(other_indices) || return nothing
     gram = differences' * differences
     radius_differences = ball_radii[other_indices] .- first_radius
-    constant_coordinates = gram \ (
+    right_hand_sides = hcat(
         0.5 .* (
             diag(gram) .-
             (ball_radii[other_indices] .^ 2 .- first_radius^2)
-        )
+        ),
+        -radius_differences,
     )
-    increase_coordinates = gram \ (-radius_differences)
+    # The Gram matrix is nonsingular exactly when these center differences are
+    # independent. One factorization therefore replaces a separate rank SVD and
+    # solves both unchanged linear systems.
+    factorization = cholesky(Symmetric(gram); check = false)
+    issuccess(factorization) || return nothing
+    coordinates = factorization \ right_hand_sides
+    constant_coordinates = coordinates[:, 1]
+    increase_coordinates = coordinates[:, 2]
     constant_offset = differences * constant_coordinates
     increase_offset = differences * increase_coordinates
 
@@ -210,8 +225,17 @@ function _active_set_radius_increase(
 end
 
 
-function _active_set_radius_increase(demands, ball_radii)
+# Preferred balls are processed first to find a strong partial solution sooner.
+# They are not forced into the support, and every ball still passes through the
+# same recursion, so the order changes the work but not the exact answer.
+function _active_set_radius_increase(
+    demands, ball_radii, preferred_indices = Int[],
+)
     indices = shuffle!(Xoshiro(1), collect(eachindex(demands)))
+    indices = vcat(
+        preferred_indices,
+        filter(index -> index ∉ preferred_indices, indices),
+    )
     return _active_set_radius_increase(
         demands, ball_radii, indices, Int[], length(demands),
     )
@@ -444,11 +468,12 @@ function _normalized_intersection_objective_value_and_order(
     # contact point. This is settled before the dual solver runs — the dual
     # is unbounded below when the intersection is empty — and a strictly
     # interior certificate is Slater's condition for the dual.
-    geometry = _certified_two_ball_radius_increase(
+    geometry, critical_indices = _certified_two_ball_radius_increase(
         active_demands, active_radii, active_distances,
     )
-    isnothing(geometry) &&
-        (geometry = _active_set_radius_increase(active_demands, active_radii))
+    isnothing(geometry) && (geometry = _active_set_radius_increase(
+        active_demands, active_radii, critical_indices,
+    ))
     minimum_increase, point = geometry
 
     # At first contact the repaired ambiguity set is the point mass at point;
@@ -500,6 +525,8 @@ function _multi_item_newsvendor_grid(
 )
     K = length(demands)
     normalized_demands = [demand ./ number_of_consumers for demand in demands]
+    # Centers do not change across this grid, so compute their distances once;
+    # every radius and weight combination uses the same exact values.
     pair_distances = _pairwise_distances(normalized_demands)
     result_type = Tuple{Float64,Vector{Float64}}
     results = Matrix{result_type}(
