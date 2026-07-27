@@ -5,6 +5,7 @@ temp/*
 *.csv
 train-and-test-multi-modal-drifting-newsvendor-data/*.csv
 train-and-test-multi-modal-drifting-newsvendor-data/hpc-output.zip
+*-newsvendor-results/*
 multi-item-newsvendor-results/*.csv
 multi-item-newsvendor-results.zip
 train-and-test-multi-modal-drifting-newsvendor-data/hpc-output.zip

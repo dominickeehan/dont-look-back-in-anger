@@ -407,7 +407,13 @@ function _solve_intersection_dual(
                 max(0.0, λ[k] - step_scale * gradient[k]) - λ[k]
             directional_derivative += gradient[k] * direction[k]
         end
-        directional_derivative < -1.0e-6 * (1.0 + abs(objective)) || break
+        # The objective is flat in λ near the optimum but the order it implies
+        # is not, so a loose threshold stops at an objective that looks
+        # converged while the order is still far off. Against the exact conic
+        # reformulation, 1.0e-6 left orders wrong by up to 30% and objectives
+        # by 0.8%; 1.0e-8 brings both to the conic solver's own accuracy for
+        # about 2.7% more time, and 1.0e-9 buys nothing further.
+        directional_derivative < -1.0e-8 * (1.0 + abs(objective)) || break
 
         step = 1.0
         accepted = false

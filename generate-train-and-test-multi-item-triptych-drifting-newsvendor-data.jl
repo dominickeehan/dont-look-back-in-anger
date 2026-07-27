@@ -8,17 +8,17 @@ using Random, Statistics, StatsBase, Distributions
 using ProgressBars
 
 
-# Seed from the full array index before making any random draws so every HPC
-# job receives a distinct random stream.
+include("experiment-randomness.jl")
+
+
 const job_number = parse(Int, get(ENV, "PBS_ARRAY_INDEX", "0"))
-Random.seed!(job_number)
 
 
 # These bindings must exist before including the conic optimization routines.
-const item_counts = (1, 2, 3)
+const item_counts = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
 number_of_items::Int = first(item_counts)
 const number_of_consumers = 1000
-const underage_cost_values = [3.0, 4.0, 5.0, 6.0]
+const underage_cost_values = [3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
 const overage_cost_values = [1.0]
 const minimum_purchase_probability = 0.01
 const maximum_purchase_probability = 0.99
@@ -31,16 +31,20 @@ const number_of_modes = 2
 const initial_demand_probabilities = nothing
 
 construct_drift_distribution(delta) = TriangularDist(-delta, delta, 0.0)
-const drifts = [0.01, 0.1, 0.5]
+const drifts = [0.01, 0.05, 0.1]
 
-const number_of_repetitions = 1
+const number_of_repetitions = 10
 const number_of_future_samples = 1000
 const history_length = 100
 const training_length = 30
+const global_repetition_indices =
+    (number_of_repetitions * job_number + 1):(
+        number_of_repetitions * (job_number + 1)
+    )
 
 
 include("weights.jl")
-include("multi-item-newsvendor-conic-optimizations.jl")
+include("multi-item-newsvendor-dual-optimizations.jl")
 
 
 function project_purchase_probabilities!(purchase_probabilities)
@@ -86,12 +90,12 @@ function project_purchase_probabilities!(purchase_probabilities)
 end
 
 
-function sample_multinomial_demand(purchase_probabilities)
+function sample_multinomial_demand(rng, purchase_probabilities)
     category_probabilities = vcat(
         purchase_probabilities,
         1.0 - sum(purchase_probabilities),
     )
-    category_counts = rand(Multinomial(
+    category_counts = rand(rng, Multinomial(
         number_of_consumers,
         category_probabilities,
     ))
@@ -99,11 +103,14 @@ function sample_multinomial_demand(purchase_probabilities)
 end
 
 
-function initial_mode_demand_probabilities()
+function initial_mode_demand_probabilities(rng)
     if isnothing(initial_demand_probabilities)
         return [
             project_purchase_probabilities!(
-                rand(Dirichlet(number_of_items + 1, 1.0))[1:number_of_items],
+                rand(
+                    rng,
+                    Dirichlet(number_of_items + 1, 1.0),
+                )[1:number_of_items],
             ) for _ in 1:number_of_modes
         ]
     end
@@ -114,10 +121,13 @@ function initial_mode_demand_probabilities()
 end
 
 
-function sample_repetition_item_costs(cost_values)
+function sample_repetition_item_costs(cost_values, stream)
     return [
-        [rand(cost_values) for _ in 1:number_of_items]
-        for _ in 1:number_of_repetitions
+        begin
+            rng = experiment_rng(global_repetition_index, stream)
+            [rand(rng, cost_values) for _ in 1:number_of_items]
+        end
+        for global_repetition_index in global_repetition_indices
     ]
 end
 
@@ -125,10 +135,14 @@ end
 function sample_repetition_mode_weights()
     return [
         begin
-            first_mode_weight = Float64(rand(mixture_weights))
+            rng = experiment_rng(
+                global_repetition_index,
+                mode_weight_stream,
+            )
+            first_mode_weight = Float64(rand(rng, mixture_weights))
             [first_mode_weight, 1.0 - first_mode_weight]
         end
-        for _ in 1:number_of_repetitions
+        for global_repetition_index in global_repetition_indices
     ]
 end
 
@@ -149,9 +163,14 @@ function generate_drift_data(drift, repetition_mode_weights)
     )
 
     for repetition_index in 1:number_of_repetitions
+        rng = experiment_rng(
+            global_repetition_indices[repetition_index],
+            demand_stream;
+            dimension = number_of_items,
+        )
         mode_weights = repetition_mode_weights[repetition_index]
         mode_sampler = Weights(mode_weights)
-        demand_probabilities = initial_mode_demand_probabilities()
+        demand_probabilities = initial_mode_demand_probabilities(rng)
         starting_demand_probabilities[repetition_index] =
             deepcopy(demand_probabilities)
         demand_sequence = Vector{Vector{Float64}}(
@@ -166,15 +185,19 @@ function generate_drift_data(drift, repetition_mode_weights)
         )
 
         for time_index in 1:history_length
-            mode = sample(1:number_of_modes, mode_sampler)
+            mode = sample(rng, 1:number_of_modes, mode_sampler)
             demand_sequence[time_index] =
-                sample_multinomial_demand(demand_probabilities[mode])
+                sample_multinomial_demand(
+                    rng,
+                    demand_probabilities[mode],
+                )
 
             time_index == history_length && continue
             for mode_index in 1:number_of_modes
                 mode_probabilities = demand_probabilities[mode_index]
                 for item_index in eachindex(mode_probabilities)
-                    mode_probabilities[item_index] += rand(drift_distribution)
+                    mode_probabilities[item_index] +=
+                        rand(rng, drift_distribution)
                 end
                 project_purchase_probabilities!(mode_probabilities)
             end
@@ -191,7 +214,7 @@ function generate_drift_data(drift, repetition_mode_weights)
                         item_index,
                     ] =
                         demand_probabilities[mode_index][item_index] +
-                        rand(drift_distribution)
+                        rand(rng, drift_distribution)
                 end
                 project_purchase_probabilities!(
                     view(future_probabilities, future_index, mode_index, :),
@@ -372,8 +395,8 @@ function train_and_test(
             length(weight_parameters),
         )
 
-        # Threads.@threads for ambiguity_radius_index in ProgressBar(eachindex(ambiguity_radii))
-        for ambiguity_radius_index in ProgressBar(eachindex(ambiguity_radii))
+        Threads.@threads for ambiguity_radius_index in ProgressBar(eachindex(ambiguity_radii)) # Since .pbs calls for 1 thread, this is allowed on HPC.
+        #for ambiguity_radius_index in ProgressBar(eachindex(ambiguity_radii))
             for weight_parameter_index in eachindex(weight_parameters)
                 for time_index in
                     (first_sample_count + 1):history_length
@@ -402,8 +425,8 @@ function train_and_test(
             end
         end
 
-        # Threads.@threads for ambiguity_radius_index in ProgressBar(eachindex(ambiguity_radii))
-        for ambiguity_radius_index in ProgressBar(eachindex(ambiguity_radii))
+        Threads.@threads for ambiguity_radius_index in ProgressBar(eachindex(ambiguity_radii)) # Since .pbs calls for 1 thread, this is allowed on HPC.
+        #for ambiguity_radius_index in ProgressBar(eachindex(ambiguity_radii))
             for weight_parameter_index in eachindex(weight_parameters)
                 weights = precomputed_weights[end][weight_parameter_index]
                 objective_value, order = objective_value_and_order(
@@ -435,8 +458,9 @@ function train_and_test(
         end
 
         time_elapsed = time() - start_time
-        for ambiguity_radius_index in eachindex(ambiguity_radii)
-            for weight_parameter_index in eachindex(weight_parameters)
+        # Match the column-major tie order used by argmin.
+        for weight_parameter_index in eachindex(weight_parameters)
+            for ambiguity_radius_index in eachindex(ambiguity_radii)
                 output_fields = (
                     job_number,
                     number_of_items,
@@ -520,9 +544,15 @@ try
         global number_of_items = item_count
         epsilon_grid = epsilon_grid_for_number_of_items(item_count)
         repetition_underage_costs =
-            sample_repetition_item_costs(underage_cost_values)
+            sample_repetition_item_costs(
+                underage_cost_values,
+                underage_cost_stream,
+            )
         repetition_overage_costs =
-            sample_repetition_item_costs(overage_cost_values)
+            sample_repetition_item_costs(
+                overage_cost_values,
+                overage_cost_stream,
+            )
         repetition_mode_weights = sample_repetition_mode_weights()
 
         for drift in drifts

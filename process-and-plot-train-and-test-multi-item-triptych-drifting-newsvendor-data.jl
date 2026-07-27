@@ -2,24 +2,21 @@ using CSV, Statistics, StatsBase
 using Plots, Measures
 
 
+# Set this to true to process the real CSV data. Otherwise, use quick dummy
+# data. Both modes only display the plot.
+extract_data = true
+
+
 const data_directory =
-    joinpath(@__DIR__, "multi-item-triptych-newsvendor-results")
-const output_file = joinpath(
-    @__DIR__,
-    "output",
-    "pdf",
-    "average-train-and-test-multi-item-triptych-next-period-expected-cost.pdf",
-)
+    joinpath(@__DIR__, "triptych-drifting-newsvendor-results")
 const methods = [
+    "SAA",
     "Smoothing",
     "Intersection",
     "Weighted",
 ]
-const drift_panel_labels = Dict(
-    0.01 => "Small",
-    0.1 => "Medium",
-    0.5 => "Large",
-)
+const item_counts_to_plot = 1:10
+const drifts_to_plot = (0.01, 0.05, 0.1)
 
 
 function result_csv_files(directory)
@@ -43,6 +40,7 @@ end
 
 function process_train_and_test_data(directory = data_directory)
     files = result_csv_files(directory)
+    isempty(files) && error("No triptych result CSV files found in $directory.")
     selected_results =
         Dict{Tuple{Int,Float64,String},Vector{NamedTuple}}()
 
@@ -67,9 +65,13 @@ function process_train_and_test_data(directory = data_directory)
         )
             method = String(row.method)
             method in methods || continue
+            number_of_items = Int(row.number_of_items)
+            number_of_items in item_counts_to_plot || continue
+            drift = Float64(row.drift)
+            drift in drifts_to_plot || continue
             key = (
-                Int(row.number_of_items),
-                Float64(row.drift),
+                number_of_items,
+                drift,
                 Int(row.repetition_index),
                 method,
             )
@@ -97,13 +99,23 @@ function process_train_and_test_data(directory = data_directory)
         end
     end
 
-    item_counts = sort!(unique(
-        number_of_items
-        for (number_of_items, _, _) in keys(selected_results)
-    ))
-    drifts = sort!(unique(
-        drift for (_, drift, _) in keys(selected_results)
-    ))
+    item_counts = collect(item_counts_to_plot)
+    drifts = collect(drifts_to_plot)
+    missing_results = [
+        (number_of_items, drift, method)
+        for number_of_items in item_counts
+        for drift in drifts
+        for method in methods
+        if !haskey(
+            selected_results,
+            (number_of_items, drift, method),
+        )
+    ]
+    isempty(missing_results) || error(
+        "Missing triptych results for: " *
+        join(string.(missing_results), ", "),
+    )
+
     results = Dict{Tuple{Int,String},NamedTuple}()
     for number_of_items in item_counts
         for method in methods
@@ -133,13 +145,50 @@ function process_train_and_test_data(directory = data_directory)
 end
 
 
-function plot_train_and_test_results(
-    processed_results;
-    output_path = output_file,
-)
+function dummy_train_and_test_data()
+    levels = Dict(
+        "SAA" => [1.06, 1.04, 1.02],
+        "Smoothing" => ones(3),
+        "Intersection" => [1.30, 1.20, 1.10],
+        "Weighted" => [0.96, 0.93, 0.90],
+    )
+    standard_error = 0.012
+    wiggle = 0.008
+    results = Dict{Tuple{Int,String},NamedTuple}()
+
+    for item_count in item_counts_to_plot
+        for method in methods
+            average_costs = levels[method] .+
+                (
+                    method == "Smoothing" ?
+                    0.0 : wiggle * sin(item_count)
+                )
+            results[(item_count, method)] = (
+                average_costs = average_costs,
+                standard_errors = fill(
+                    standard_error,
+                    length(drifts_to_plot),
+                ),
+                selected_results = [],
+            )
+        end
+    end
+
+    return (
+        item_counts = collect(item_counts_to_plot),
+        drifts = collect(drifts_to_plot),
+        methods = methods,
+        results = results,
+        number_of_files = 0,
+    )
+end
+
+
+function plot_train_and_test_results(processed_results)
     default()
+    a4_width_points = 210.0 / 25.4 * 72.0
     gr(size = (
-        (210.0 / 25.4 - 2.0) * 72.0,
+        a4_width_points - 2.0 * 72.0,
         183 + 6 + 10,
     ) .* sqrt(3))
 
@@ -158,9 +207,17 @@ function plot_train_and_test_results(
         guidefont = Plots.font(fontfamily; pointsize = 12),
         legendfont = Plots.font(fontfamily; pointsize = 11),
         tickfont = Plots.font(fontfamily; pointsize = 10),
+        titlefont = Plots.font(fontfamily; pointsize = 12),
     )
 
     styles = Dict(
+        "SAA" => (
+            color = palette(:tab10)[7],
+            linestyle = :dashdot,
+            linewidth = 1.0,
+            markershape = :pentagon,
+            markersize = 4.0,
+        ),
         "Smoothing" => (
             color = palette(:tab10)[9],
             linestyle = :dot,
@@ -183,9 +240,10 @@ function plot_train_and_test_results(
             markersize = 4.0,
         ),
     )
+    marker_outline_color = :black
+    marker_outline_width = 1.0
 
-    fillalpha = 1.0 - 0.9^(1.0 / length(methods))
-    ytick_values = collect(0.8:0.2:2.0)
+    ytick_values = collect(0.8:0.1:1.4)
     panel_plots = []
     for (drift_index, drift) in enumerate(processed_results.drifts)
         panel_yticks = if drift_index == firstindex(
@@ -202,24 +260,23 @@ function plot_train_and_test_results(
             ) ?
                 "Average train-and-test next-period\n" *
                 "expected cost (relative to smoothing)" : "",
-            title = "$(drift_panel_labels[drift]) drift " *
-                "(\$δ = $drift\$)",
+            title = "\$δ = $drift\$",
             xticks = processed_results.item_counts,
             xlims = (
-                first(processed_results.item_counts) - 0.1,
-                last(processed_results.item_counts) + 0.1,
+                0.9999 * first(processed_results.item_counts),
+                1.0001 * last(processed_results.item_counts),
             ),
             yticks = panel_yticks,
-            ylims = (0.79999, 2.00001),
+            ylims = (0.79999, 1.40001),
             legend = drift_index == lastindex(
                 processed_results.drifts,
             ) ? :topright : false,
-            topmargin = 5.0pt,
+            topmargin = 6.0pt,
             leftmargin = drift_index == firstindex(
                 processed_results.drifts,
-            ) ? 14.0pt : 1.0pt,
-            bottommargin = 13.0pt,
-            rightmargin = 1.0pt,
+            ) ? 12.0pt : 1.0pt,
+            bottommargin = 12.0pt,
+            rightmargin = 0.0pt,
         )
 
         for method in processed_results.methods
@@ -250,22 +307,56 @@ function plot_train_and_test_results(
                 end
                 for number_of_items in processed_results.item_counts
             ]
+            # Plots uses markerstrokecolor and markerstrokewidth for error
+            # bars, so draw them separately with method colours.
+            scatter!(
+                panel,
+                processed_results.item_counts,
+                relative_average_costs;
+                yerror = relative_standard_errors,
+                color = style.color,
+                markershape = :none,
+                markersize = 3.0,
+                markerstrokecolor = style.color,
+                markerstrokewidth = marker_outline_width,
+                label = false,
+            )
             plot!(
                 panel,
                 processed_results.item_counts,
                 relative_average_costs;
-                ribbon = relative_standard_errors,
-                fillalpha = fillalpha,
                 color = style.color,
                 linestyle = style.linestyle,
                 linewidth = style.linewidth,
                 markershape = style.markershape,
                 markersize = style.markersize,
-                markerstrokewidth = 0.0,
-                label = drift_index == lastindex(
-                    processed_results.drifts,
-                ) ? method : nothing,
+                markerstrokecolor = marker_outline_color,
+                markerstrokewidth = marker_outline_width,
+                label = false,
             )
+        end
+
+        if drift_index == lastindex(processed_results.drifts)
+            panel_xlims = xlims(panel)
+            panel_ylims = ylims(panel)
+            for method in processed_results.methods
+                style = styles[method]
+                scatter!(
+                    panel,
+                    [-10.0, -11.0],
+                    [-10.0, -11.0];
+                    color = style.color,
+                    alpha = 1.0,
+                    linewidth = 1.0,
+                    markershape = style.markershape,
+                    markersize = 4.0,
+                    markerstrokewidth = 0.75,
+                    label = method == last(processed_results.methods) ?
+                        "$method" : "$method",
+                )
+            end
+            xlims!(panel, panel_xlims)
+            ylims!(panel, panel_ylims)
         end
         push!(panel_plots, panel)
     end
@@ -275,26 +366,12 @@ function plot_train_and_test_results(
         layout = (1, length(panel_plots)),
         link = :y,
     )
-    mkpath(dirname(output_path))
-    savefig(plt, output_path)
     return plt
 end
 
 
-function process_and_plot_train_and_test_data(
-    directory = data_directory;
-    output_path = output_file,
-)
-    processed_results = process_train_and_test_data(directory)
-    plt = plot_train_and_test_results(
-        processed_results;
-        output_path = output_path,
-    )
-    return (results = processed_results, plot = plt)
-end
-
-
-if abspath(PROGRAM_FILE) == @__FILE__
-    output = process_and_plot_train_and_test_data()
-    display(output.plot)
-end
+processed_results = extract_data ?
+    process_train_and_test_data() :
+    dummy_train_and_test_data()
+plt = plot_train_and_test_results(processed_results)
+display(plt)

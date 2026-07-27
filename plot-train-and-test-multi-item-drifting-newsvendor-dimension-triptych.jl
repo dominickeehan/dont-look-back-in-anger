@@ -8,6 +8,9 @@ using Random, Statistics, StatsBase, Distributions
 using ProgressBars
 
 
+include("experiment-randomness.jl")
+
+
 const dimensions_to_plot = (1, 2, 3, 4, 5)
 
 # The optimization routines refer to this experiment-level binding.
@@ -36,7 +39,7 @@ const number_of_repetitions = 1000
 const number_of_future_samples = 1000
 const history_length = 100
 const training_length = 30
-const simulation_seed = 42
+const global_repetition_indices = 1:number_of_repetitions
 
 
 # For D ~ Binomial(n, p),
@@ -159,37 +162,50 @@ end
 
 
 function sample_repetition_underage_costs()
-    cost_rng = MersenneTwister(simulation_seed + 1)
     return [
-        [
-            rand(cost_rng, underage_cost_values)
-            for _ in 1:number_of_items
-        ]
-        for _ in 1:number_of_repetitions
+        begin
+            rng = experiment_rng(
+                global_repetition_index,
+                underage_cost_stream,
+            )
+            [
+                rand(rng, underage_cost_values)
+                for _ in 1:number_of_items
+            ]
+        end
+        for global_repetition_index in global_repetition_indices
     ]
 end
 
 
 function sample_repetition_overage_costs()
-    cost_rng = MersenneTwister(simulation_seed + 2)
     return [
-        [
-            rand(cost_rng, overage_cost_values)
-            for _ in 1:number_of_items
-        ]
-        for _ in 1:number_of_repetitions
+        begin
+            rng = experiment_rng(
+                global_repetition_index,
+                overage_cost_stream,
+            )
+            [
+                rand(rng, overage_cost_values)
+                for _ in 1:number_of_items
+            ]
+        end
+        for global_repetition_index in global_repetition_indices
     ]
 end
 
 
 function sample_repetition_mixture_weights()
-    weight_rng = MersenneTwister(simulation_seed + 3)
     return [
         begin
-            first_mode_weight = rand(weight_rng, first_mode_weight_values)
+            rng = experiment_rng(
+                global_repetition_index,
+                mode_weight_stream,
+            )
+            first_mode_weight = rand(rng, first_mode_weight_values)
             [first_mode_weight, 1.0 - first_mode_weight]
         end
-        for _ in 1:number_of_repetitions
+        for global_repetition_index in global_repetition_indices
     ]
 end
 
@@ -261,12 +277,12 @@ function project_purchase_probabilities!(purchase_probabilities)
 end
 
 
-function sample_multinomial_demand(purchase_probabilities)
+function sample_multinomial_demand(rng, purchase_probabilities)
     category_probabilities = vcat(
         purchase_probabilities,
         1.0 - sum(purchase_probabilities),
     )
-    category_counts = rand(Multinomial(
+    category_counts = rand(rng, Multinomial(
         number_of_consumers,
         category_probabilities,
     ))
@@ -275,7 +291,6 @@ end
 
 
 function generate_drift_data(drift, repetition_mixture_weights)
-    Random.seed!(simulation_seed)
     drift_distribution = construct_drift_distribution(drift)
 
     demand_sequences = Vector{Vector{Vector{Float64}}}(
@@ -288,12 +303,20 @@ function generate_drift_data(drift, repetition_mixture_weights)
             number_of_repetitions,
         )
     for repetition_index in 1:number_of_repetitions
+        rng = experiment_rng(
+            global_repetition_indices[repetition_index],
+            demand_stream;
+            dimension = number_of_items,
+        )
         mode_sampler = Weights(
             repetition_mixture_weights[repetition_index],
         )
         demand_probabilities = [
             project_purchase_probabilities!(
-                rand(Dirichlet(number_of_items + 1, 1.0))[1:number_of_items],
+                rand(
+                    rng,
+                    Dirichlet(number_of_items + 1, 1.0),
+                )[1:number_of_items],
             ) for _ in 1:number_of_modes
         ]
         demand_sequence = Vector{Vector{Float64}}(
@@ -306,16 +329,19 @@ function generate_drift_data(drift, repetition_mixture_weights)
         )
 
         for time_index in 1:history_length
-            mode = sample(1:number_of_modes, mode_sampler)
+            mode = sample(rng, 1:number_of_modes, mode_sampler)
             demand_sequence[time_index] =
-                sample_multinomial_demand(demand_probabilities[mode])
+                sample_multinomial_demand(
+                    rng,
+                    demand_probabilities[mode],
+                )
 
             time_index == history_length && continue
             for mode_index in 1:number_of_modes
                 mode_probabilities = demand_probabilities[mode_index]
                 for item_index in eachindex(mode_probabilities)
                     mode_probabilities[item_index] +=
-                        rand(drift_distribution)
+                        rand(rng, drift_distribution)
                 end
                 project_purchase_probabilities!(mode_probabilities)
             end
@@ -325,7 +351,7 @@ function generate_drift_data(drift, repetition_mixture_weights)
             future_probabilities[future_index] = [
                 project_purchase_probabilities!([
                     demand_probabilities[mode_index][item_index] +
-                    rand(drift_distribution)
+                    rand(rng, drift_distribution)
                     for item_index in 1:number_of_items
                 ])
                 for mode_index in 1:number_of_modes
@@ -409,7 +435,7 @@ function _train_and_test_grid_result(
                     realized_demand,
                     instance_underage_costs,
                     instance_overage_costs,
-                )
+                ) / training_length
         end
     end
 

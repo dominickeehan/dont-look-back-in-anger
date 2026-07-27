@@ -11,6 +11,9 @@ using Random, Statistics, StatsBase, Distributions
 using ProgressBars
 
 
+include("experiment-randomness.jl")
+
+
 
 # These bindings must exist before including the optimization routines, which
 # copy them into their own typed constants.
@@ -33,12 +36,14 @@ const number_of_modes = 2
 # the existing Dirichlet approach independently in every repetition.
 #const initial_demand_probabilities = [0.1, 0.5]#]nothing
 const initial_demand_probabilities = nothing
-construct_drift_distribution(delta) = TriangularDist(-delta, delta, 0.0)
-#const drifts = [1.00e-1, 3.16e-1, 1.00e0]
+
+#const drifts = [1.79e-3, 3.16e-3]
 #const drifts = [5.62e-3, 1.00e-2, 3.16e-2, 1.00e-1, 2.4e-1, 5.62e-1]
 #const drifts = [5.62e-3, 1.00e-2, 1.79e-2, 3.16e-2, 5.62e-2, 1.00e-1, 1.79e-1, 3.16e-1, 5.62e-1]
 #const drifts = [5.62e-3, 1.00e-2, 3.16e-2, 1.00e-1, 3.16e-1, 1.00e0]
-const drifts = [3.16e-3, 1.00e-2, 3.16e-2, 1.00e-1, 3.16e-1]
+#const drifts = [3.16e-3, 1.00e-2, 3.16e-2, 1.00e-1, 3.16e-1]
+const drifts = [1.79e-3, 3.16e-3, 5.62e-3, 1.00e-2, 1.79e-2, 3.16e-2, 5.62e-2, 1.00e-1, 1.79e-1, 3.16e-1]
+#const drifts = [1.00e-3, 3.16e-3, 1.00e-2, 3.16e-2, 1.00e-1, 3.16e-1, 1.00e-0]
 #const drifts = [1.00e-3, 1.79e-3, 3.16e-3, 5.62e-3, 1.00e-2, 1.79e-2, 3.16e-2, 5.62e-2, 1.00e-1, 1.79e-1, 3.16e-1, 5.62e-1, 1.00e-0]
 
 include("weights.jl")
@@ -48,44 +53,9 @@ const number_of_repetitions = 1000
 const number_of_future_samples = 1000
 const history_length = 100
 const training_length = 30
-const simulation_seed = 42
+const global_repetition_indices = 1:number_of_repetitions
 
-
-# For D ~ Binomial(n, p),
-#   F_{n-1}(q-1) = F_n(q) - (n-q)/n * P(D=q).
-# This replaces the second Binomial CDF in the original expression with an
-# allocation-free PDF evaluation while preserving the exact expected cost.
-function expected_newsvendor_cost_with_binomial_demand(
-    order,
-    binomial_demand_probability,
-    consumer_count,
-    underage_cost,
-    overage_cost,
-)
-    demand_distribution = Binomial(
-        consumer_count,
-        binomial_demand_probability,
-    )
-    demand_cdf = cdf(demand_distribution, order)
-    previous_trial_cdf = clamp(
-        demand_cdf -
-        ((consumer_count - order) / consumer_count) *
-        pdf(demand_distribution, order),
-        0.0,
-        1.0,
-    )
-
-    expected_underage_cost = underage_cost * (
-        consumer_count * binomial_demand_probability *
-        (1.0 - previous_trial_cdf) -
-        order * (1.0 - demand_cdf)
-    )
-    expected_overage_cost = overage_cost * (
-        order * demand_cdf -
-        consumer_count * binomial_demand_probability * previous_trial_cdf
-    )
-    return expected_underage_cost + expected_overage_cost
-end
+include("drifting-demand-model.jl")
 
 
 function _mark_order_knots!(requested_orders, grid_results)
@@ -121,19 +91,24 @@ function precompute_expected_costs_at_order_knots(
         fill(NaN, number_of_consumers + 1)
         for _ in 1:number_of_items
     ]
-    inverse_future_sample_count = 1.0 / length(final_demand_probabilities)
+    inverse_future_sample_count =
+        1.0 / size(final_demand_probabilities, 1)
     for item_index in 1:number_of_items
         for order_storage_index in eachindex(requested_orders[item_index])
             requested_orders[item_index][order_storage_index] || continue
             integer_order = order_storage_index - 1
             total_cost = 0.0
-            for demand_probabilities in final_demand_probabilities
+            for future_index in axes(final_demand_probabilities, 1)
                 for mode_index in 1:number_of_modes
                     total_cost +=
                         mode_weights[mode_index] *
                         expected_newsvendor_cost_with_binomial_demand(
                             integer_order,
-                            demand_probabilities[mode_index][item_index],
+                            final_demand_probabilities[
+                                future_index,
+                                mode_index,
+                                item_index,
+                            ],
                             number_of_consumers,
                             instance_underage_costs[item_index],
                             instance_overage_costs[item_index],
@@ -172,244 +147,51 @@ end
 
 
 function sample_repetition_underage_costs()
-    cost_rng = MersenneTwister(simulation_seed + 1)
     return [
-        [
-            rand(cost_rng, underage_cost_values)
-            for _ in 1:number_of_items
-        ]
-        for _ in 1:number_of_repetitions
+        begin
+            rng = experiment_rng(
+                global_repetition_index,
+                underage_cost_stream,
+            )
+            [
+                rand(rng, underage_cost_values)
+                for _ in 1:number_of_items
+            ]
+        end
+        for global_repetition_index in global_repetition_indices
     ]
 end
 
 
 function sample_repetition_overage_costs()
-    cost_rng = MersenneTwister(simulation_seed + 2)
     return [
-        [
-            rand(cost_rng, overage_cost_values)
-            for _ in 1:number_of_items
-        ]
-        for _ in 1:number_of_repetitions
+        begin
+            rng = experiment_rng(
+                global_repetition_index,
+                overage_cost_stream,
+            )
+            [
+                rand(rng, overage_cost_values)
+                for _ in 1:number_of_items
+            ]
+        end
+        for global_repetition_index in global_repetition_indices
     ]
 end
 
 
 function sample_repetition_mixture_weights()
-    weight_rng = MersenneTwister(simulation_seed + 3)
     return [
         begin
-            first_mode_weight = rand(weight_rng, first_mode_weight_values)
+            rng = experiment_rng(
+                global_repetition_index,
+                mode_weight_stream,
+            )
+            first_mode_weight = rand(rng, first_mode_weight_values)
             [first_mode_weight, 1.0 - first_mode_weight]
         end
-        for _ in 1:number_of_repetitions
+        for global_repetition_index in global_repetition_indices
     ]
-end
-
-
-function realized_multi_item_newsvendor_cost(
-    order,
-    demand,
-    instance_underage_costs,
-    instance_overage_costs,
-)
-    total_cost = 0.0
-    for item_index in 1:number_of_items
-        total_cost +=
-            instance_underage_costs[item_index] *
-            max(demand[item_index] - order[item_index], 0.0) +
-            instance_overage_costs[item_index] *
-            max(order[item_index] - demand[item_index], 0.0)
-    end
-    return total_cost
-end
-
-
-# Euclidean projection onto the bounded sub-simplex for the explicitly stored
-# item probabilities. Probability mass below one belongs to the implicit
-# no-purchase category.
-function project_purchase_probabilities!(purchase_probabilities)
-    maximum_probability_sum = 1.0
-    length(purchase_probabilities) * minimum_purchase_probability <=
-        maximum_probability_sum || error(
-            "The purchase-probability bounds define an empty sub-simplex.",
-        )
-
-    box_projection = clamp.(
-        purchase_probabilities,
-        minimum_purchase_probability,
-        maximum_purchase_probability,
-    )
-    if sum(box_projection) <= maximum_probability_sum
-        purchase_probabilities .= box_projection
-        return purchase_probabilities
-    end
-
-    # The sum constraint binds. Its Lagrange multiplier is the scalar shift in
-    # clamp.(purchase_probabilities .- shift, lower_bound, upper_bound).
-    lower_shift = 0.0
-    upper_shift = maximum(
-        purchase_probabilities .- minimum_purchase_probability,
-    )
-    for _ in 1:100
-        shift = (lower_shift + upper_shift) / 2.0
-        projected_sum = sum(
-            clamp(
-                probability - shift,
-                minimum_purchase_probability,
-                maximum_purchase_probability,
-            ) for probability in purchase_probabilities
-        )
-        if projected_sum > maximum_probability_sum
-            lower_shift = shift
-        else
-            upper_shift = shift
-        end
-    end
-
-    purchase_probabilities .= clamp.(
-        purchase_probabilities .- upper_shift,
-        minimum_purchase_probability,
-        maximum_purchase_probability,
-    )
-    return purchase_probabilities
-end
-
-
-function sample_multinomial_demand(purchase_probabilities)
-    category_probabilities = vcat(
-        purchase_probabilities,
-        1.0 - sum(purchase_probabilities),
-    )
-    category_counts = rand(Multinomial(
-        number_of_consumers,
-        category_probabilities,
-    ))
-    return Float64.(category_counts[1:number_of_items])
-end
-
-
-function validate_drift_configuration()
-    for (name, cost_values) in (
-        ("underage_cost_values", underage_cost_values),
-        ("overage_cost_values", overage_cost_values),
-    )
-        isempty(cost_values) && error(
-            "$name must contain at least one candidate cost.",
-        )
-        all(cost -> isfinite(cost) && cost > 0.0, cost_values) || error(
-            "Every candidate in $name must be finite and positive.",
-        )
-    end
-
-    isempty(first_mode_weight_values) && error(
-        "first_mode_weight_values must contain at least one candidate weight.",
-    )
-    all(
-        weight -> isfinite(weight) && 0.0 <= weight <= 1.0,
-        first_mode_weight_values,
-    ) || error(
-        "Every candidate in first_mode_weight_values must be finite and " *
-        "in [0, 1].",
-    )
-
-    isnothing(initial_demand_probabilities) && return nothing
-    number_of_items == 1 || error(
-        "initial_demand_probabilities is supported only when " *
-        "number_of_items == 1.",
-    )
-    length(initial_demand_probabilities) == number_of_modes || error(
-        "initial_demand_probabilities must contain one probability for " *
-        "each mode.",
-    )
-    all(
-        probability ->
-            isfinite(probability) &&
-            minimum_purchase_probability <= probability <=
-                maximum_purchase_probability,
-        initial_demand_probabilities,
-    ) || error(
-        "Every initial demand probability must be finite and within the " *
-        "configured purchase-probability bounds.",
-    )
-    return nothing
-end
-
-
-function initial_mode_demand_probabilities()
-    if isnothing(initial_demand_probabilities)
-        return [
-            project_purchase_probabilities!(
-                rand(Dirichlet(number_of_items + 1, 1.0))[1:number_of_items],
-            ) for _ in 1:number_of_modes
-        ]
-    end
-    return [
-        [Float64(probability)]
-        for probability in initial_demand_probabilities
-    ]
-end
-
-
-function generate_drift_data(drift, repetition_mixture_weights)
-    validate_drift_configuration()
-    Random.seed!(simulation_seed)
-    drift_distribution = construct_drift_distribution(drift)
-
-    demand_sequences = Vector{Vector{Vector{Float64}}}(
-        undef,
-        number_of_repetitions,
-    )
-    final_demand_probabilities =
-        Vector{Vector{Vector{Vector{Float64}}}}(
-            undef,
-            number_of_repetitions,
-        )
-    for repetition_index in 1:number_of_repetitions
-        mode_sampler = Weights(
-            repetition_mixture_weights[repetition_index],
-        )
-        demand_probabilities = initial_mode_demand_probabilities()
-        demand_sequence = Vector{Vector{Float64}}(
-            undef,
-            history_length,
-        )
-        future_probabilities = Vector{Vector{Vector{Float64}}}(
-            undef,
-            number_of_future_samples,
-        )
-
-        for time_index in 1:history_length
-            mode = sample(1:number_of_modes, mode_sampler)
-            demand_sequence[time_index] =
-                sample_multinomial_demand(demand_probabilities[mode])
-
-            time_index == history_length && continue
-            for mode_index in 1:number_of_modes
-                mode_probabilities = demand_probabilities[mode_index]
-                for item_index in eachindex(mode_probabilities)
-                    mode_probabilities[item_index] +=
-                        rand(drift_distribution)
-                end
-                project_purchase_probabilities!(mode_probabilities)
-            end
-        end
-
-        for future_index in 1:number_of_future_samples
-            future_probabilities[future_index] = [
-                project_purchase_probabilities!([
-                    demand_probabilities[mode_index][item_index] +
-                    rand(drift_distribution)
-                    for item_index in 1:number_of_items
-                ])
-                for mode_index in 1:number_of_modes
-            ]
-        end
-
-        demand_sequences[repetition_index] = demand_sequence
-        final_demand_probabilities[repetition_index] = future_probabilities
-    end
-    return demand_sequences, final_demand_probabilities
 end
 
 
@@ -490,7 +272,7 @@ function _train_and_test_grid_result(
                     realized_demand,
                     instance_underage_costs,
                     instance_overage_costs,
-                )
+                ) / training_length
         end
     end
 
@@ -571,7 +353,7 @@ function compute_train_and_test_lines()
     for drift_index in eachindex(drifts)
         drift = drifts[drift_index]
         println("Binomial drift parameter: $drift")
-        demand_sequences, final_demand_probabilities =
+        demand_sequences, final_demand_probabilities, _ =
             generate_drift_data(drift, repetition_mixture_weights)
 
         smoothing_costs = zeros(number_of_repetitions)
@@ -814,5 +596,5 @@ plot!(
 xticks!([1.0e-5, 1.0e-4, 1.0e-3, 1.0e-2, 1.0e-1, 1.0e0])
 xlims!((0.99999 * first(drifts), 1.00001 * last(drifts)))
 #yticks!([0.8, 0.90, 1.00, 1.10, 1.20, 1.30])
-ylims!((0.79999, 1.50001))
+ylims!((0.79999, 1.40001))
 display(plt)
