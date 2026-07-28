@@ -9,6 +9,14 @@
 #
 # Innovations are drawn from the unit triangle and scaled by the drift
 # parameter, so every drift value reuses the same innovation sequence.
+#
+# Every per-item stream is keyed by the item index rather than by the number of
+# items, and every stream draws a number of variates that does not depend on
+# the number of items either. A k-item instance is therefore the k-item prefix
+# of the same underlying draw as a (k + 1)-item instance: the two share their
+# mode sequence, their demand uniforms, their innovations, and their starting
+# Gamma variates. Item counts are common random numbers of each other, exactly
+# as drift values already are.
 const unit_drift_distribution = TriangularDist(-1.0, 1.0, 0.0)
 
 
@@ -61,17 +69,23 @@ end
 # Inverse transform of the sequential conditional-Binomial decomposition of the
 # multinomial. Unlike rand(rng, Multinomial(...)), this consumes exactly one
 # uniform per item whatever the purchase probabilities are, and it is monotone
-# in them, so the same uniforms couple demand across drift values.
+# in them, so the same uniforms couple demand across drift values and across
+# item counts.
 function sample_multinomial_demand(uniforms, purchase_probabilities)
     demand = Vector{Float64}(undef, number_of_items)
     remaining_consumers = number_of_consumers
     remaining_probability = 1.0
     for item_index in 1:number_of_items
-        count = quantile(
-            Binomial(
-                remaining_consumers,
+        # The projected probabilities can sum to exactly one, which leaves the
+        # last conditional probability a rounding error above one.
+        conditional_probability = remaining_probability > 0.0 ?
+            clamp(
                 purchase_probabilities[item_index] / remaining_probability,
-            ),
+                0.0,
+                1.0,
+            ) : 0.0
+        count = quantile(
+            Binomial(remaining_consumers, conditional_probability),
             uniforms[item_index],
         )
         demand[item_index] = Float64(count)
@@ -82,20 +96,58 @@ function sample_multinomial_demand(uniforms, purchase_probabilities)
 end
 
 
-function initial_mode_demand_probabilities(rng)
-    if isnothing(initial_demand_probabilities)
+# The starting probabilities of a mode are Dirichlet(number_of_items + 1, 1),
+# built from the Gamma representation rather than from rand(rng, Dirichlet(...)).
+# Item i draws its unit-exponential variate from a stream keyed by i, and the
+# implicit no-purchase category draws one from a stream of its own, so
+#   probability_i = gamma_i / (no_purchase_gamma + sum(gamma_1, ..., gamma_k))
+# has the correct Dirichlet law for every item count k while reusing the same
+# variates across item counts. Adding an item shrinks the incumbent
+# probabilities smoothly instead of resampling them, which is the coupling that
+# rand(rng, Dirichlet(k + 1, 1.0)) cannot provide because its dimension, and
+# hence its whole draw, changes with k.
+function initial_mode_demand_probabilities(global_repetition_index)
+    if !isnothing(initial_demand_probabilities)
         return [
-            project_purchase_probabilities!(
-                rand(
-                    rng,
-                    Dirichlet(number_of_items + 1, 1.0),
-                )[1:number_of_items],
-            ) for _ in 1:number_of_modes
+            [Float64(probability)]
+            for probability in initial_demand_probabilities
         ]
     end
+
+    no_purchase_variates = randexp(
+        experiment_rng(
+            global_repetition_index,
+            initial_probability_stream;
+            dimension = 0,
+        ),
+        number_of_modes,
+    )
+    item_variates = [
+        randexp(
+            experiment_rng(
+                global_repetition_index,
+                initial_probability_stream;
+                dimension = item_index,
+            ),
+            number_of_modes,
+        )
+        for item_index in 1:number_of_items
+    ]
+
     return [
-        [Float64(probability)]
-        for probability in initial_demand_probabilities
+        begin
+            total_variate =
+                no_purchase_variates[mode_index] +
+                sum(
+                    item_variates[item_index][mode_index]
+                    for item_index in 1:number_of_items
+                )
+            project_purchase_probabilities!([
+                item_variates[item_index][mode_index] / total_variate
+                for item_index in 1:number_of_items
+            ])
+        end
+        for mode_index in 1:number_of_modes
     ]
 end
 
@@ -174,42 +226,66 @@ function generate_drift_data(drift, repetition_mode_weights)
     for repetition_index in 1:number_of_repetitions
         global_repetition_index =
             global_repetition_indices[repetition_index]
-        # Every random quantity gets its own stream, and every stream draws the
-        # same number of variates whatever the drift is, so all drift values see
-        # the same modes, the same demand uniforms, and the same innovations.
-        initial_rng = experiment_rng(
-            global_repetition_index,
-            initial_probability_stream,
-        )
+        # Every random quantity gets its own stream, every stream draws the same
+        # number of variates whatever the drift is, and the per-item streams are
+        # keyed by item index rather than by the number of items. So all drift
+        # values and all item counts see the same modes, the same demand
+        # uniforms, and the same innovations.
         mode_rng = experiment_rng(global_repetition_index, mode_stream)
-        demand_rng = experiment_rng(global_repetition_index, demand_stream)
-        innovation_rng = experiment_rng(
-            global_repetition_index,
-            innovation_stream,
-        )
 
         mode_sampler = Weights(repetition_mode_weights[repetition_index])
         modes = [
             sample(mode_rng, 1:number_of_modes, mode_sampler)
             for _ in 1:history_length
         ]
-        demand_uniforms = rand(demand_rng, history_length, number_of_items)
-        history_innovations = rand(
-            innovation_rng,
-            unit_drift_distribution,
+
+        demand_uniforms = Matrix{Float64}(
+            undef,
+            history_length,
+            number_of_items,
+        )
+        history_innovations = Array{Float64}(
+            undef,
             history_length - 1,
             number_of_modes,
             number_of_items,
         )
-        future_innovations = rand(
-            innovation_rng,
-            unit_drift_distribution,
+        future_innovations = Array{Float64}(
+            undef,
             number_of_future_samples,
             number_of_modes,
             number_of_items,
         )
+        for item_index in 1:number_of_items
+            demand_rng = experiment_rng(
+                global_repetition_index,
+                demand_stream;
+                dimension = item_index,
+            )
+            demand_uniforms[:, item_index] =
+                rand(demand_rng, history_length)
 
-        demand_probabilities = initial_mode_demand_probabilities(initial_rng)
+            innovation_rng = experiment_rng(
+                global_repetition_index,
+                innovation_stream;
+                dimension = item_index,
+            )
+            history_innovations[:, :, item_index] = rand(
+                innovation_rng,
+                unit_drift_distribution,
+                history_length - 1,
+                number_of_modes,
+            )
+            future_innovations[:, :, item_index] = rand(
+                innovation_rng,
+                unit_drift_distribution,
+                number_of_future_samples,
+                number_of_modes,
+            )
+        end
+
+        demand_probabilities =
+            initial_mode_demand_probabilities(global_repetition_index)
         starting_demand_probabilities[repetition_index] =
             deepcopy(demand_probabilities)
         demand_sequence = Vector{Vector{Float64}}(

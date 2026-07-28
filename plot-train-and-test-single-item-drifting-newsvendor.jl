@@ -528,7 +528,7 @@ default(
 
 plt = plot(
     xscale = :log10,
-    xlabel = "Multinomial drift parameter, \$δ\$",
+    xlabel = "Binomial drift parameter, \$δ\$",
     ylabel = "Average train-and-test next-period\nexpected cost (relative to smoothing)",
     topmargin = 10.0pt,
     leftmargin = 6.0pt,

@@ -1,8 +1,16 @@
-# Each HPC array job runs the Cartesian product of three item counts and three
+# Each HPC array job runs the Cartesian product of ten item counts and three
 # drift values. Every method is trained by rolling-origin validation and every
 # hyperparameter combination is written to one triptych CSV file. Item demands
 # are multinomial within a period, while their marginal distributions remain
 # Binomial and therefore admit exact expected-cost tests.
+#
+# The demand model is the one shared with the single-item experiment. Within a
+# repetition, all thirty item-count-and-drift cells are common random numbers of
+# each other: the item costs, the mode weights, the mode sequence, the demand
+# uniforms, the starting Gamma variates, and the unit innovations are all keyed
+# by item index and reused, so a k-item instance is the k-item prefix of the
+# ten-item one. Moving along the item-count axis then perturbs an instance
+# instead of redrawing it, which is what makes the curves smooth.
 
 using Random, Statistics, StatsBase, Distributions
 using ProgressBars
@@ -30,7 +38,6 @@ const number_of_modes = 2
 # Starting purchase probabilities are sampled independently for every mode.
 const initial_demand_probabilities = nothing
 
-construct_drift_distribution(delta) = TriangularDist(-delta, delta, 0.0)
 const drifts = [0.01, 0.05, 0.1]
 
 const number_of_repetitions = 10
@@ -46,79 +53,13 @@ const global_repetition_indices =
 include("weights.jl")
 include("multi-item-newsvendor-dual-optimizations.jl")
 
-
-function project_purchase_probabilities!(purchase_probabilities)
-    maximum_probability_sum = 1.0
-    box_projection = clamp.(
-        purchase_probabilities,
-        minimum_purchase_probability,
-        maximum_purchase_probability,
-    )
-    if sum(box_projection) <= maximum_probability_sum
-        purchase_probabilities .= box_projection
-        return purchase_probabilities
-    end
-
-    # When the sum constraint binds, its multiplier is the scalar shift in
-    # clamp.(purchase_probabilities .- shift, lower_bound, upper_bound).
-    lower_shift = 0.0
-    upper_shift = maximum(
-        purchase_probabilities .- minimum_purchase_probability,
-    )
-    for _ in 1:100
-        shift = (lower_shift + upper_shift) / 2.0
-        projected_sum = sum(
-            clamp(
-                probability - shift,
-                minimum_purchase_probability,
-                maximum_purchase_probability,
-            ) for probability in purchase_probabilities
-        )
-        if projected_sum > maximum_probability_sum
-            lower_shift = shift
-        else
-            upper_shift = shift
-        end
-    end
-
-    purchase_probabilities .= clamp.(
-        purchase_probabilities .- upper_shift,
-        minimum_purchase_probability,
-        maximum_purchase_probability,
-    )
-    return purchase_probabilities
-end
-
-
-function sample_multinomial_demand(rng, purchase_probabilities)
-    category_probabilities = vcat(
-        purchase_probabilities,
-        1.0 - sum(purchase_probabilities),
-    )
-    category_counts = rand(rng, Multinomial(
-        number_of_consumers,
-        category_probabilities,
-    ))
-    return Float64.(category_counts[1:number_of_items])
-end
-
-
-function initial_mode_demand_probabilities(rng)
-    if isnothing(initial_demand_probabilities)
-        return [
-            project_purchase_probabilities!(
-                rand(
-                    rng,
-                    Dirichlet(number_of_items + 1, 1.0),
-                )[1:number_of_items],
-            ) for _ in 1:number_of_modes
-        ]
-    end
-    return [
-        [Float64(probability)]
-        for probability in initial_demand_probabilities
-    ]
-end
+# The demand model itself is shared with the single-item experiment, so both
+# draw their instances from the same streams. It supplies
+# project_purchase_probabilities!, sample_multinomial_demand,
+# initial_mode_demand_probabilities, generate_drift_data,
+# realized_multi_item_newsvendor_cost, and the exact integer-order expected
+# newsvendor cost.
+include("drifting-demand-model.jl")
 
 
 function sample_repetition_item_costs(cost_values, stream)
@@ -147,111 +88,13 @@ function sample_repetition_mode_weights()
 end
 
 
-function generate_drift_data(drift, repetition_mode_weights)
-    drift_distribution = construct_drift_distribution(drift)
-    demand_sequences = Vector{Vector{Vector{Float64}}}(
-        undef,
-        number_of_repetitions,
-    )
-    final_demand_probabilities = Vector{Array{Float64,3}}(
-        undef,
-        number_of_repetitions,
-    )
-    starting_demand_probabilities = Vector{Vector{Vector{Float64}}}(
-        undef,
-        number_of_repetitions,
-    )
-
-    for repetition_index in 1:number_of_repetitions
-        rng = experiment_rng(
-            global_repetition_indices[repetition_index],
-            demand_stream;
-            dimension = number_of_items,
-        )
-        mode_weights = repetition_mode_weights[repetition_index]
-        mode_sampler = Weights(mode_weights)
-        demand_probabilities = initial_mode_demand_probabilities(rng)
-        starting_demand_probabilities[repetition_index] =
-            deepcopy(demand_probabilities)
-        demand_sequence = Vector{Vector{Float64}}(
-            undef,
-            history_length,
-        )
-        future_probabilities = Array{Float64}(
-            undef,
-            number_of_future_samples,
-            number_of_modes,
-            number_of_items,
-        )
-
-        for time_index in 1:history_length
-            mode = sample(rng, 1:number_of_modes, mode_sampler)
-            demand_sequence[time_index] =
-                sample_multinomial_demand(
-                    rng,
-                    demand_probabilities[mode],
-                )
-
-            time_index == history_length && continue
-            for mode_index in 1:number_of_modes
-                mode_probabilities = demand_probabilities[mode_index]
-                for item_index in eachindex(mode_probabilities)
-                    mode_probabilities[item_index] +=
-                        rand(rng, drift_distribution)
-                end
-                project_purchase_probabilities!(mode_probabilities)
-            end
-        end
-
-        # Each future sample is a separate one-step drift from the distribution
-        # at the end of the observed history.
-        for future_index in 1:number_of_future_samples
-            for mode_index in 1:number_of_modes
-                for item_index in 1:number_of_items
-                    future_probabilities[
-                        future_index,
-                        mode_index,
-                        item_index,
-                    ] =
-                        demand_probabilities[mode_index][item_index] +
-                        rand(rng, drift_distribution)
-                end
-                project_purchase_probabilities!(
-                    view(future_probabilities, future_index, mode_index, :),
-                )
-            end
-        end
-
-        demand_sequences[repetition_index] = demand_sequence
-        final_demand_probabilities[repetition_index] = future_probabilities
-    end
-    return (
-        demand_sequences,
-        final_demand_probabilities,
-        starting_demand_probabilities,
-    )
-end
-
-
-function realized_multi_item_newsvendor_cost(
-    order,
-    demand,
-    instance_underage_costs,
-    instance_overage_costs,
-)
-    total_cost = 0.0
-    for item_index in 1:number_of_items
-        total_cost +=
-            instance_underage_costs[item_index] *
-            max(demand[item_index] - order[item_index], 0.0) +
-            instance_overage_costs[item_index] *
-            max(order[item_index] - demand[item_index], 0.0)
-    end
-    return total_cost
-end
-
-
-function expected_newsvendor_cost_with_binomial_demand(
+# The expected newsvendor cost is piecewise linear in the order quantity
+# because demand is integer valued, so this evaluates the exact cost at
+# fractional orders too. The knot-and-interpolate routine the single-item
+# script uses returns the same values; this form is kept here because the
+# expected cost is evaluated at every point of the hyperparameter grid, and
+# this costs two distribution-function evaluations rather than four.
+function expected_newsvendor_cost_at_fractional_order(
     order,
     binomial_demand_probability,
     underage_cost,
@@ -297,7 +140,7 @@ function expected_multi_item_newsvendor_cost(
             for item_index in 1:number_of_items
                 total_cost +=
                     cost_weight *
-                    expected_newsvendor_cost_with_binomial_demand(
+                    expected_newsvendor_cost_at_fractional_order(
                         order[item_index],
                         future_demand_probabilities[
                             future_index,

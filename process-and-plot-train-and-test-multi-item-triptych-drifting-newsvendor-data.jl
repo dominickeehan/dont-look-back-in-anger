@@ -3,12 +3,17 @@ using Plots, Measures
 
 
 # Set this to true to process the real CSV data. Otherwise, use quick dummy
-# data. Both modes only display the plot.
+# data. Set refresh_processed_data to true when the source CSVs change;
+# otherwise the small processed-data cache is loaded for a quick plot.
 extract_data = true
+refresh_processed_data = false
 
+5
 
 const data_directory =
     joinpath(@__DIR__, "triptych-drifting-newsvendor-results")
+const processed_data_file =
+    joinpath(@__DIR__, "multi-item-triptych-plot-data.tsv")
 const methods = [
     "SAA",
     "Smoothing",
@@ -145,6 +150,100 @@ function process_train_and_test_data(directory = data_directory)
 end
 
 
+function save_processed_train_and_test_data(
+    processed_results,
+    file = processed_data_file,
+)
+    rows = NamedTuple[]
+    for number_of_items in processed_results.item_counts
+        for (drift_index, drift) in enumerate(processed_results.drifts)
+            for method in processed_results.methods
+                method_result =
+                    processed_results.results[(number_of_items, method)]
+                push!(
+                    rows,
+                    (
+                        number_of_items = number_of_items,
+                        drift = drift,
+                        method = method,
+                        average_cost =
+                            method_result.average_costs[drift_index],
+                        standard_error =
+                            method_result.standard_errors[drift_index],
+                        number_of_source_files =
+                            processed_results.number_of_files,
+                    ),
+                )
+            end
+        end
+    end
+    CSV.write(file, rows; delim = '\t')
+    println("Saved processed plot data to $file.")
+    return file
+end
+
+
+function load_processed_train_and_test_data(file = processed_data_file)
+    rows = collect(CSV.File(file; delim = '\t'))
+    isempty(rows) && error("Processed plot data file is empty: $file")
+
+    cached_results = Dict(
+        (
+            Int(row.number_of_items),
+            Float64(row.drift),
+            String(row.method),
+        ) => (
+            average_cost = Float64(row.average_cost),
+            standard_error = Float64(row.standard_error),
+        )
+        for row in rows
+    )
+    item_counts = collect(item_counts_to_plot)
+    drifts = collect(drifts_to_plot)
+    missing_results = [
+        (number_of_items, drift, method)
+        for number_of_items in item_counts
+        for drift in drifts
+        for method in methods
+        if !haskey(
+            cached_results,
+            (number_of_items, drift, method),
+        )
+    ]
+    isempty(missing_results) || error(
+        "Missing cached triptych results for: " *
+        join(string.(missing_results), ", "),
+    )
+
+    results = Dict{Tuple{Int,String},NamedTuple}()
+    for number_of_items in item_counts
+        for method in methods
+            method_rows = [
+                cached_results[(number_of_items, drift, method)]
+                for drift in drifts
+            ]
+            results[(number_of_items, method)] = (
+                average_costs = [
+                    row.average_cost for row in method_rows
+                ],
+                standard_errors = [
+                    row.standard_error for row in method_rows
+                ],
+                selected_results = [],
+            )
+        end
+    end
+
+    return (
+        item_counts = item_counts,
+        drifts = drifts,
+        methods = methods,
+        results = results,
+        number_of_files = Int(first(rows).number_of_source_files),
+    )
+end
+
+
 function dummy_train_and_test_data()
     levels = Dict(
         "SAA" => [1.06, 1.04, 1.02],
@@ -243,13 +342,14 @@ function plot_train_and_test_results(processed_results)
     marker_outline_color = :black
     marker_outline_width = 1.0
 
-    ytick_values = collect(0.8:0.1:1.4)
+    ytick_values = [0.8, 0.9, 1.0, 1.1, 1.2, 1.4, 1.8]
+    ytick_labels = ["−20", "−10", "0", "+10", "+20", "+40", "+80"]
     panel_plots = []
     for (drift_index, drift) in enumerate(processed_results.drifts)
         panel_yticks = if drift_index == firstindex(
             processed_results.drifts,
         )
-            ytick_values
+            (ytick_values, ytick_labels)
         else
             (ytick_values, fill("", length(ytick_values)))
         end
@@ -258,8 +358,8 @@ function plot_train_and_test_results(processed_results)
             ylabel = drift_index == firstindex(
                 processed_results.drifts,
             ) ?
-                "Average train-and-test next-period\n" *
-                "expected cost (relative to smoothing)" : "",
+                "Average cost\n" *
+                "(difference from smoothing, %)" : "",
             title = "\$δ = $drift\$",
             xticks = processed_results.item_counts,
             xlims = (
@@ -267,10 +367,14 @@ function plot_train_and_test_results(processed_results)
                 1.0001 * last(processed_results.item_counts),
             ),
             yticks = panel_yticks,
-            ylims = (0.79999, 1.40001),
+            yscale = :log10,
+            ylims = (
+                0.9999 * 0.8,
+                1.00001 * 2.0,
+            ),
             legend = drift_index == lastindex(
                 processed_results.drifts,
-            ) ? :topright : false,
+            ) ? :right : false,
             topmargin = 6.0pt,
             leftmargin = drift_index == firstindex(
                 processed_results.drifts,
@@ -351,8 +455,7 @@ function plot_train_and_test_results(processed_results)
                     markershape = style.markershape,
                     markersize = 4.0,
                     markerstrokewidth = 0.75,
-                    label = method == last(processed_results.methods) ?
-                        "$method" : "$method",
+                    label = "$method",
                 )
             end
             xlims!(panel, panel_xlims)
@@ -370,8 +473,17 @@ function plot_train_and_test_results(processed_results)
 end
 
 
-processed_results = extract_data ?
-    process_train_and_test_data() :
+processed_results = if extract_data
+    if refresh_processed_data || !isfile(processed_data_file)
+        raw_processed_results = process_train_and_test_data()
+        save_processed_train_and_test_data(raw_processed_results)
+        raw_processed_results
+    else
+        println("Loading processed plot data from $processed_data_file.")
+        load_processed_train_and_test_data()
+    end
+else
     dummy_train_and_test_data()
+end
 plt = plot_train_and_test_results(processed_results)
 display(plt)

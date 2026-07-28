@@ -2,7 +2,7 @@
 #PBS -N triptych_drifting_newsvendor
 #PBS -J 0-99
 #PBS -l select=1:ncpus=1:mem=8gb
-#PBS -l walltime=09:00:00
+#PBS -l walltime=08:00:00
 
 module load tools/prod
 module load Julia/1.11.6-linux-x86_64

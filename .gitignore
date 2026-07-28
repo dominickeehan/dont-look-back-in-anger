@@ -10,3 +10,4 @@ multi-item-newsvendor-results/*.csv
 multi-item-newsvendor-results.zip
 train-and-test-multi-modal-drifting-newsvendor-data/hpc-output.zip
 .DS_Store
+upload.txt

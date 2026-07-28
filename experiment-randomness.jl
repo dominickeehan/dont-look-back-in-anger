@@ -14,8 +14,10 @@ function experiment_rng(
     stream;
     dimension = 0,
 )
-    # Keep each repetition, random quantity, and demand dimension on a
-    # deterministic stream that does not depend on surrounding loop order.
+    # Keep each repetition, random quantity, and item on a deterministic stream
+    # that does not depend on surrounding loop order. The dimension argument is
+    # an item index, never a number of items, so an instance with more items
+    # reuses every stream of the instances with fewer items.
     seed =
         simulation_seed +
         1_000_000 * global_repetition_index +
