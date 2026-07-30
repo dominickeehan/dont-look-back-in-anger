@@ -1,12 +1,12 @@
+# Included after weights.jl; expects number_of_items and number_of_consumers
+# to be defined by the including script.
+#
+# Wasserstein models use the normalized support [0,1]^number_of_items for
+# numerical conditioning and rescale their objective and order before return.
+
+
 using LinearAlgebra
 using JuMP, MathOptInterface, Gurobi
-
-
-# This file expects the following experiment constants to be defined in the
-# main script before it is included:
-#
-# const number_of_items = 3
-# const number_of_consumers = 1000
 
 
 # Each Julia thread reuses its own single-threaded Gurobi environment.
@@ -52,6 +52,8 @@ function _optimize_multi_item_model!(Problem)
     optimize!(Problem)
     is_solved_and_feasible(Problem) && return nothing
 
+    # Retry numerically difficult models with homogeneous barrier and maximum
+    # numerical focus.
     set_attribute(Problem, "BarHomogeneous", 1)
     set_attribute(Problem, "NumericFocus", 3)
     optimize!(Problem)
@@ -65,6 +67,8 @@ function _optimize_multi_item_model!(Problem)
 end
 
 
+# Remove zero-weight samples to reduce the size of the problems, then
+# renormalize the remaining weights.
 function _normalized_positive_weights_and_demands(demands, weights)
     positive_weight_indices = weights .> 0.0
     weights = Float64.(weights[positive_weight_indices])
@@ -106,6 +110,7 @@ function _multi_item_newsvendor_problem_data(
 end
 
 
+# Solve the weighted sample-average newsvendor problem.
 function SO_multi_item_newsvendor_objective_value_and_order(
     _,
     demands,
@@ -161,6 +166,8 @@ function _build_W2_DRO_multi_item_newsvendor_problem(
         w[t = 1:T, l = 1:length(a), i = 1:number_of_items]
     end)
 
+    # The rotated cone represents the quadratic-over-linear term
+    # ‖w‖² / (4λ).
     for t in 1:T, l in eachindex(a)
         @constraint(
             Problem,
@@ -211,6 +218,7 @@ function W2_DRO_multi_item_newsvendor_objective_value_and_order(
     instance_underage_costs,
     instance_overage_costs,
 )
+    # A zero-radius ball contains only the empirical distribution.
     if ε == 0.0
         return SO_multi_item_newsvendor_objective_value_and_order(
             ε,

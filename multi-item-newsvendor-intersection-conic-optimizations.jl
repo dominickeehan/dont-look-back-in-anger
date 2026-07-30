@@ -1,40 +1,18 @@
-# Exact conic formulation for an intersection of Wasserstein balls.
+# If the Wasserstein balls do not intersect, their radii are increased by the
+# smallest common additive amount that makes the intersection nonempty.
+#
+# REMK_intersection_weights repeats ρ/ε to match the common solver interface,
+# so the final entry supplies the radius ratio.
 
 
-# Construct the affine pieces of the newsvendor loss and the normalized box
-# support [0,1]^number_of_items.
-# See Corollary 2 of
-# "Wasserstein Distributionally Robust Optimization with Heterogeneous Data
-# Sources" by Rychener, Esteban-Perez, Morales, and Kuhn.
-function _multi_item_newsvendor_problem_data(
-    instance_underage_costs, instance_overage_costs,
-)
-    loss_pieces = collect(
-        Iterators.product(fill([false, true], number_of_items)...),
-    )
-    a = [
-        [
-            loss_pieces[l][i] ? instance_underage_costs[i] :
-            -instance_overage_costs[i]
-            for i in 1:number_of_items
-        ]
-        for l in eachindex(loss_pieces)
-    ]
-    b = [-a[l] for l in eachindex(a)]
-    C = [
-        -Matrix{Float64}(I, number_of_items, number_of_items);
-        Matrix{Float64}(I, number_of_items, number_of_items)
-    ]
-    g = [
-        zeros(number_of_items);
-        ones(number_of_items)
-    ]
-    return a, b, C, g
-end
+# Conic formulation for an intersection of Wasserstein balls.
 
 
-# In the following distributional ball-intersection feasibility problem the equivalence to working in R^m follows since
-# W₂(P,1_ξ) = sqrt(sum((E(P)_i-ξ_i)^2) + Tr(Cov(P))) which drives Tr(Cov(P)) -> 0 and P -> 1_E(P) at extremal distributions.
+# Since W₂(P, δ_d)² = ‖E_P[ξ] - d‖² + tr(Cov(P)), the point mass at
+# E_P[ξ] strongly dominates P whenever its covariance is nonzero. Feasibility
+# therefore reduces to intersecting Euclidean balls. When an empty intersection
+# is enlarged to first contact, the Euclidean intersection is a singleton and
+# the ambiguity set contains only the point mass there.
 function _build_ball_intersection_feasibility_problem(demands, ball_radii)
     K = length(demands)
     Problem = _new_multi_item_model()
@@ -98,6 +76,8 @@ function _build_intersection_W2_DRO_multi_item_newsvendor_problem(
         s[l = 1:length(a), k = 1:K] >= 0.0
     end)
 
+    # The rotated cone represents the quadratic-over-linear term
+    # ‖w‖² / (4λ).
     for l in eachindex(a)
         @constraint(
             Problem,
@@ -177,8 +157,10 @@ function REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_orde
             Ball_Intersection_Feasibility_Problem, ξ, a,
         )
 
-    # At first contact the repaired ambiguity set is the point mass at point;
-    # ordering exactly that demand incurs zero loss.
+    # Treat intersections within the geometry tolerance as first contact. At
+    # first contact, the only demand distribution in the ambiguity set is the
+    # point mass at the contact point. Ordering this singleton demand gives
+    # zero loss.
     if minimum_increase >= -multi_item_geometry_tolerance
         return 0.0, number_of_consumers .* point
     end

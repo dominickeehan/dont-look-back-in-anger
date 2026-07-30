@@ -1,12 +1,12 @@
-# This file expects the following experiment constants to be defined in the
-# main script before it is included:
+# Included after weights.jl; expects number_of_items and number_of_consumers
+# to be defined by the including script.
 #
-# const number_of_items = 3
-# const number_of_consumers = 1000
+# Wasserstein models use the normalized support [0,1]^number_of_items for
+# numerical conditioning and rescale their objective and order before return.
 
 
-# Zero-weight samples contribute nothing, so removing them exactly shortens all
-# later dual evaluations.
+# Remove zero-weight samples to reduce the size of the problems, then
+# renormalize the remaining weights.
 function _normalized_positive_weights_and_demands(demands, weights)
     positive_weight_indices = weights .> 0.0
     weights = Float64.(weights[positive_weight_indices])
@@ -66,21 +66,20 @@ function SO_multi_item_newsvendor_objective_value_and_order(
 end
 
 
-# Weighted type-2 Wasserstein DRO over the box support. By strong duality
-# (Corollary 2 of "Wasserstein Distributionally Robust Optimization with
-# Heterogeneous Data Sources" by Rychener, Esteban-Perez, Morales, and Kuhn)
-# the problem, stated on the normalized support [0,1]^number_of_items, equals
+# Weighted 2-Wasserstein DRO over the box support. For a positive radius,
+# Theorem 2 of "Wasserstein Distributionally Robust Optimization with
+# Heterogeneous Data Sources" by Rychener, Esteban-Perez, Morales, and Kuhn
+# gives strong duality, and Corollary 2 gives the following problem on the
+# normalized support [0,1]^number_of_items:
 #
 #   min_{λ ≥ 0, order} λ ε² + Σ_t weights[t] Σ_i sup_{ξ ∈ [0,1]}
 #     [max(uᵢ (ξ - orderᵢ), oᵢ (orderᵢ - ξ)) - λ (ξ - demands[t][i])²],
 #
-# where the supremum decomposes across items because the loss and the squared
-# Euclidean transport cost both separate coordinate-wise. The supremum has the
-# elementary closed form below. The per-scenario breakpoints are nondecreasing
-# in demand for every λ, so the minimizing order is always determined by the
-# same weighted-quantile position. The remaining one-dimensional function of λ
-# is convex, so a golden-section search solves the problem to the specified
-# numerical tolerance.
+# The supremum separates by item and has the closed form below. Its breakpoint
+# is nondecreasing in demand, so the optimal order is obtained from the
+# corresponding weighted-demand quantile. The remaining objective is convex
+# in λ and is minimized by golden-section search to the specified numerical
+# tolerance.
 function _bounded_linear_quadratic_conjugate(slope, demand, λ)
     if iszero(λ)
         return max(0.0, slope)
@@ -142,8 +141,7 @@ function W2_DRO_multi_item_newsvendor_objective_value_and_order(
     instance_underage_costs,
     instance_overage_costs,
 )
-    # A zero-radius ball contains only the empirical distribution. Solving that
-    # problem directly also avoids the dual bracket's division by ε.
+    # A zero-radius ball contains only the empirical distribution.
     if ε == 0.0
         return SO_multi_item_newsvendor_objective_value_and_order(
             ε,
@@ -182,9 +180,10 @@ function W2_DRO_multi_item_newsvendor_objective_value_and_order(
         normalized_epsilon,
     )
 
-    # Every worst-case displacement is at most cost / (2λ) per item, so above
-    # this multiplier the dual derivative ε² - Σ_t weights[t] ‖ξ_t - ξ̂_t‖² is
-    # nonnegative and the minimizer lies within the bracket.
+    # The displacement in item i is at most
+    # max(underage_cost[i], overage_cost[i]) / (2λ), so above this multiplier
+    # the dual derivative ε² - Σ_t weights[t] ‖ξ_t - ξ̂_t‖² is nonnegative and
+    # the minimizer lies within the bracket.
     lower = 0.0
     upper = sqrt(sum(
         max(instance_underage_costs[i], instance_overage_costs[i])^2

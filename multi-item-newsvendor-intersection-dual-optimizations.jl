@@ -1,14 +1,23 @@
-using LinearAlgebra, Random
+# If the Wasserstein balls do not intersect, their radii are increased by the
+# smallest common additive amount that makes the intersection nonempty.
+#
+# REMK_intersection_weights repeats ρ/ε to match the common solver interface,
+# so the final entry supplies the radius ratio.
 
 
-# First-order dual solver for an intersection of Wasserstein balls, replacing
-# the exact conic reformulation in
+using LinearAlgebra
+
+
+# First-order dual solver for an intersection of Wasserstein balls, used
+# instead of the conic reference implementation in
 # multi-item-newsvendor-intersection-conic-optimizations.jl.
 
 
 const multi_item_geometry_tolerance = 1.0e-6
 
 
+# Compute the distance without allocating the temporary vector created by
+# norm(first_point - second_point).
 function _euclidean_distance(first_point, second_point)
     squared_distance = 0.0
     @inbounds for i in eachindex(first_point, second_point)
@@ -18,10 +27,11 @@ function _euclidean_distance(first_point, second_point)
 end
 
 
-# In the following ball-intersection problem it is enough to work with points
-# ξ in R^m because
-# W₂(P, 1_ξ) = sqrt(sum((E(P)_i - ξ_i)^2) + Tr(Cov(P))). At first
-# contact the covariance is therefore zero and P is a point mass.
+# Since W₂(P, δ_d)² = ‖E_P[ξ] - d‖² + tr(Cov(P)), the point mass at
+# E_P[ξ] strongly dominates P whenever its covariance is nonzero. Feasibility
+# therefore reduces to intersecting Euclidean balls. When an empty intersection
+# is enlarged to first contact, the Euclidean intersection is a singleton and
+# the ambiguity set contains only the point mass there.
 
 
 function _pairwise_distances(demands)
@@ -35,8 +45,9 @@ function _pairwise_distances(demands)
 end
 
 
-# If ball j contains ball k, ball j is redundant in their intersection. A
-# shared additive radius increase preserves the containment relation exactly.
+# If ball j contains ball k, ball j is redundant for certifying nonemptiness
+# and can be removed from the DRO intersection. A common additive radius
+# increase preserves this containment relation.
 function _nonredundant_ball_indices(ball_radii, pair_distances)
     kept_indices = Int[]
     # REMK_intersection_ball_radii constructs the radii in nonincreasing order.
@@ -52,7 +63,8 @@ end
 
 
 # The shared radius increase required at a candidate point. A negative value
-# directly certifies a nonempty interior and hence Slater's condition.
+# gives a point strictly inside every ball, placing the squared-radius vector
+# in the interior of the feasible-radius set.
 function _required_radius_increase_at_point(point, demands, ball_radii)
     return maximum(
         _euclidean_distance(point, demands[k]) - ball_radii[k]
@@ -66,7 +78,8 @@ end
 # The smallest radius also supplies a >= -min(r). If the contact point for the
 # largest bound lies strictly inside every ball, it certifies nonemptiness. If
 # its feasible upper bound matches the lower bound, it is globally optimal. The
-# critical indices are also returned as an ordering hint for the exact fallback.
+# critical indices are also returned as an ordering hint for the active-set
+# fallback.
 function _certified_two_ball_radius_increase(
     demands, ball_radii, pair_distances,
 )
@@ -136,9 +149,8 @@ function _ball_from_support(demands, ball_radii, support)
         ),
         -radius_differences,
     )
-    # The Gram matrix is nonsingular exactly when these center differences are
-    # independent. One factorization therefore replaces a separate rank SVD and
-    # solves both unchanged linear systems.
+    # A single Cholesky factorization tests independence and solves both
+    # right-hand sides.
     factorization = cholesky(Symmetric(gram); check = false)
     issuccess(factorization) || return nothing
     coordinates = factorization \ right_hand_sides
@@ -208,6 +220,9 @@ function _active_set_radius_increase(
         return _smallest_supported_ball(demands, ball_radii, support)
     end
 
+    # Solve without the current ball. If the resulting point lies outside that
+    # ball at the candidate radius increase, add it to the support and solve
+    # again.
     geometry = _active_set_radius_increase(
         demands, ball_radii, indices, support, count - 1,
     )
@@ -225,13 +240,13 @@ function _active_set_radius_increase(
 end
 
 
-# Preferred balls are processed first to find a strong partial solution sooner.
-# They are not forced into the support, and every ball still passes through the
-# same recursion, so the order changes the work but not the exact answer.
+# Process the preferred balls first so likely active constraints enter the
+# support earlier. Every ball is still processed, so ordering affects only the
+# amount of recursion.
 function _active_set_radius_increase(
     demands, ball_radii, preferred_indices = Int[],
 )
-    indices = shuffle!(Xoshiro(1), collect(eachindex(demands)))
+    indices = collect(eachindex(demands))
     indices = vcat(
         preferred_indices,
         filter(index -> index ∉ preferred_indices, indices),
@@ -242,11 +257,11 @@ function _active_set_radius_increase(
 end
 
 
-# A type-2 Wasserstein ball around the point mass at demands[k] is the moment
-# constraint E_P ‖ξ - demands[k]‖² <= ball_radii[k]², so Lagrangian duality
-# (Slater's condition is certified before this solver is called) states the
-# worst-case newsvendor problem over the intersection, on the normalized
-# support [0,1]^number_of_items, as
+# A 2-Wasserstein ball around the point mass at demands[k] is the moment
+# constraint E_P ‖ξ - demands[k]‖² <= ball_radii[k]². The interior certificate
+# above places the squared-radius vector in the interior of the feasible-radius
+# set, so Theorem 2 of Rychener et al. gives the following Lagrangian dual over
+# the normalized support [0,1]^number_of_items:
 #
 #   min_{λ ∈ R^K_+, order} Σ_k λ_k ball_radii[k]² + Σ_i sup_{ξ ∈ [0,1]}
 #     [max(uᵢ (ξ - orderᵢ), oᵢ (orderᵢ - ξ)) - Σ_k λ_k (ξ - demands[k][i])²],
@@ -365,14 +380,12 @@ end
 # method ("Nonmonotone Spectral Projected Gradient Methods on Convex Sets"
 # by Birgin, Martínez, and Raydan). The Barzilai-Borwein step
 # ‖Δλ‖² / (Δλ ⋅ Δgradient) estimates the inverse curvature along the last
-# step, which keeps the iteration count low even when a small intersection
-# makes the optimal multipliers large. The line search is sound because the
-# objective is continuously differentiable for Λ > 0: where a displacement
-# cap in observation 2 switches branch, the two branches agree in value and
-# first derivative. The iteration starts at λ = 0 and stops once the
-# projected step is no longer a descent direction, which happens only at
-# (numerical) stationarity; with large radii it stops immediately, recovering
-# the distribution-free newsvendor.
+# step. The objective is continuously differentiable for Λ > 0 because the
+# capped and uncapped branches agree in value and first derivative at their
+# boundary. The iteration starts at λ = 0 and stops when both the predicted
+# decrease and a scale-independent projected-gradient residual are small. With
+# large radii it stops immediately, recovering the distribution-free
+# newsvendor.
 function _solve_intersection_dual(
     normalized_demands,
     normalized_ball_radii,
@@ -408,12 +421,20 @@ function _solve_intersection_dual(
             directional_derivative += gradient[k] * direction[k]
         end
         # The objective is flat in λ near the optimum but the order it implies
-        # is not, so a loose threshold stops at an objective that looks
-        # converged while the order is still far off. Against the exact conic
-        # reformulation, 1.0e-6 left orders wrong by up to 30% and objectives
-        # by 0.8%; 1.0e-8 brings both to the conic solver's own accuracy for
-        # about 2.7% more time, and 1.0e-9 buys nothing further.
-        directional_derivative < -1.0e-8 * (1.0 + abs(objective)) || break
+        # is not. On the tuning grid, a 1.0e-6 tolerance produced order errors
+        # up to 30% and objective errors up to 0.8%. A 1.0e-8 tolerance matched
+        # the conic solver for about 2.7% additional runtime; 1.0e-9 produced
+        # no measurable improvement.
+        if directional_derivative >= -1.0e-8 * (1.0 + abs(objective))
+            # The directional test depends on step_scale, so also require a
+            # unit-step projected-gradient residual of at most 1.0e-7.
+            projected_gradient_norm = sqrt(sum(
+                (
+                    λ[k] - max(0.0, λ[k] - gradient[k])
+                )^2 for k in 1:K
+            ))
+            projected_gradient_norm <= 1.0e-7 && break
+        end
 
         step = 1.0
         accepted = false
@@ -468,12 +489,8 @@ function _normalized_intersection_objective_value_and_order(
     active_radii = view(normalized_ball_radii, active_indices)
     active_distances = view(pair_distances, active_indices, active_indices)
 
-    # An empty or touching intersection is repaired exactly as in the conic
-    # formulation: every ball grows by the smallest shared radius increase that
-    # makes the intersection nonempty, collapsing the ambiguity set to the
-    # contact point. This is settled before the dual solver runs — the dual
-    # is unbounded below when the intersection is empty — and a strictly
-    # interior certificate is Slater's condition for the dual.
+    # Locate the squared-radius vector relative to the boundary of the
+    # feasible-radius set.
     geometry, critical_indices = _certified_two_ball_radius_increase(
         active_demands, active_radii, active_distances,
     )
@@ -482,8 +499,10 @@ function _normalized_intersection_objective_value_and_order(
     ))
     minimum_increase, point = geometry
 
-    # At first contact the repaired ambiguity set is the point mass at point;
-    # ordering exactly that demand incurs zero loss.
+    # Treat intersections within the geometry tolerance as first contact. At
+    # first contact, the only demand distribution in the ambiguity set is the
+    # point mass at the contact point. Ordering this singleton demand gives
+    # zero loss.
     if minimum_increase >= -multi_item_geometry_tolerance
         return 0.0, point
     end
@@ -531,8 +550,7 @@ function _multi_item_newsvendor_grid(
 )
     K = length(demands)
     normalized_demands = [demand ./ number_of_consumers for demand in demands]
-    # Centers do not change across this grid, so compute their distances once;
-    # every radius and weight combination uses the same exact values.
+    # Centers do not change across the grid, so compute their distances once.
     pair_distances = _pairwise_distances(normalized_demands)
     result_type = Tuple{Float64,Vector{Float64}}
     results = Matrix{result_type}(
