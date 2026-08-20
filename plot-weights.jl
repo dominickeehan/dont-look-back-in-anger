@@ -55,7 +55,7 @@ alpha = 0.117 # On 5 overlaid layers, this gives a total alpha of 1-(1-0.075)^5 
 
 for p in P
         plot!(1:T, 
-                Wp_weights(p, T, (ρ/ε)/p, 1),
+                Wp_power_law_drift_profile_weights(p, T, (ρ/ε)/p, 1),
                 label = "\$p=$p\$",
                 color = colors[p],
                 linewidth = linewidths[p],
@@ -88,7 +88,7 @@ for q in 1:4
 
         for p in 1:q
                 plot!(1:T, 
-                        Wp_weights(p, T, (ρ/ε)/p, 1),
+                        Wp_power_law_drift_profile_weights(p, T, (ρ/ε)/p, 1),
                         label = "\$p=$p\$",
                         color = colors[p],
                         linewidth = linewidths[p],
@@ -122,7 +122,7 @@ square_root_drift_profile_plt = plot(
 
 for p in P
         plot!(1:T, 
-                Wp_weights(p, T, (ρ/ε^(1/2))/p, 1/2),
+                Wp_power_law_drift_profile_weights(p, T, (ρ/ε^(1/2))/p, 1/2),
                 label = "\$p=$p\$",
                 color = colors[p],
                 linewidth = linewidths[p],
@@ -169,7 +169,7 @@ square_root_drift_profile_two_pane_plt = plot(
 for p in P
         plot!(linear_drift_profile_two_pane_plt,
                 1:T,
-                Wp_weights(p, T, (ρ/ε)/p, 1),
+                Wp_power_law_drift_profile_weights(p, T, (ρ/ε)/p, 1),
                 label = "\$p=$p\$",
                 color = colors[p],
                 linewidth = linewidths[p],
@@ -179,7 +179,7 @@ for p in P
 
         plot!(square_root_drift_profile_two_pane_plt,
                 1:T,
-                Wp_weights(p, T, (ρ/ε^(1/2))/p, 1/2),
+                Wp_power_law_drift_profile_weights(p, T, (ρ/ε^(1/2))/p, 1/2),
                 label = "\$p=$p\$",
                 color = colors[p],
                 linewidth = linewidths[p],
@@ -203,3 +203,70 @@ two_pane_drift_profile_plt = plot(
 
 display(two_pane_drift_profile_plt)
 savefig(two_pane_drift_profile_plt, "figures/drift-profile-optimal-weights-for-p=1-to-5.pdf")
+
+
+
+
+# Squished two pane plot.
+
+squished_linear_drift_profile_two_pane_plt = plot(
+        title = "Linear drift profile \$(η=1)\$",
+        xlabel = "Time index, \$t\$",
+        ylabel = "Optimal weight, \$w_t\$",
+        xticks = ([0, 10, 20, 30, 40, 50]),
+        legend = :topleft,
+        topmargin = 6pt,
+        rightmargin = 0pt,
+        bottommargin = 12pt,
+        leftmargin = 12pt)
+
+squished_square_root_drift_profile_two_pane_plt = plot(
+        title = "Square-root drift profile \$(η=1/2)\$",
+        xlabel = "Time index, \$t\$",
+        xticks = ([0, 10, 20, 30, 40, 50]),
+        yformatter = _ -> "", # (Shared y-axis: tick numbers only on the left pane.)
+        legend = false, # (Legend only on the left pane.)
+        topmargin = 6pt,
+        rightmargin = 6pt,
+        bottommargin = 12pt,
+        leftmargin = 0pt)
+
+T = 50
+
+for p in P
+        plot!(squished_linear_drift_profile_two_pane_plt,
+                1:T,
+                Wp_power_law_drift_profile_weights(p, T, (ρ/ε)/p, 1),
+                label = "\$p=$p\$",
+                color = colors[p],
+                linewidth = linewidths[p],
+                linestyle = linestyles[p],
+                alpha = 1,
+                fill = (0, alpha, colors[p]))
+
+        plot!(squished_square_root_drift_profile_two_pane_plt,
+                1:T,
+                Wp_power_law_drift_profile_weights(p, T, (ρ/ε^(1/2))/p, 1/2),
+                label = "\$p=$p\$",
+                color = colors[p],
+                linewidth = linewidths[p],
+                linestyle = linestyles[p],
+                alpha = 1,
+                fill = (0, alpha, colors[p]))
+end
+
+# Tight axis limits.
+for plt in (squished_linear_drift_profile_two_pane_plt, squished_square_root_drift_profile_two_pane_plt); xlims!(plt, (0, T)); end
+# Shared y-axis limits (and hence tick positions) across both panes.
+for plt in (squished_linear_drift_profile_two_pane_plt, squished_square_root_drift_profile_two_pane_plt)
+        ylims!(plt, (0, ylims(squished_square_root_drift_profile_two_pane_plt)[2]))
+end
+
+squished_two_pane_drift_profile_plt = plot(
+        squished_linear_drift_profile_two_pane_plt,
+        squished_square_root_drift_profile_two_pane_plt,
+        layout = (1, 2),
+        size = (451, 183 + 12 + 6) .* sqrt(3)) # The width of an A4 piece of paper (exlcuding two 1-inch margins) is 451 points.
+
+display(squished_two_pane_drift_profile_plt)
+savefig(squished_two_pane_drift_profile_plt, "figures/squished-drift-profile-optimal-weights-for-p=1-to-5.pdf")

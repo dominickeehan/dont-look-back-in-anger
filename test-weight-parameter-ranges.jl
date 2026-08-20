@@ -31,6 +31,8 @@ LogRange(a, b, n) = exp.(LinRange(log(a), log(b), n))
 
 plt = plot()
 
+T = 100
+
 for s in unique(floor.(Int, LogRange(1,100,30))); plot!(1:T, windowing_weights(T, s), label = nothing, color = :black); end
 display(plt)
 
@@ -39,18 +41,18 @@ for α in [[0]; LogRange(1e-4,1e0,30)]; plot!(1:T, smoothing_weights(T, α), lab
 display(plt)
 
 plt = plot()
-for ρ╱ε in [[0]; LogRange(1e-4,1e0,30)]; plot!(1:T, Wp_weights(1, T, ρ╱ε, 1), label = nothing, color = :black); end
+for ρ╱ε in [[0]; LogRange(1e-4,1e0,30)]; plot!(1:T, Wp_power_law_drift_profile_weights(1, T, ρ╱ε, 1), label = nothing, color = :black); end
 display(plt)
 
 plt = plot()
-for ρ╱ε in [[0]; LogRange(1e-4,1e0,30)]; plot!(1:T, Wp_weights(2, T, ρ╱ε, 1), label = nothing, color = :black); end
+for ρ╱ε in [[0]; LogRange(1e-4,1e0,30)]; plot!(1:T, Wp_power_law_drift_profile_weights(2, T, ρ╱ε, 1), label = nothing, color = :black); end
 display(plt)
 
-plt = plot(1:T, Wp_weights(1, T, 0, 1), label = nothing, color = :black)
-plot!(1:T, Wp_weights(1, T, 1e-4, 1), label = nothing, color = :black)
+plt = plot(1:T, Wp_power_law_drift_profile_weights(1, T, 0, 1), label = nothing, color = :black)
+plot!(1:T, Wp_power_law_drift_profile_weights(1, T, 1e-4, 1), label = nothing, color = :black)
 display(plt)
 
-plt = plot(1:T, Wp_weights(2, T, 0, 1), label = nothing, color = :black)
-plot!(1:T, Wp_weights(2, T, 1e-4, 1), label = nothing, color = :black)
+plt = plot(1:T, Wp_power_law_drift_profile_weights(2, T, 0, 1), label = nothing, color = :black)
+plot!(1:T, Wp_power_law_drift_profile_weights(2, T, 1e-4, 1), label = nothing, color = :black)
 display(plt)
 

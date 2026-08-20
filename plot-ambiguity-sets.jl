@@ -192,7 +192,7 @@ display(plt)
 savefig(plt, "figures/ambiguity-sets.pdf")
 
 
-if false # Sample from the intersection-based and weight-based ambiguity sets.
+if true # Sample from the intersection-based and weight-based ambiguity sets.
 
     p = 2
 
@@ -248,7 +248,7 @@ if false # Sample from the intersection-based and weight-based ambiguity sets.
     intersection_ε = scale_radii*weighted_ε
     intersection_ρ = weighted_ρ
 
-    P = [samples, Wp_weights(p, length(samples), weighted_ρ/weighted_ε)]
+    P = [samples, Wp_power_law_drift_profile_weights(p, length(samples), weighted_ρ/weighted_ε, 1)]
 
     display(P)
 
@@ -346,7 +346,7 @@ if false # Sample from the intersection-based and weight-based ambiguity sets.
     end
 
     display(plt)
-    savefig(plt, "figures/intersection-ambiguity-set-data.pdf")
+    #savefig(plt, "figures/intersection-ambiguity-set-data.pdf")
 
     default() # Reset plot defaults.
 
@@ -424,6 +424,6 @@ if false # Sample from the intersection-based and weight-based ambiguity sets.
     end
 
     display(plt)
-    savefig(plt, "figures/weighted-ambiguity-set-data.pdf")
+    #savefig(plt, "figures/weighted-ambiguity-set-data.pdf")
 
 end
