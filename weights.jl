@@ -3,7 +3,7 @@ using JuMP, Ipopt
 Ipoptimizer = optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0)
 
 
-function Wp_weights(p, T, ρ╱ε)
+function Wp_weights(p, T, ρ╱ε, η)
 
     ε = 10.0
 
@@ -18,9 +18,9 @@ function Wp_weights(p, T, ρ╱ε)
     @variable(Problem, 1.0 >= w[t=1:T] >= 0.0)
 
     @constraint(Problem, sum(w[t] for t in 1:T) == 1.0)
-    @constraint(Problem, sum(w[t]*(T-t+1)^p for t in 1:T)*ρ^p <= ε^p)
+    @constraint(Problem, sum(w[t]*(T-t+1)^(p*η) for t in 1:T)*ρ^p <= ε^p)
 
-    @objective(Problem, Max, (1/(sum(w[t]^2 for t in 1:T)))*((ε-(sum(w[t]*(T-t+1)^p for t in 1:T))^(1/p)*ρ)^(2*p)))
+    @objective(Problem, Max, (1/(sum(w[t]^2 for t in 1:T)))*((ε-(sum(w[t]*(T-t+1)^(p*η) for t in 1:T))^(1/p)*ρ)^(2*p)))
 
     optimize!(Problem)
 
@@ -32,10 +32,9 @@ function Wp_weights(p, T, ρ╱ε)
     return weights
 end
 
-
 function W2_weights(T, ρ╱ε)
 
-    return Wp_weights(2, T, ρ╱ε)
+    return Wp_weights(2, T, ρ╱ε, 1)
 end
 
 
@@ -43,7 +42,6 @@ function REMK_intersection_weights(K, ρ╱ε)
 
     return ones(K) * ρ╱ε
 end
-
 
 function REMK_intersection_ball_radii(K, ε, ρ╱ε) 
     
@@ -59,9 +57,11 @@ function windowing_weights(T, window_size)
 
     if window_size >= T
         weights .= 1.0
+
     else
         for t in T:-1:T-window_size+1
             weights[t] = 1.0
+
         end
     end
 
@@ -69,7 +69,6 @@ function windowing_weights(T, window_size)
 
     return weights
 end
-
 
 function smoothing_weights(T, α)
 
@@ -80,4 +79,3 @@ function smoothing_weights(T, α)
 
     return weights
 end
-

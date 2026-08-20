@@ -12,7 +12,7 @@
 # The rolling-origin helpers expect _multi_item_newsvendor_grid to have been
 # supplied by the included optimization implementation.
 
-const simulation_seed = 100
+const simulation_seed = 42
 
 const underage_cost_stream = 1
 const overage_cost_stream = 2
