@@ -2,15 +2,20 @@ using Plots, Measures
 
 include("weights.jl")
 
-default() # Reset plot defaults.
+default() # Reset to plot settings to defaults.
 
-gr(size = (275+6+6,183+6).*sqrt(3))
-fontfamily = "Computer Modern"
+# Single pane plots.
+
+# A 3:2 aspect ratio for the plot, excluding + 6 padding of the top, bottom, and left margins. 
+# The sqrt(3) conversion means that (275 + 6 + 6, 183 + 6) is the size of the plot in points
+# to specify in latex to correctly size the embedded fonts.
+gr(size = (275 + 6 + 6, 183 + 6) .* sqrt(3))
+fontfamily = "Computer Modern" # Close to Latin Modern.
 default(framestyle = :box,
         grid = true,
-        #gridlinewidth = 1.0,
+        gridlinewidth = 0.5,
         gridalpha = 0.075,
-        #minorgrid = true,
+        #minorgrid = true, # (No minor grid for unscaled axes.)
         #minorgridlinewidth = 1.0, 
         #minorgridalpha = 0.075,
         #minorgridlinestyle = :dash,
@@ -18,35 +23,39 @@ default(framestyle = :box,
         xminorticks = 0, 
         yminorticks = 0,
         fontfamily = fontfamily,
-        guidefont = Plots.font(fontfamily, pointsize = 12),
+        titlefont = Plots.font(fontfamily, pointsize = 12), # Slight over emphasis on axis labels.
+        guidefont = Plots.font(fontfamily, pointsize = 12), # Slight over emphasis on axis labels.
         legendfont = Plots.font(fontfamily, pointsize = 11),
-        tickfont = Plots.font(fontfamily, pointsize = 10))
+        tickfont = Plots.font(fontfamily, pointsize = 10)) # Slight under emphasis on tick labels.
 
-plt = plot(
+
+
+# Linear drift profile plot (η=1).
+
+linear_drift_profile_plt = plot(
+        title = "Linear drift profile \$(η=1)\$",
         xlabel = "Time index, \$t\$", 
-        ylabel = "Weight, \$w_t\$",
+        ylabel = "Optimal weight, \$w_t\$",
         xticks = ([0, 25, 50, 75, 100]),
         topmargin = 0pt, 
-        rightmargin = 6pt,
-        bottommargin = 6pt, 
-        leftmargin = 6pt)
+        rightmargin = 6pt, # Padding.
+        bottommargin = 6pt, # Padding.
+        leftmargin = 6pt) # Padding.
 
 ε = 90
 ρ = 1
 T = 100
-P = [1,2,3,4,5]
+P = 1:5
 
 linewidth = 1
 colors = cgrad([palette(:tab10)[1], palette(:tab10)[2]], P[end])
-#colors = cgrad([:black, palette(:tab10)[8]], P[end])
-#colors = cgrad([:black, :black], P[end])
 linestyles = [:solid, :dash, :dashdot, :dashdotdot, :dot]
-linewidths = LinRange(1,1.2,P[end])
-alpha = 0.117
+linewidths = LinRange(1,1.2,P[end]) # Slight over emphasis to make up for linestyles.
+alpha = 0.117 # On 5 overlaid layers, this gives a total alpha of 1-(1-0.075)^5 ≈ 0.268, (see plot-ambiguity-sets.jl). 
 
 for p in P
         plot!(1:T, 
-                Wp_weights(p, T, ρ/(p*ε)),
+                Wp_weights(p, T, (ρ/ε)/p, 1),
                 label = "\$p=$p\$",
                 color = colors[p],
                 linewidth = linewidths[p],
@@ -56,122 +65,105 @@ for p in P
 
 end
 
-#xlims!((-2,102))
-#yl = ylims(plt)
-#ylims!((-0.0007,0.025+0.0007))#yl[2]))
+# Tight axis limits.
+xlims!((-0,100)) 
+yl = ylims(linear_drift_profile_plt)
+ylims!((0,yl[2])) # (But keep natural upper limit.)
 
-xlims!((-0,100))
-yl = ylims(plt)
-ylims!((0,yl[2]))
+display(linear_drift_profile_plt)
 
-display(plt)
-
-savefig(plt, "figures/weights-for-p.pdf")
-savefig(plt, "figures/weights-for-p.svg")
+savefig(linear_drift_profile_plt, "figures/linear-drift-profile-optimal-weights-for-p=1-to-5.pdf")
 
 
-if false # Stop motion talk plots.
-        for q in P
+# Linear drift profile stop motion talk plots.
+for q in 1:4
+        plt = plot(
+                title = "Linear drift profile \$(η=1)\$",
+                xlabel = "Time index, \$t\$", 
+                ylabel = "Optimal weight, \$w_t\$",
+                xticks = ([0, 25, 50, 75, 100]),
+                topmargin = 0pt, 
+                rightmargin = 6pt,
+                bottommargin = 6pt, 
+                leftmargin = 6pt)
 
-                default() # Reset plot defaults.
+        for p in 1:q
+                plot!(1:T, 
+                        Wp_weights(p, T, (ρ/ε)/p, 1),
+                        label = "\$p=$p\$",
+                        color = colors[p],
+                        linewidth = linewidths[p],
+                        linestyle = linestyles[p],
+                        alpha = 1,
+                        fill = (0, alpha, colors[p]))
 
-                gr(size = (275+6+6,183+6).*sqrt(3))
-                fontfamily = "Computer Modern"
-                default(framestyle = :box,
-                        grid = true,
-                        #gridlinewidth = 1.0,
-                        gridalpha = 0.075,
-                        #minorgrid = true,
-                        #minorgridlinewidth = 1.0, 
-                        #minorgridalpha = 0.075,
-                        #minorgridlinestyle = :dash,
-                        tick_direction = :in,
-                        xminorticks = 0, 
-                        yminorticks = 0,
-                        fontfamily = fontfamily,
-                        guidefont = Plots.font(fontfamily, pointsize = 12),
-                        legendfont = Plots.font(fontfamily, pointsize = 11),
-                        tickfont = Plots.font(fontfamily, pointsize = 10))
-
-                plt = plot(
-                        xlabel = "Time index, \$t\$", 
-                        ylabel = "Weight, \$w_t\$",
-                        xticks = ([0, 25, 50, 75, 100]),
-                        topmargin = 0pt, 
-                        rightmargin = 6pt,
-                        bottommargin = 6pt, 
-                        leftmargin = 6pt)
-
-                for p in 1:q
-                        plot!(1:T, 
-                                Wp_weights(p, T, ρ/(p*ε)),
-                                label = "\$p=$p\$",
-                                color = colors[p],
-                                linewidth = linewidths[p],
-                                linestyle = linestyles[p],
-                                alpha = 1,
-                                fill = (0, alpha, colors[p]))
-
-                end
-
-                #xlims!((-2,102))
-                #yl = ylims(plt)
-                #ylims!((-0.0007,0.025+0.0007))#yl[2]))
-
-                xlims!((-0,100))
-                yl = ylims(plt)
-                ylims!((0,yl[2]))
-
-                display(plt)
-
-                savefig(plt, "figures/weights-for-p=1-to-$q.pdf")
         end
 
+        xlims!((-0,100))
+        yl = ylims(plt)
+        ylims!((0,yl[2]))
+
+        display(plt)
+
+        savefig(plt, "figures/linear-drift-profile-optimal-weights-for-p=1-to-$q.pdf")
 end
 
 
 
+# Square-root drift profile plot (η=1/2).
 
+square_root_drift_profile_plt = plot(
+        title = "Square-root drift profile \$(η=1/2)\$",
+        xlabel = "Time index, \$t\$", 
+        ylabel = "Optimal weight, \$w_t\$",
+        xticks = ([0, 25, 50, 75, 100]),
+        topmargin = 0pt, 
+        rightmargin = 6pt, # Padding.
+        bottommargin = 6pt, # Padding.
+        leftmargin = 12pt) # Padding. Consume more of the left margin to make up for the extra width of the y-axis label.
 
-if false # Test weight parameters.
+ε = ε^(1/2)
+ρ = ρ
+T = T
+P = P
 
-        LogRange(a, b, n) = exp.(LinRange(log(a), log(b), n))
+linewidth = 1
+colors = cgrad([palette(:tab10)[1], palette(:tab10)[2]], P[end])
+linestyles = [:solid, :dash, :dashdot, :dashdotdot, :dot]
+linewidths = LinRange(1,1.2,P[end]) # Slight over emphasis to make up for linestyles.
+alpha = 0.117 # On 5 overlaid layers, this gives a total alpha of 1-(1-0.075)^5 ≈ 0.268, (see plot-ambiguity-sets.jl). 
 
-        plt = plot()
-
-        for s in unique(floor.(Int, LogRange(1,100,30)))
-                plot!(1:T, windowing_weights(T, s), label = nothing, color = :black)
-        end
-
-        display(plt)
-
-        plt = plot()
-        for α in [[0]; LogRange(1e-4,1e0,30)]
-                plot!(1:T, smoothing_weights(T, α), label = nothing, color = :black)
-        end
-        display(plt)
-
-        plt = plot()
-        for ρ╱ε in [[0]; LogRange(1e-4,1e0,30)]
-                plot!(1:T, Wp_weights(1, T, ρ╱ε), label = nothing, color = :black)
-        end
-        display(plt)
-
-        plt = plot()
-        for ρ╱ε in [[0]; LogRange(1e-4,1e0,30)]
-                plot!(1:T, Wp_weights(2, T, ρ╱ε), label = nothing, color = :black)
-        end
-        display(plt)
-
-        plt = plot(1:T, Wp_weights(1, T, 0), label = nothing, color = :black)
-        plot!(1:T, Wp_weights(1, T, 1e-4), label = nothing, color = :black)
-        display(plt)
-
-        plt = plot(1:T, Wp_weights(2, T, 0), label = nothing, color = :black)
-        plot!(1:T, Wp_weights(2, T, 1e-4), label = nothing, color = :black)
-        display(plt)
+for p in P
+        plot!(1:T, 
+                Wp_weights(p, T, (ρ/ε)/p, 1/2),
+                label = "\$p=$p\$",
+                color = colors[p],
+                linewidth = linewidths[p],
+                linestyle = linestyles[p],
+                alpha = 1,
+                fill = (0, alpha, colors[p]))
 
 end
 
+# Tight axis limits.
+xlims!((-0,100)) 
+yl = ylims(square_root_drift_profile_plt)
+ylims!((0,yl[2])) # (But keep natural upper limit.)
+
+display(square_root_drift_profile_plt)
+
+savefig(square_root_drift_profile_plt, "figures/square-root-drift-profile-optimal-weights-for-p=1-to-5.pdf")
+
+
+
+# Two pane plot.
+
+# A 3:2 aspect ratio for the plot, excluding + 6 padding of the top, bottom, and left margins. 
+# The sqrt(3) conversion means that (275 + 6 + 6, 183 + 6) is the size of the plot in points
+# to specify in latex to correctly size the embedded fonts.
+
+451
+gr(size = (275 + 6 + 6, 183 + 6) .* sqrt(3))
+gr(size = (275 + 6 + 6, 183 + 6) .* sqrt(3))
 
 
