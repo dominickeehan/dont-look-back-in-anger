@@ -2,7 +2,7 @@ using Plots, Measures
 
 include("weights.jl")
 
-default() # Reset to plot settings to defaults.
+default() # Reset plot settings to defaults.
 
 # Single pane plots.
 
