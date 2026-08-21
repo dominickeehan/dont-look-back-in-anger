@@ -45,7 +45,7 @@ standard_deviation_range = [0, 7]
 weighted_ε = 2.75
 weighted_ρ = 1/3
 
-scale_radii = 1.65 # The two approaches are scaled differently so that their sets are comparably sized.
+scale_radii = 1.65 # The two approaches are scaled differently so that their sets are comparitively sized.
 intersection_ε = scale_radii * weighted_ε
 intersection_ρ = weighted_ρ
 
