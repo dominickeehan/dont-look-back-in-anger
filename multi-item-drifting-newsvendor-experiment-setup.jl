@@ -34,8 +34,8 @@ function experiment_rng(
     # reuses every stream of the instances with fewer items.
     seed =
         simulation_seed +
-        1_000_000 * global_repetition_index +
-        1_000 * dimension +
+        1_000_000_000_000 * global_repetition_index +
+        1_000_000 * dimension +
         stream
     return Xoshiro(seed)
 end

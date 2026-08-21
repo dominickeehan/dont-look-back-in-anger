@@ -9,6 +9,7 @@ default() # Reset plot settings to defaults.
 # A 3:2 aspect ratio for the plot, excluding + 6 padding of the top, bottom, and left margins. 
 # The sqrt(3) conversion means that (275 + 6 + 6, 183 + 6) is the size of the plot in points
 # to specify in latex to correctly size the embedded fonts.
+# (275, 183) itself is just visually nice.
 gr(size = (275 + 6 + 6, 183 + 6) .* sqrt(3))
 fontfamily = "Computer Modern" # Close to Latin Modern.
 default(framestyle = :box,
@@ -51,7 +52,8 @@ linewidth = 1
 colors = cgrad([palette(:tab10)[1], palette(:tab10)[2]], P[end])
 linestyles = [:solid, :dash, :dashdot, :dashdotdot, :dot]
 linewidths = LinRange(1,1.2,P[end]) # Slight over emphasis to make up for linestyles.
-alpha = 0.117 # On 5 overlaid layers, this gives a total alpha of 1-(1-0.075)^5 ≈ 0.268, (see plot-ambiguity-sets.jl). 
+total_fill_alpha = 1-(1-0.075)^8 # On 8 overlaid layers of alpha = 0.075 (see plot-ambiguity-sets.jl), this is the total alpha.
+alpha = 1-(1-total_fill_alpha)^(1/5) # On 5 overlaid layers, this gives a total alpha of total_fill_alpha.
 
 for p in P
         plot!(1:T, 

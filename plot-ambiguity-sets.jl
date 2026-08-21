@@ -7,7 +7,8 @@ default() # Reset plot settings to defaults.
 
 # A 3:2 aspect ratio for the plot, excluding + 6 padding of the bottom and left margins. 
 # The sqrt(3) conversion means that (275 + 6, 183 + 6) is the size of the plot in points
-# to specify in latex to correctly size the embedded fonts.
+# to specify in latex to correctly size the embedded fonts. 
+# (275, 183) itself is just visually nice.
 gr(size = (275 + 6, 183 + 6) .* sqrt(3))
 fontfamily = "Computer Modern" # Close to Latin Modern.
 default(framestyle = :box,
@@ -98,8 +99,8 @@ plt = plot(
 
 linewidth = 1.5
 alpha = 1
-fillalpha = 0.075 # Visually nice.
-total_fillalpha = 1-(1-fillalpha)^length(samples) # On 4 overlaid layers, this gives a total alpha of ≈ 0.268.
+fill_alpha = 0.075 # Visually nice.
+total_fill_alpha = 1-(1-fill_alpha)^length(samples) # On 4 overlaid layers, this gives the total alpha.
 
 for ball_parameters in intersection_balls
         x_coords, y_coords = nonnegative_ball_coords(ball_parameters)
@@ -110,7 +111,7 @@ for ball_parameters in intersection_balls
                 linestyle = :solid,
                 alpha = 0,
                 label = nothing,
-                fill = (0, fillalpha, palette(:tab10)[1]))
+                fill = (0, fill_alpha, palette(:tab10)[1]))
 
 end
 
@@ -130,7 +131,7 @@ plot!([mean_range[1],mean_range[end]],
         linestyle = :solid,
         alpha = alpha,
         label = "Intersection",
-        fill = (0, total_fillalpha, palette(:tab10)[1]))
+        fill = (0, total_fill_alpha, palette(:tab10)[1]))
 
 x_coords, y_coords = nonnegative_ball_coords(weighted_ball)
 plot!(x_coords,
@@ -140,7 +141,7 @@ plot!(x_coords,
         linestyle = :dash,
         alpha = alpha,
         label = "Weighted",
-        fill = (0, total_fillalpha, palette(:tab10)[2]))
+        fill = (0, total_fill_alpha, palette(:tab10)[2]))
 
 scatter!(samples,
         zeros(length(samples)), 

@@ -7,6 +7,7 @@ default() # Reset to plot settings to defaults.
 # A 3:2 aspect ratio for the plot, excluding + 6 padding of the top, bottom, and left margins. 
 # The sqrt(3) conversion means that (275 + 6 + 6, 183 + 6) is the size of the plot in points
 # to specify in latex to correctly size the embedded fonts.
+# (275, 183) itself is just visually nice.
 gr(size = (275 + 6 + 6, 183 + 6) .* sqrt(3))
 fontfamily = "Computer Modern" # Close to Latin Modern.
 default(framestyle = :box,

@@ -342,6 +342,7 @@ function plot_train_and_test_results(processed_results)
     marker_outline_color = :black
     marker_outline_width = 1.0
 
+    # (Log-scaled cost ratios, labelled as percentage differences.)
     ytick_values = [0.8, 0.9, 1.0, 1.1, 1.2, 1.4, 1.8]
     ytick_labels = ["−20", "−10", "0", "+10", "+20", "+40", "+80"]
     panel_plots = []
@@ -357,9 +358,7 @@ function plot_train_and_test_results(processed_results)
             xlabel = "Number of items",
             ylabel = drift_index == firstindex(
                 processed_results.drifts,
-            ) ?
-                "Average cost\n" *
-                "(difference from smoothing, %)" : "",
+            ) ? "Expected cost (% difference)" : "",
             title = "\$δ = $drift\$",
             xticks = processed_results.item_counts,
             xlims = (

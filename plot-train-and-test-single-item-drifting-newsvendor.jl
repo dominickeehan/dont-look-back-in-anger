@@ -1,50 +1,23 @@
-# Demand is a mixture of multinomials: each consumer buys at most one item, so
-# item demands are negatively correlated within a period. Each repetition
-# draws its own mixture weights and per-item underage and overage costs
-# uniformly at random. Per-multinomial starting purchase probabilities are
-# sampled unless fixed one-item probabilities are supplied below. The
-# no-purchase probability is stored implicitly as one minus the sum of the item
-# probabilities. The per-item demand marginals remain mixtures of Binomials,
-# so the expected-cost evaluation below stays exact.
-
 using Random, Statistics, StatsBase, Distributions
 using ProgressBars
 
 
-# These bindings must exist before including the optimization and shared
+# These must be defined before including the optimization and shared
 # experiment setup routines.
 const number_of_items = 1
 const number_of_consumers = 1000
-#const underage_cost_values = [4.0]#[3.0, 4.0, 5.0, 6.0]
 const underage_cost_values = [3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
 const overage_cost_values = [1.0]
-#const minimum_purchase_probability = 0.00
-#const maximum_purchase_probability = 1.00
 const minimum_purchase_probability = 0.01
 const maximum_purchase_probability = 0.99
-
-#const mixture_weight_values = [0.9]
 const mixture_weight_values = [0.9, 0.95, 0.99]
 const number_of_multinomials = 2
-
-# For one item, set this to [p_multinomial_1, p_multinomial_2] to fix
-# the two multinomials' starting purchase probabilities. Leave it as nothing
-# to sample them using the existing Dirichlet approach independently in every
-# repetition.
-#const initial_demand_probabilities = [0.1, 0.5]#]nothing
 const initial_demand_probabilities = nothing
 
-const drifts = [1.00e-1, 1.79e-1, 3.16e-1]
-#const drifts = [5.62e-3, 1.00e-2, 3.16e-2, 1.00e-1, 2.4e-1, 5.62e-1]
-#const drifts = [5.62e-3, 1.00e-2, 1.79e-2, 3.16e-2, 5.62e-2, 1.00e-1, 1.79e-1, 3.16e-1, 5.62e-1]
-#const drifts = [5.62e-3, 1.00e-2, 3.16e-2, 1.00e-1, 3.16e-1, 1.00e0]
-#const drifts = [3.16e-3, 1.00e-2, 3.16e-2, 1.00e-1, 3.16e-1]
-#const drifts = [3.16e-3, 1.00e-2, 3.16e-2, 1.00e-1, 3.16e-1]
-#const drifts = [1.79e-3, 3.16e-3, 5.62e-3, 1.00e-2, 1.79e-2, 3.16e-2, 5.62e-2, 1.00e-1, 1.79e-1, 3.16e-1]
-#const drifts = [1.00e-3, 3.16e-3, 1.00e-2, 3.16e-2, 1.00e-1, 3.16e-1, 1.00e-0]
-#const drifts = [1.00e-3, 1.79e-3, 3.16e-3, 5.62e-3, 1.00e-2, 1.79e-2, 3.16e-2, 5.62e-2, 1.00e-1, 1.79e-1, 3.16e-1, 5.62e-1, 1.00e-0]
+#const drifts = [1.79e-1, 3.16e-1]
+const drifts = [1.79e-3, 3.16e-3, 5.62e-3, 1.00e-2, 1.79e-2, 3.16e-2, 5.62e-2, 1.00e-1, 1.79e-1, 3.16e-1]
 
-const number_of_repetitions = 4000
+const number_of_repetitions = 2000
 const number_of_future_samples = 1000
 const history_length = 100
 const training_length = 30
@@ -107,7 +80,7 @@ function compute_train_and_test_lines()
         radius_ratio_grid,
     )
     weighted_W2_weight_vector_table = precompute_weight_vector_table(
-        W2_weights,
+        W2_linear_drift_profile_weights,
         radius_ratio_grid,
     )
 
@@ -310,8 +283,9 @@ default(
 
 plt = plot(
     xscale = :log10,
+    yscale = :log10,
     xlabel = "Binomial drift parameter, \$δ\$",
-    ylabel = "Average train-and-test next-period\nexpected cost (relative to smoothing)",
+    ylabel = "Expected cost (% difference)",
     topmargin = 10.0pt,
     leftmargin = 6.0pt,
     bottommargin = 6.0pt,
@@ -377,6 +351,10 @@ plot!(
 )
 xticks!([1.0e-5, 1.0e-4, 1.0e-3, 1.0e-2, 1.0e-1, 1.0e0])
 xlims!((0.99999 * first(drifts), 1.00001 * last(drifts)))
-#yticks!([0.8, 0.90, 1.00, 1.10, 1.20, 1.30])
+# (Log-scaled cost ratios, labelled as percentage differences.)
+yticks!(
+    [0.8, 0.9, 1.0, 1.1, 1.2, 1.4],
+    ["−20", "−10", "0", "+10", "+20", "+40"],
+)
 ylims!((0.79999, 1.40001))
 display(plt)
