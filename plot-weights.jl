@@ -202,7 +202,7 @@ two_pane_drift_profile_plt = plot(
         size = (451, 183 + 12 + 6) .* sqrt(3)) # The width of an A4 piece of paper (exlcuding two 1-inch margins) is 451 points.
 
 display(two_pane_drift_profile_plt)
-savefig(two_pane_drift_profile_plt, "figures/drift-profile-optimal-weights-for-p=1-to-5.pdf")
+savefig(two_pane_drift_profile_plt, "figures/optimal-weights-for-p=1-to-5.pdf")
 
 
 
@@ -269,4 +269,4 @@ squished_two_pane_drift_profile_plt = plot(
         size = (451, 183 + 12 + 6) .* sqrt(3)) # The width of an A4 piece of paper (exlcuding two 1-inch margins) is 451 points.
 
 display(squished_two_pane_drift_profile_plt)
-savefig(squished_two_pane_drift_profile_plt, "figures/squished-drift-profile-optimal-weights-for-p=1-to-5.pdf")
+savefig(squished_two_pane_drift_profile_plt, "figures/squished-optimal-weights-for-p=1-to-5.pdf")
