@@ -5,44 +5,18 @@ include("weights.jl")
 
 LogRange(start, stop, len) = exp.(LinRange(log(start), log(stop), len))
 
-const T = 1000 # (The experiments use a history length of 100.)
+weighting_scheme_names = ["Triangular", "Windowing", "Smoothing"]
+weighting_scheme_discretisation_fidelity = 1000
 
-const wasserstein_order_range = [1.0, 5.0]
+# Problem parameters to take the worst-case over.
+T = 1000 # Larger T can only make the worst-case efficiencies worse, but they don't decrease much beyond T = 1000.
+wasserstein_order_range = [1.0, 5.0]
+drift_exponents = sort(unique([0.0; LogRange(1.0e-9, 1.0e-0, 100); 1 .- LogRange(1.0e-9, 1.0e-0, 100); LogRange(1.0e-0, 5.0e-0, 200)])) # (ηp terms appearing in (T-t+1)^(ηp).)
+# For a given η'p', the p∈[1,5] such that there exists η∈[0,1] with ηp = η'p' is {p∈[1,5] : η=(η'p')/p ≤ 1} = [max(1,η'p'), 5].
+wasserstein_orders(drift_exponent) = LogRange(max(wasserstein_order_range[begin], drift_exponent), wasserstein_order_range[end], 200)
+drift_ratios = [0; LogRange(1.0e-9, 1.0e0, 1000)] # (ρ╱ε terms.)
 
-const number_of_points = 200
-const number_of_parameters_to_search = 300
-
-# ηp terms appearing as (T-t+1)^(ηp) in the objective function.
-const drift_term_exponents = unique([0.0; 
-                                    sort(unique([LogRange(1.0e-9, 1.0e-0, Int(number_of_points/4)); 1 .- LogRange(1.0e-9, 1.0e-0, Int(number_of_points/4));])); 
-                                    LogRange(1.0e-0, 5.0e-0, Int(number_of_points/2))])    
-
-# ρ╱ε
-const drift_ratios = [0; LogRange(1.0e-9, 1.0e0, 500)]
-
-# p ∈ [max(1,pη),5], as the drift profile η = pη/p must not exceed one. Gridded
-# inside that interval rather than on one fixed grid of p over [1,5], so that
-# η = 1, where the worst case often sits, is reached at every drift exponent.
-wasserstein_orders_above(drift_term_exponents) = LinRange(max(drift_term_exponents), wasserstein_order_range[end], number_of_points)
-
-const schemes = ["Triangular", "Windowing", "Smoothing"]
-
-
-# A ramp cut off somewhere between the smallest and the largest of the values it
-# ramps in. The optimal weights ramp in the drift powers and the triangular
-# scheme ramps in time, so the two families coincide at ηp = 1, where the drift
-# powers are the times; they are swept over the same cut offs so that they still
-# coincide once gridded.
-
-horizons(start, stop, len) = unique([LogRange(start, stop, Int(len/2)); 1 ./ LinRange(0.0, 1/stop, Int(len/2))])
-
-# The optimal weights are the reference every efficiency is measured against, so
-# their cut offs are resolved four times as finely as the parameters of the
-# windowing and smoothing schemes. The triangular scheme is swept over the same
-# cut offs as they are, since at ηp = 1 it is the same family and would otherwise
-# be measured against a finer grid of itself.
-
-
+horizons(start, stop, len) = sort(unique([LogRange(start, stop, Int(len/2)); 1 ./ LinRange(0.0, 1/stop, Int(len/2))])) # Go beyond stop to 1/0 = Inf, which gives uniform weights.
 
 function triangular_weights(T, inverse_horizon)
 
@@ -54,25 +28,12 @@ function triangular_weights(T, inverse_horizon)
     return weights/sum(weights)
 end
 
-# The weightings of each scheme, over the horizon parameter ranges trained over
-# in the experiments. They do not depend on p, ρ╱ε, or pη, so they are built
-# once, from uniform weights to the most recent observation alone.
-const weighting_schemes =
-    [[triangular_weights(T, 1.0/horizon) for horizon in horizons(1.0, float(T), number_of_parameters_to_search)], # (1/Inf = 0 gives uniform weights.)
-     [windowing_weights(T, window_size) for window_size in unique(round.(Int, LogRange(1.0, float(T), number_of_parameters_to_search)))],
-     [smoothing_weights(T, α) for α in [0.0; LogRange(1.0e-9, 1.0e0, number_of_parameters_to_search)]]]
-
-
-5
-
-
+weighting_schemes =
+    [[triangular_weights(T, 1.0/horizon) for horizon in horizons(1, T, weighting_scheme_discretisation_fidelity)],
+     [windowing_weights(T, window_size) for window_size in unique(round.(Int, LogRange(1, T, weighting_scheme_discretisation_fidelity)))],
+     [smoothing_weights(T, α) for α in [0.0; LogRange(1.0e-9, 1.0e0, weighting_scheme_discretisation_fidelity)]]]
      
-
-# A weighting enters the objective value only through these two sums, and
-# neither depends on p or ρ╱ε, so they are taken once for each weighting and the
-# orders and ratios are then swept over them.
-
-reusable_weighting_objective_terms(w, drift_terms) = (1/(sum(w[t]^2 for t in 1:T)), sum(w[t]*drift_terms[t] for t in 1:T))
+reusable_objective_terms(w, drift_terms) = (1/(sum(w[t]^2 for t in 1:T)), sum(w[t]*drift_terms[t] for t in 1:T))
 
 function objective_value(reusable_terms, p, ρ╱ε)
 
@@ -86,8 +47,6 @@ function objective_value(reusable_terms, p, ρ╱ε)
 
 end
 
-# drift_terms[t] = (T-t+1)^(ηp)
-
 function optimal_weights(drift_terms, horizon)
 
     if drift_terms[end]/horizon >= 1.0; weights = zeros(T); weights[T] = 1.0; return weights; end
@@ -98,58 +57,44 @@ function optimal_weights(drift_terms, horizon)
 
 end
 
-# The cut offs worth sweeping, from the smallest drift power, where only the
-# most recent observation survives, up to the largest, where the whole history
-# is kept. Sweeping them logarithmically sweeps the age at which the ramp is cut
-# off evenly; sweeping them linearly would place nearly every cut off within the
-# last few observations whenever ηp is large.
-#
-# Above the largest drift power the whole history is kept and the ramp only
-# flattens onto uniform weights. That stretch, which is where the optimum sits
-# whenever ρ╱ε is small, is swept in 1/c instead, so that uniform weights are
-# reached at 1/c = 0.
+worst_case_efficiencies = fill(Inf, length(weighting_schemes), length(drift_exponents))
+best_case_efficiencies = fill(0.0, length(weighting_schemes), length(drift_exponents))
 
+Threads.@threads for drift_exponent_index in ProgressBar(eachindex(drift_exponents))
 
+    drift_terms = [(T-t+1)^drift_exponents[drift_exponent_index] for t in 1:T]
 
-worst_efficiencies = fill(Inf, length(schemes), length(drift_term_exponents))
-largest_efficiencies = fill(0.0, length(schemes), length(drift_term_exponents))
+    optimal_weighting_scheme_terms = [reusable_objective_terms(optimal_weights(drift_terms, horizon), drift_terms) 
+                                        for horizon in horizons(drift_terms[end], drift_terms[begin], weighting_scheme_discretisation_fidelity)]
+    weighting_scheme_terms = [[reusable_objective_terms(w, drift_terms) for w in weightings] for weightings in weighting_schemes]
 
-Threads.@threads for i in ProgressBar(eachindex(drift_term_exponents))
+    for p in wasserstein_orders(drift_exponents[drift_exponent_index]), ρ╱ε in drift_ratios
+        optimal_objective_value = maximum(objective_value(sums, p, ρ╱ε) for sums in optimal_weighting_scheme_terms)
 
-    drift_terms = [(T-t+1)^drift_term_exponents[i] for t in 1:T]
+        for scheme_index in eachindex(weighting_schemes)
+            scheme_best_objective_value = maximum(objective_value(sums, p, ρ╱ε) for sums in weighting_scheme_terms[scheme_index])
 
-    optimal_sums = [reusable_weighting_objective_terms(optimal_weights(drift_terms, horizon), drift_terms) for horizon in horizons(drift_terms[end], drift_terms[1], number_of_points)]
-    scheme_sums = [[reusable_weighting_objective_terms(w, drift_terms) for w in weightings] for weightings in weighting_schemes]
+            efficiency = optimal_objective_value > 0.0 ? scheme_best_objective_value/optimal_objective_value : 1.0
 
-    for p in wasserstein_orders_above(drift_term_exponents[i]), ρ╱ε in drift_ratios
+            worst_case_efficiencies[scheme_index, drift_exponent_index] = min(worst_case_efficiencies[scheme_index, drift_exponent_index], efficiency)
+            best_case_efficiencies[scheme_index, drift_exponent_index] = max(best_case_efficiencies[scheme_index, drift_exponent_index], efficiency)
 
-        optimal = maximum(objective_value(sums, p, ρ╱ε) for sums in optimal_sums)
-
-        for s in eachindex(schemes)
-            best = maximum(objective_value(sums, p, ρ╱ε) for sums in scheme_sums[s])
-
-            # Where the optimal bound is vacuous there is nothing to lose.
-            efficiency = optimal > 0.0 ? best/optimal : 1.0
-
-            worst_efficiencies[s, i] = min(worst_efficiencies[s, i], efficiency)
-            largest_efficiencies[s, i] = max(largest_efficiencies[s, i], efficiency)
         end
     end
 end
 
 println()
-for s in eachindex(schemes)
-    i = argmin(worst_efficiencies[s, :])
+for scheme_index in eachindex(weighting_schemes)
+    i = argmin(worst_case_efficiencies[scheme_index, :])
 
-    println(rpad(schemes[s], 12) * "worst-case efficiency " *
-            "$(round(100*worst_efficiencies[s, i], digits = 2))% at " *
-            "pη = $(round(drift_term_exponents[i], digits = 2)).")
+    println(rpad(weighting_scheme_names[scheme_index], 12) * "worst-case efficiency " *
+            "$(100*worst_case_efficiencies[scheme_index, i])% at " *
+            "pη = $(drift_exponents[i]).")
+
 end
 
-# A scheme beating the optimal weights measures how much the cut offs above miss
-# them by.
-println("\nLargest efficiency $(round(100*maximum(largest_efficiencies), digits = 4))%.\n")
-
+# A scheme beating the optimal weights measures discretisation error.
+println("\nLargest efficiency $(100*maximum(best_case_efficiencies))%.\n")
 
 
 default() # Reset plot settings to defaults.
@@ -158,7 +103,7 @@ default() # Reset plot settings to defaults.
 # The sqrt(3) conversion means that (275 + 6 + 6, 183 + 6) is the size of the plot in points
 # to specify in latex to correctly size the embedded fonts.
 # (275, 183) itself is just visually nice.
-gr(size = (275 + 6 + 6, 183 + 6) .* sqrt(3))
+gr(size = (275 + 6, 183 + 6) .* sqrt(3))
 fontfamily = "Computer Modern" # Close to Latin Modern.
 default(framestyle = :box,
         grid = true,
@@ -173,39 +118,38 @@ default(framestyle = :box,
         legendfont = Plots.font(fontfamily, pointsize = 11),
         tickfont = Plots.font(fontfamily, pointsize = 10)) # Slight under emphasis on tick labels.
 
-
-worst_case_efficiencies_plt = plot(
-        xlabel = "Drift exponent, \$pη\$",
+plt = plot(
+        xlabel = "Drift exponent, \$ηp\$",
         ylabel = "Worst-case efficiency (%)",
         xticks = (0:1:wasserstein_order_range[end], ["0", "1", "2", "3", "4", "5"]),
         yticks = ([0.5, 0.6, 0.7, 0.8, 0.9, 1], ["50", "60", "70", "80", "90", "100"]),
         legend = :bottomleft,
         topmargin = 0pt,
-        rightmargin = 6pt, # Padding.
+        rightmargin = 0pt,
         bottommargin = 6pt, # Padding.
-        leftmargin = 12pt) # Padding. Consume more of the left margin to make up for the extra width of the y-axis label.
+        leftmargin = 6pt) # Padding.
 
 colors = [palette(:tab10)[1], palette(:tab10)[7], palette(:tab10)[9]]
 linestyles = [:solid, :dashdot, :dot]
 linewidths = [1, 1, 1.2] # Slight over emphasis to make up for linestyles.
-total_fill_alpha = 1-(1-0.075)^8 # On 8 overlaid layers of alpha = 0.075 (see plot-ambiguity-sets.jl), this is the total alpha.
-alpha = 1-(1-total_fill_alpha)^(1/3) # On 3 overlaid layers, this gives a total alpha of total_fill_alpha.
+total_fill_alpha = 1 - (1-0.075)^8 # On 8 overlaid layers of alpha = 0.075 (see plot-ambiguity-sets.jl), this is the total alpha.
+alpha = 1 - (1-total_fill_alpha)^(1/3) # On 3 overlaid layers, this gives a total alpha of total_fill_alpha.
 
-for s in eachindex(schemes)
-        plot!(drift_term_exponents,
-                worst_efficiencies[s, :],
-                label = schemes[s],
-                color = colors[s],
-                linestyle = linestyles[s],
-                linewidth = linewidths[s],
+for scheme_index in eachindex(weighting_schemes)
+        plot!(drift_exponents,
+                worst_case_efficiencies[scheme_index, :],
+                label = weighting_scheme_names[scheme_index],
+                color = colors[scheme_index],
+                linestyle = linestyles[scheme_index],
+                linewidth = linewidths[scheme_index],
                 alpha = 1,
-                fill = (0, alpha, colors[s]))
+                fill = (0, alpha, colors[scheme_index]))
 
 end
 
 # Tight axis limits.
 xlims!((0, wasserstein_order_range[end]))
-ylims!((0.5, 1)) # (The lowest efficiency anywhere is 51.9%.)
+ylims!((0.5, 1))
 
-display(worst_case_efficiencies_plt)
-savefig(worst_case_efficiencies_plt, "figures/worst-case-weighting-efficiencies.pdf")
+display(plt)
+savefig(plt, "figures/worst-case-weighting-efficiencies.pdf")

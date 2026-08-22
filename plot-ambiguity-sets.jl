@@ -89,8 +89,8 @@ end
 plt = plot(
         xlabel = "Mean", 
         ylabel = "Standard deviation",
-        xlims = (mean_range[1],mean_range[end]),
-        ylims = (standard_deviation_range[1],standard_deviation_range[end]),
+        xlims = (mean_range[begin], mean_range[end]),
+        ylims = (standard_deviation_range[begin], standard_deviation_range[end]),
         #legend = :horizontal,
         topmargin = 0pt, 
         rightmargin = 0pt,
@@ -124,8 +124,8 @@ plot!(x_coords,
         alpha = alpha,
         label = nothing)
 
-plot!([mean_range[1],mean_range[end]],
-        [-1,-1],
+plot!([mean_range[begin], mean_range[end]],
+        [-1, -1],
         color = palette(:tab10)[1],
         linewidth = linewidth,
         linestyle = :solid,

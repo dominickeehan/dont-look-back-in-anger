@@ -51,9 +51,9 @@ P = 1:5
 linewidth = 1
 colors = cgrad([palette(:tab10)[1], palette(:tab10)[2]], P[end])
 linestyles = [:solid, :dash, :dashdot, :dashdotdot, :dot]
-linewidths = LinRange(1,1.2,P[end]) # Slight over emphasis to make up for linestyles.
-total_fill_alpha = 1-(1-0.075)^8 # On 8 overlaid layers of alpha = 0.075 (see plot-ambiguity-sets.jl), this is the total alpha.
-alpha = 1-(1-total_fill_alpha)^(1/5) # On 5 overlaid layers, this gives a total alpha of total_fill_alpha.
+linewidths = LinRange(1, 1.2, P[end]) # Slight over emphasis to make up for linestyles.
+total_fill_alpha = 1 - (1-0.075)^8 # On 8 overlaid layers of alpha = 0.075 (see plot-ambiguity-sets.jl), this is the total alpha.
+alpha = 1 - (1-total_fill_alpha)^(1/5) # On 5 overlaid layers, this gives a total alpha of total_fill_alpha.
 
 for p in P
         plot!(1:T, 
@@ -68,9 +68,9 @@ for p in P
 end
 
 # Tight axis limits.
-xlims!((-0,100)) 
+xlims!((-0, 100)) 
 yl = ylims(linear_drift_profile_plt)
-ylims!((0,yl[2])) # (But keep natural upper limit.)
+ylims!((0, yl[2])) # (But keep natural upper limit.)
 
 display(linear_drift_profile_plt)
 savefig(linear_drift_profile_plt, "figures/linear-drift-profile-optimal-weights-for-p=1-to-5.pdf")
@@ -100,9 +100,9 @@ for q in 1:4
 
         end
 
-        xlims!((-0,100))
+        xlims!((-0, 100))
         yl = ylims(plt)
-        ylims!((0,yl[2]))
+        ylims!((0, yl[2]))
 
         display(plt)
         savefig(plt, "figures/linear-drift-profile-optimal-weights-for-p=1-to-$q.pdf")
@@ -135,9 +135,9 @@ for p in P
 end
 
 # Tight axis limits.
-xlims!((-0,100)) 
+xlims!((-0, 100)) 
 yl = ylims(square_root_drift_profile_plt)
-ylims!((0,yl[2])) # (But keep natural upper limit.)
+ylims!((0, yl[2])) # (But keep natural upper limit.)
 
 display(square_root_drift_profile_plt)
 savefig(square_root_drift_profile_plt, "figures/square-root-drift-profile-optimal-weights-for-p=1-to-5.pdf")
