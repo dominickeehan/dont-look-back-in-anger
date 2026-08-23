@@ -17,7 +17,7 @@ const initial_demand_probabilities = nothing
 #const drifts = [1.79e-1, 3.16e-1]
 const drifts = [1.79e-3, 3.16e-3, 5.62e-3, 1.00e-2, 1.79e-2, 3.16e-2, 5.62e-2, 1.00e-1, 1.79e-1, 3.16e-1]
 
-const number_of_repetitions = 2000
+const number_of_repetitions = 3000
 const number_of_future_samples = 1000
 const history_length = 100
 const training_length = 30

@@ -1,17 +1,3 @@
-# Shared setup for the multi-item drifting-newsvendor experiments.
-#
-# The plotting and HPC generation scripts define the experiment configuration
-# before including this file. The following bindings must exist:
-#   number_of_items, number_of_consumers, number_of_multinomials,
-#   number_of_repetitions, number_of_future_samples, history_length,
-#   training_length, global_repetition_indices,
-#   minimum_purchase_probability, maximum_purchase_probability,
-#   initial_demand_probabilities, mixture_weight_values.
-#
-# The including script must also load Random, Distributions, and StatsBase.
-# The rolling-origin helpers expect _multi_item_newsvendor_grid to have been
-# supplied by the included optimization implementation.
-
 const simulation_seed = 42
 
 const underage_cost_stream = 1
@@ -28,31 +14,33 @@ function experiment_rng(
     stream;
     dimension = 0,
 )
-    # Keep each repetition, random quantity, and item on a deterministic stream
-    # that does not depend on surrounding loop order. The dimension argument is
-    # an item index, never a number of items, so an instance with more items
-    # reuses every stream of the instances with fewer items.
+    
+    # The dimension argument is an item index, so an instance with
+    # more tems reuses the streams of instances with fewer items.
     seed =
         simulation_seed +
-        1_000_000_000_000 * global_repetition_index +
-        1_000_000 * dimension +
+        1_000_000 * global_repetition_index +
+        1_000 * dimension +
         stream
+
     return Xoshiro(seed)
 end
 
 
 function sample_repetition_item_costs(cost_values, stream)
+    
     return [
         begin
             rng = experiment_rng(global_repetition_index, stream)
             [rand(rng, cost_values) for _ in 1:number_of_items]
         end
+
         for global_repetition_index in global_repetition_indices
     ]
 end
 
 
-# A candidate first mixture weight w produces the two mixture weights [w, 1-w].
+# A first mixture weight w defines the two mixture weights [w, 1-w].
 function sample_repetition_mixture_weights()
     return [
         begin
@@ -60,17 +48,19 @@ function sample_repetition_mixture_weights()
                 global_repetition_index,
                 mixture_weight_stream,
             )
+
             first_mixture_weight =
                 Float64(rand(rng, mixture_weight_values))
             [first_mixture_weight, 1.0 - first_mixture_weight]
         end
+
         for global_repetition_index in global_repetition_indices
     ]
 end
 
 
 # Innovations are drawn from the unit triangle and scaled by the drift
-# parameter, so every drift value reuses the same innovation sequence.
+# parameter so every drift value reuses the same innovation sequence.
 const unit_drift_distribution = TriangularDist(-1.0, 1.0, 0.0)
 
 
@@ -86,6 +76,7 @@ function project_purchase_probabilities!(purchase_probabilities)
     )
     if sum(box_projection) <= maximum_probability_sum
         purchase_probabilities .= box_projection
+        
         return purchase_probabilities
     end
 
@@ -95,6 +86,7 @@ function project_purchase_probabilities!(purchase_probabilities)
     upper_shift = maximum(
         purchase_probabilities .- minimum_purchase_probability,
     )
+
     for _ in 1:100
         shift = (lower_shift + upper_shift) / 2.0
         projected_sum = sum(
@@ -104,10 +96,13 @@ function project_purchase_probabilities!(purchase_probabilities)
                 maximum_purchase_probability,
             ) for probability in purchase_probabilities
         )
+
         if projected_sum > maximum_probability_sum
             lower_shift = shift
+        
         else
             upper_shift = shift
+        
         end
     end
 
@@ -121,16 +116,16 @@ end
 
 
 # Inverse transform of the sequential conditional-Binomial decomposition of the
-# multinomial. Unlike rand(rng, Multinomial(...)), this consumes exactly one
-# uniform per item whatever the purchase probabilities are, and it is monotone
-# in them, so the same uniforms couple demand across drift values and across
-# item counts.
+# multinomial. This consumes one uniform draw per item regardless of the purchase 
+# probabilities, and it is monotone in them, so the same uniforms couple demand 
+# across drift values and across item counts.
 function sample_multinomial_demand(uniforms, purchase_probabilities)
     demand = Vector{Float64}(undef, number_of_items)
     remaining_consumers = number_of_consumers
     remaining_probability = 1.0
+
     for item_index in 1:number_of_items
-        # The projected probabilities can sum to exactly one, which leaves the
+        # The projected probabilities can sum to one, which leaves the
         # last conditional probability a rounding error above one.
         conditional_probability = remaining_probability > 0.0 ?
             clamp(
@@ -138,23 +133,25 @@ function sample_multinomial_demand(uniforms, purchase_probabilities)
                 0.0,
                 1.0,
             ) : 0.0
+
         count = quantile(
             Binomial(remaining_consumers, conditional_probability),
             uniforms[item_index],
         )
+
         demand[item_index] = Float64(count)
         remaining_consumers -= count
         remaining_probability -= purchase_probabilities[item_index]
     end
+
     return demand
 end
 
 
 # The starting probabilities of a multinomial are
-# Dirichlet(number_of_items + 1, 1), built from the Gamma representation rather
-# than from rand(rng, Dirichlet(...)). Item i draws its unit-exponential variate
-# from a stream keyed by i, and the implicit no-purchase category draws one from
-# a stream of its own, so
+# Dirichlet(number_of_items + 1, 1), built from the Gamma representation.
+# Item i draws its unit-exponential variate from a stream keyed by i, and 
+# the implicit no-purchase category draws one from a stream of its own, so
 #
 #   probability_i = gamma_i /
 #       (no_purchase_gamma + sum(gamma_1, ..., gamma_k))
@@ -163,6 +160,7 @@ end
 # variates across item counts.
 function initial_multinomial_demand_probabilities(global_repetition_index)
     if !isnothing(initial_demand_probabilities)
+
         return [
             [Float64(probability)]
             for probability in initial_demand_probabilities
@@ -213,6 +211,7 @@ function realized_multi_item_newsvendor_cost(
     instance_underage_costs,
     instance_overage_costs,
 )
+
     total_cost = 0.0
     for item_index in 1:number_of_items
         total_cost +=
@@ -221,6 +220,7 @@ function realized_multi_item_newsvendor_cost(
             instance_overage_costs[item_index] *
             max(order[item_index] - demand[item_index], 0.0)
     end
+
     return total_cost
 end
 
@@ -418,10 +418,9 @@ function generate_drift_data(drift, repetition_mixture_weights)
         global_repetition_index =
             global_repetition_indices[repetition_index]
         # Every random quantity gets its own stream, every stream draws the same
-        # number of variates whatever the drift is, and the per-item streams are
-        # keyed by item index rather than by the number of items. Thus all drift
-        # values and item counts see the same multinomial indices, demand
-        # uniforms, and innovations.
+        # number of variates per drift, and the per-item streams are
+        # keyed by item index. Thus all drift values and item counts share 
+        # multinomial indices, demand uniforms, and innovations.
         multinomial_rng = experiment_rng(
             global_repetition_index,
             multinomial_stream,
