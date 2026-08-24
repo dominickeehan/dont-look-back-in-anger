@@ -8,15 +8,13 @@ const initial_probability_stream = 5
 const multinomial_stream = 6
 const innovation_stream = 7
 
-
 function experiment_rng(
     global_repetition_index,
     stream;
     dimension = 0,
-)
-    
+)    
     # The dimension argument is an item index, so an instance with
-    # more tems reuses the streams of instances with fewer items.
+    # more items reuses the streams of instances with fewer items.
     seed =
         simulation_seed +
         1_000_000 * global_repetition_index +
@@ -26,94 +24,62 @@ function experiment_rng(
     return Xoshiro(seed)
 end
 
-
 function sample_repetition_item_costs(cost_values, stream)
-    
-    return [
-        begin
-            rng = experiment_rng(global_repetition_index, stream)
-            [rand(rng, cost_values) for _ in 1:number_of_items]
-        end
-
-        for global_repetition_index in global_repetition_indices
-    ]
+    return map(global_repetition_indices) do global_repetition_index
+        rng = experiment_rng(global_repetition_index, stream)
+        [rand(rng, cost_values) for _ in 1:number_of_items]
+    end
 end
-
 
 # A first mixture weight w defines the two mixture weights [w, 1-w].
 function sample_repetition_mixture_weights()
-    return [
-        begin
-            rng = experiment_rng(
-                global_repetition_index,
-                mixture_weight_stream,
-            )
-
-            first_mixture_weight =
-                Float64(rand(rng, mixture_weight_values))
-            [first_mixture_weight, 1.0 - first_mixture_weight]
-        end
-
-        for global_repetition_index in global_repetition_indices
-    ]
+    return map(global_repetition_indices) do global_repetition_index
+        rng = experiment_rng(global_repetition_index, mixture_weight_stream)
+        first_mixture_weight = Float64(rand(rng, mixture_weight_values))
+        [first_mixture_weight, 1.0 - first_mixture_weight]
+    end
 end
-
 
 # Innovations are drawn from the unit triangle and scaled by the drift
 # parameter so every drift value reuses the same innovation sequence.
 const unit_drift_distribution = TriangularDist(-1.0, 1.0, 0.0)
 
+# The explicitly stored item probabilities are capped per item by
+# [minimum_purchase_probability, maximum_purchase_probability] and jointly by
+# maximum_probability_sum. The mass below that sum is the implicit no-purchase
+# category, so the joint cap is one rather than the per-item cap.
+const maximum_probability_sum = 1.0
 
-# Euclidean projection onto the bounded sub-simplex for the explicitly stored
-# item probabilities. Probability mass below one belongs to the implicit
-# no-purchase category.
+# Euclidean projection onto that bounded sub-simplex.
 function project_purchase_probabilities!(purchase_probabilities)
-    maximum_probability_sum = 1.0
     box_projection = clamp.(
         purchase_probabilities,
         minimum_purchase_probability,
         maximum_purchase_probability,
     )
     if sum(box_projection) <= maximum_probability_sum
-        purchase_probabilities .= box_projection
-        
-        return purchase_probabilities
+        return purchase_probabilities .= box_projection
     end
 
     # The sum constraint binds. Its Lagrange multiplier is the scalar shift in
     # clamp.(purchase_probabilities .- shift, lower_bound, upper_bound).
     lower_shift = 0.0
-    upper_shift = maximum(
-        purchase_probabilities .- minimum_purchase_probability,
-    )
-
+    upper_shift = maximum(purchase_probabilities) - minimum_purchase_probability
     for _ in 1:100
         shift = (lower_shift + upper_shift) / 2.0
         projected_sum = sum(
-            clamp(
-                probability - shift,
-                minimum_purchase_probability,
-                maximum_purchase_probability,
-            ) for probability in purchase_probabilities
+            clamp(probability - shift, minimum_purchase_probability, maximum_purchase_probability)
+            for probability in purchase_probabilities
         )
-
-        if projected_sum > maximum_probability_sum
-            lower_shift = shift
-        
-        else
-            upper_shift = shift
-        
-        end
+        projected_sum > maximum_probability_sum ? (lower_shift = shift) : (upper_shift = shift)
     end
 
-    purchase_probabilities .= clamp.(
+    return purchase_probabilities .= clamp.(
         purchase_probabilities .- upper_shift,
         minimum_purchase_probability,
         maximum_purchase_probability,
     )
-    return purchase_probabilities
 end
-
 
 # Inverse transform of the sequential conditional-Binomial decomposition of the
 # multinomial. This consumes one uniform draw per item regardless of the purchase 
@@ -147,7 +113,6 @@ function sample_multinomial_demand(uniforms, purchase_probabilities)
     return demand
 end
 
-
 # The starting probabilities of a multinomial are
 # Dirichlet(number_of_items + 1, 1), built from the Gamma representation.
 # Item i draws its unit-exponential variate from a stream keyed by i, and 
@@ -159,19 +124,11 @@ end
 # has the correct Dirichlet law for every item count k while reusing the same
 # variates across item counts.
 function initial_multinomial_demand_probabilities(global_repetition_index)
-    if !isnothing(initial_demand_probabilities)
-
-        return [
-            [Float64(probability)]
-            for probability in initial_demand_probabilities
-        ]
-    end
 
     no_purchase_variates = randexp(
         experiment_rng(
             global_repetition_index,
-            initial_probability_stream;
-            dimension = 0,
+            initial_probability_stream,
         ),
         number_of_multinomials,
     )
@@ -204,31 +161,23 @@ function initial_multinomial_demand_probabilities(global_repetition_index)
     ]
 end
 
-
 function realized_multi_item_newsvendor_cost(
     order,
     demand,
     instance_underage_costs,
     instance_overage_costs,
 )
-
-    total_cost = 0.0
-    for item_index in 1:number_of_items
-        total_cost +=
-            instance_underage_costs[item_index] *
-            max(demand[item_index] - order[item_index], 0.0) +
-            instance_overage_costs[item_index] *
-            max(order[item_index] - demand[item_index], 0.0)
-    end
-
-    return total_cost
+    return sum(
+        instance_underage_costs[item_index] *
+        max(demand[item_index] - order[item_index], 0.0) +
+        instance_overage_costs[item_index] *
+        max(order[item_index] - demand[item_index], 0.0)
+        for item_index in 1:number_of_items
+    )
 end
 
-
-# For D ~ Binomial(n, p), the expected newsvendor cost is piecewise linear in
-# the order because D is integer valued. The formula is therefore exact for
-# both integer and fractional orders. At integer orders, recover the previous
-# trial CDF from the demand PDF to avoid constructing a second distribution.
+# Closed form from E[D 1{D <= order}] = consumer_count * probability *
+# F_{n-1}(order - 1). See "test-expected-newsvendor-loss.jl".
 function expected_newsvendor_cost_with_binomial_demand(
     order,
     binomial_demand_probability,
@@ -236,29 +185,12 @@ function expected_newsvendor_cost_with_binomial_demand(
     underage_cost,
     overage_cost,
 )
-    demand_distribution = Binomial(
-        consumer_count,
-        binomial_demand_probability,
+    previous_trial_cdf = cdf(
+        Binomial(consumer_count - 1, binomial_demand_probability), order - 1,
     )
-    demand_cdf = cdf(demand_distribution, order)
-    previous_trial_cdf = if isinteger(order)
-        clamp(
-            demand_cdf -
-            ((consumer_count - order) / consumer_count) *
-            pdf(demand_distribution, order),
-            0.0,
-            1.0,
-        )
-    else
-        cdf(
-            Binomial(
-                consumer_count - 1,
-                binomial_demand_probability,
-            ),
-            order - 1,
-        )
-    end
-
+    demand_cdf = cdf(
+        Binomial(consumer_count, binomial_demand_probability), order,
+    )
     expected_underage_cost = underage_cost * (
         consumer_count * binomial_demand_probability *
         (1.0 - previous_trial_cdf) -
@@ -270,7 +202,6 @@ function expected_newsvendor_cost_with_binomial_demand(
     )
     return expected_underage_cost + expected_overage_cost
 end
-
 
 function expected_multi_item_newsvendor_cost(
     order,
@@ -306,97 +237,6 @@ function expected_multi_item_newsvendor_cost(
     end
     return total_cost
 end
-
-
-function _mark_order_knots!(requested_orders, grid_results)
-    for result in grid_results
-        order = result[2]
-        for item_index in 1:number_of_items
-            requested_orders[item_index][floor(Int, order[item_index]) + 1] =
-                true
-            requested_orders[item_index][ceil(Int, order[item_index]) + 1] =
-                true
-        end
-    end
-    return nothing
-end
-
-
-# Build one expected-cost lookup from the union of the methods' integer order
-# knots. Fractional expected costs are recovered by linear interpolation.
-function precompute_expected_costs_at_order_knots(
-    method_grid_results,
-    final_demand_probabilities,
-    mixture_weights,
-    instance_underage_costs,
-    instance_overage_costs,
-)
-    requested_orders = [
-        falses(number_of_consumers + 1)
-        for _ in 1:number_of_items
-    ]
-    for grid_results in method_grid_results
-        _mark_order_knots!(requested_orders, grid_results)
-    end
-
-    expected_costs = [
-        fill(NaN, number_of_consumers + 1)
-        for _ in 1:number_of_items
-    ]
-    inverse_future_sample_count =
-        1.0 / size(final_demand_probabilities, 1)
-    for item_index in 1:number_of_items
-        for order_storage_index in eachindex(requested_orders[item_index])
-            requested_orders[item_index][order_storage_index] || continue
-            integer_order = order_storage_index - 1
-            total_cost = 0.0
-            for future_index in axes(final_demand_probabilities, 1)
-                for multinomial_index in 1:number_of_multinomials
-                    total_cost +=
-                        mixture_weights[multinomial_index] *
-                        expected_newsvendor_cost_with_binomial_demand(
-                            integer_order,
-                            final_demand_probabilities[
-                                future_index,
-                                multinomial_index,
-                                item_index,
-                            ],
-                            number_of_consumers,
-                            instance_underage_costs[item_index],
-                            instance_overage_costs[item_index],
-                        )
-                end
-            end
-            expected_costs[item_index][order_storage_index] =
-                total_cost * inverse_future_sample_count
-        end
-    end
-    return expected_costs
-end
-
-
-function expected_multi_item_cost_from_order_knots(
-    order,
-    expected_costs,
-)
-    total_cost = 0.0
-    for item_index in 1:number_of_items
-        lower_order = floor(Int, order[item_index])
-        upper_order = ceil(Int, order[item_index])
-        lower_cost = expected_costs[item_index][lower_order + 1]
-        if lower_order == upper_order
-            total_cost += lower_cost
-        else
-            interpolation_weight = order[item_index] - lower_order
-            total_cost +=
-                (1.0 - interpolation_weight) * lower_cost +
-                interpolation_weight *
-                expected_costs[item_index][upper_order + 1]
-        end
-    end
-    return total_cost
-end
-
 
 # Returns the observed demand histories, the sampled next-period probabilities
 # as a (future sample, multinomial, item) array, and the starting probabilities.
@@ -510,48 +350,23 @@ function generate_drift_data(drift, repetition_mixture_weights)
 
             time_index == history_length && continue
             for multinomial_index in 1:number_of_multinomials
-                multinomial_probabilities =
-                    demand_probabilities[multinomial_index]
-                for item_index in eachindex(multinomial_probabilities)
-                    multinomial_probabilities[item_index] +=
-                        drift * history_innovations[
-                            time_index,
-                            multinomial_index,
-                            item_index,
-                        ]
-                end
-                project_purchase_probabilities!(
-                    multinomial_probabilities,
+                probabilities = demand_probabilities[multinomial_index]
+                probabilities .+= drift .* view(
+                    history_innovations, time_index, multinomial_index, :,
                 )
+                project_purchase_probabilities!(probabilities)
             end
         end
 
         # Each future sample is a separate one-step drift from the distribution
         # at the end of the observed history.
-        for future_index in 1:number_of_future_samples
-            for multinomial_index in 1:number_of_multinomials
-                for item_index in 1:number_of_items
-                    future_probabilities[
-                        future_index,
-                        multinomial_index,
-                        item_index,
-                    ] =
-                        demand_probabilities[
-                            multinomial_index
-                        ][item_index] +
-                        drift * future_innovations[
-                            future_index,
-                            multinomial_index,
-                            item_index,
-                        ]
-                end
+        for multinomial_index in 1:number_of_multinomials
+            future_probabilities[:, multinomial_index, :] .=
+                demand_probabilities[multinomial_index]' .+
+                drift .* view(future_innovations, :, multinomial_index, :)
+            for future_index in 1:number_of_future_samples
                 project_purchase_probabilities!(
-                    view(
-                        future_probabilities,
-                        future_index,
-                        multinomial_index,
-                        :,
-                    ),
+                    view(future_probabilities, future_index, multinomial_index, :),
                 )
             end
         end
@@ -565,7 +380,6 @@ function generate_drift_data(drift, repetition_mixture_weights)
         starting_demand_probabilities,
     )
 end
-
 
 function precompute_weight_vector_table(compute_weights, parameters)
     first_sample_count = history_length - training_length
@@ -585,7 +399,6 @@ function precompute_weight_vector_table(compute_weights, parameters)
 
     return weight_vector_table
 end
-
 
 # Evaluate every hyperparameter combination by rolling-origin validation.
 function rolling_origin_training_costs(
@@ -636,9 +449,6 @@ function rolling_origin_training_costs(
     return average_training_costs
 end
 
-
-# Select hyperparameters by rolling-origin validation, then refit the winner on
-# the full history.
 function train_and_test_grid_result(
     objective_value_and_order,
     ambiguity_radii,

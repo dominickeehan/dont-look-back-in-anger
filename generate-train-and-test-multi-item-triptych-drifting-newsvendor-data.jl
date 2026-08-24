@@ -36,7 +36,6 @@ const number_of_multinomials = 2
 
 # Starting purchase probabilities are sampled independently for every
 # multinomial.
-const initial_demand_probabilities = nothing
 
 const drifts = [0.01, 0.05, 0.1]
 
