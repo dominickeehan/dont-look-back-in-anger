@@ -1,27 +1,8 @@
-# Each HPC array job runs the Cartesian product of ten item counts and three
-# drift values. Every method is trained by rolling-origin validation and every
-# hyperparameter combination is written to one triptych CSV file. Item demands
-# are mixtures of multinomials within a period, while their marginal
-# distributions remain mixtures of Binomials and therefore admit exact
-# expected-cost tests.
-#
-# The demand model is shared with the single-item experiment. Within a
-# repetition, all thirty item-count-and-drift cells are common random numbers
-# of each other: the item costs, mixture weights, multinomial sequence, demand
-# uniforms, starting Gamma variates, and unit innovations are all keyed by item
-# index and reused, so a k-item instance is the k-item prefix of the ten-item
-# one. Moving along the item-count axis then perturbs an instance instead of
-# redrawing it, which is what makes the curves smooth.
-
 using Random, Statistics, StatsBase, Distributions
 using ProgressBars
 
-
 const job_number = parse(Int, get(ENV, "PBS_ARRAY_INDEX", "0"))
 
-
-# These bindings must exist before including the optimization and shared
-# experiment setup routines.
 const item_counts = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
 number_of_items::Int = first(item_counts)
 const number_of_consumers = 1000
@@ -47,7 +28,6 @@ const global_repetition_indices =
     (number_of_repetitions * job_number + 1):(
         number_of_repetitions * (job_number + 1)
     )
-
 
 LogRange(start, stop, len) = exp.(LinRange(log(start), log(stop), len))
 
@@ -221,7 +201,7 @@ intersection_weight_vector_table =
         radius_ratio_grid,
     )
 weighted_W2_weight_vector_table =
-    precompute_weight_vector_table(W2_weights, radius_ratio_grid)
+    precompute_weight_vector_table(W2_linear_drift_profile_weights, radius_ratio_grid)
 
 results_file = open("multi-item-triptych-$job_number.csv", "w")
 try
