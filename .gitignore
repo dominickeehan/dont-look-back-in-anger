@@ -14,4 +14,4 @@ upload.txt
 
 # Per-repetition triptych selections (tens of megabytes; regenerate with
 # process-train-and-test-multi-item-triptych-drifting-newsvendor-data.jl).
-multi-item-triptych-selected-runs.tsv
+#multi-item-triptych-selected-runs.tsv
