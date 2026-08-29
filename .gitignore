@@ -11,3 +11,7 @@ multi-item-newsvendor-results.zip
 train-and-test-multi-modal-drifting-newsvendor-data/hpc-output.zip
 .DS_Store
 upload.txt
+
+# Per-repetition triptych selections (tens of megabytes; regenerate with
+# process-train-and-test-multi-item-triptych-drifting-newsvendor-data.jl).
+multi-item-triptych-selected-runs.tsv
