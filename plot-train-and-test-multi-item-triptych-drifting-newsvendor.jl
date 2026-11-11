@@ -207,7 +207,7 @@ function plot_train_and_test_results(processed_results)
             ylabel = drift_index == firstindex(
                 processed_results.drifts,
             ) ? "Expected cost (% difference)" : "",
-            title = "\$δ = $drift\$",
+            title = "\$γ = $drift\$",
             xticks = processed_results.item_counts,
             xlims = (
                 0.9999 * first(processed_results.item_counts),

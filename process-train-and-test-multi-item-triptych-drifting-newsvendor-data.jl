@@ -22,6 +22,9 @@ const processed_data_file =
 const normalizing_method = "Smoothing"
 # Each job array index covers this many repetitions (see the .pbs script).
 const number_of_repetitions_per_job = 10
+# The .pbs script's job array runs indices 0 through number_of_jobs - 1, and
+# every job's file must be present and complete for the summaries below.
+const number_of_jobs = 300
 
 const columns_to_read = [
     :number_of_items,
@@ -45,6 +48,12 @@ function result_csv_files(directory = data_directory)
         readdir(directory; join = true),
     )
     sort!(files; by = job_number_of)
+    missing_job_numbers =
+        setdiff(0:(number_of_jobs - 1), job_number_of.(files))
+    isempty(missing_job_numbers) || error(
+        "Missing result files for job numbers " *
+        join(missing_job_numbers, ", ") * ".",
+    )
     return files
 end
 
@@ -88,9 +97,6 @@ end
 
 
 function select_runs(files = result_csv_files())
-    isempty(files) && error(
-        "No triptych result CSV files found in $data_directory.",
-    )
     selected_runs = NamedTuple[]
     start_time = time()
 
@@ -181,14 +187,6 @@ function summarize_selected_runs(selected_runs, number_of_files)
                 run.repetition_index,
             )]
             for run in runs
-            if haskey(
-                normalizers,
-                (
-                    run.number_of_items,
-                    run.drift,
-                    run.repetition_index,
-                ),
-            )
         ]
 
         push!(
@@ -214,24 +212,25 @@ function summarize_selected_runs(selected_runs, number_of_files)
 end
 
 
-function report_coverage(curves)
+# With the full job array present, every cell must hold the same number of
+# repetitions; a shortfall means a result file was truncated.
+function verify_even_coverage(curves)
     counts = unique(curve.number_of_repetitions for curve in curves)
-    if length(counts) == 1
-        println(
-            "Every cell holds $(only(counts)) repetitions.",
-        )
-    else
-        println("Uneven repetition counts across cells:")
-        for curve in curves
-            curve.number_of_repetitions == maximum(counts) && continue
-            println(
-                "  items = $(curve.number_of_items), " *
+    if length(counts) != 1
+        shortfalls = join(
+            (
+                "items = $(curve.number_of_items), " *
                 "drift = $(curve.drift), " *
                 "method = $(curve.method): " *
-                "$(curve.number_of_repetitions) repetitions.",
-            )
-        end
+                "$(curve.number_of_repetitions) repetitions"
+                for curve in curves
+                if curve.number_of_repetitions != maximum(counts)
+            ),
+            "; ",
+        )
+        error("Uneven repetition counts across cells: " * shortfalls * ".")
     end
+    println("Every cell holds $(only(counts)) repetitions.")
     return nothing
 end
 
@@ -245,6 +244,6 @@ println(
 )
 
 curves = summarize_selected_runs(selected_runs, length(files))
+verify_even_coverage(curves)
 CSV.write(processed_data_file, curves; delim = '\t')
 println("Saved $(length(curves)) curve points to $processed_data_file.")
-report_coverage(curves)
