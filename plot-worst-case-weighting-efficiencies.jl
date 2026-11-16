@@ -5,20 +5,14 @@ using ProgressBars
 include("weights.jl")
 include("plot-sizing.jl")
 
-# NOTE (16 November 2026): the worst-case efficiencies still need recomputing. data_file
-# currently holds an older, coarser run (20 August, 60 drift exponents), not the 399 drift
-# exponents that figures/worst-case-weighting-efficiencies.pdf was drawn from (that data was
-# never saved), so this script refuses to plot from it. To recompute, delete data_file and run
+# The worst-case efficiencies take a long time to compute, so they are saved to data_file and
+# the plot is drawn from it. They are only computed (and saved) if data_file is missing, so
+# delete it to recompute them with
 #
 #     julia -t auto plot-worst-case-weighting-efficiencies.jl
 #
-# which takes about 25 to 40 minutes on 8 threads. That saves the fine data to data_file, and
-# redraws the figure at the new centred size (see plot-sizing.jl). Then, in main.tex, include
-# the figure at width=\dimexpr 35.04pt + 240pt + 35.04pt\relax, without the \hspace{-0.75cm}.
-
-# The worst-case efficiencies take a long time to compute, so they are saved to data_file and
-# the plot is drawn from it. They are only computed (and saved) if data_file is missing, so
-# delete it to recompute them.
+# which takes about 15 minutes on 18 threads. The figure is drawn at the centred size (see
+# plot-sizing.jl), so in main.tex include it at width=\dimexpr 35.04pt + 240pt + 35.04pt\relax.
 data_file = joinpath(@__DIR__, "worst-case-weighting-efficiency-data.tsv")
 
 LogRange(start, stop, len) = exp.(LinRange(log(start), log(stop), len))
@@ -67,6 +61,19 @@ if !isfile(data_file)
 
     end
 
+    # The ρ╱ε at which two weightings have equal objective values, which solves
+    # ess_1^(1/(2p)) (1 - drift_1^(1/p) ρ╱ε) = ess_2^(1/(2p)) (1 - drift_2^(1/p) ρ╱ε).
+    function equal_objective_drift_ratio(reusable_terms_1, reusable_terms_2, p)
+
+        (effective_sample_size_1, cumulative_drift_1), (effective_sample_size_2, cumulative_drift_2) = reusable_terms_1, reusable_terms_2
+
+        c_1, c_2 = effective_sample_size_1^(1/(2*p)), effective_sample_size_2^(1/(2*p))
+        a_1, a_2 = cumulative_drift_1^(1/p), cumulative_drift_2^(1/p)
+
+        return (c_2 - c_1)/(c_2*a_2 - c_1*a_1)
+
+    end
+
     function optimal_weights(drift_terms, horizon)
 
         if drift_terms[end]/horizon >= 1.0; weights = zeros(T); weights[T] = 1.0; return weights; end
@@ -87,18 +94,30 @@ if !isfile(data_file)
         optimal_weighting_scheme_terms = [reusable_objective_terms(optimal_weights(drift_terms, horizon), drift_terms) 
                                             for horizon in horizons(drift_terms[end], drift_terms[begin], weighting_scheme_discretisation_fidelity)]
         weighting_scheme_terms = [[reusable_objective_terms(w, drift_terms) for w in weightings] for weightings in weighting_schemes]
+        windowing_terms = weighting_scheme_terms[findfirst(==("Windowing"), weighting_scheme_names)]
 
-        for p in wasserstein_orders(drift_exponents[drift_exponent_index]), ρ╱ε in drift_ratios
-            optimal_objective_value = maximum(objective_value(sums, p, ρ╱ε) for sums in optimal_weighting_scheme_terms)
+        for p in wasserstein_orders(drift_exponents[drift_exponent_index])
 
-            for scheme_index in eachindex(weighting_schemes)
-                scheme_best_objective_value = maximum(objective_value(sums, p, ρ╱ε) for sums in weighting_scheme_terms[scheme_index])
+            # Window sizes are integers, so the windowing efficiency dips to a sharp trough at each ρ╱ε where
+            # the best window size switches to the next one. The grid of drift_ratios misses the bottoms of
+            # these troughs by different amounts for different drift exponents, which makes the worst-case
+            # windowing efficiency curve jagged, so we also take the ρ╱ε at which consecutive window sizes
+            # have equal objective values (the bottoms of the troughs).
+            switching_drift_ratios = filter(ρ╱ε -> 0.0 < ρ╱ε <= 1.0,
+                                            [equal_objective_drift_ratio(windowing_terms[k], windowing_terms[k+1], p) for k in 1:length(windowing_terms)-1])
 
-                efficiency = optimal_objective_value > 0.0 ? scheme_best_objective_value/optimal_objective_value : 1.0
+            for ρ╱ε in [drift_ratios; switching_drift_ratios]
+                optimal_objective_value = maximum(objective_value(sums, p, ρ╱ε) for sums in optimal_weighting_scheme_terms)
 
-                worst_case_efficiencies[scheme_index, drift_exponent_index] = min(worst_case_efficiencies[scheme_index, drift_exponent_index], efficiency)
-                best_case_efficiencies[scheme_index, drift_exponent_index] = max(best_case_efficiencies[scheme_index, drift_exponent_index], efficiency)
+                for scheme_index in eachindex(weighting_schemes)
+                    scheme_best_objective_value = maximum(objective_value(sums, p, ρ╱ε) for sums in weighting_scheme_terms[scheme_index])
 
+                    efficiency = optimal_objective_value > 0.0 ? scheme_best_objective_value/optimal_objective_value : 1.0
+
+                    worst_case_efficiencies[scheme_index, drift_exponent_index] = min(worst_case_efficiencies[scheme_index, drift_exponent_index], efficiency)
+                    best_case_efficiencies[scheme_index, drift_exponent_index] = max(best_case_efficiencies[scheme_index, drift_exponent_index], efficiency)
+
+                end
             end
         end
     end
