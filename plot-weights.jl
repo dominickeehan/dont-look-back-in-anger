@@ -1,16 +1,19 @@
 using Plots, Measures
 
 include("weights.jl")
+include("plot-sizing.jl")
 
 default() # Reset plot settings to defaults.
 
 # Single pane plots.
 
-# A 3:2 aspect ratio for the plot, excluding + 6 padding of the top, bottom, and left margins. 
-# The sqrt(3) conversion means that (275 + 6 + 6, 183 + 6) is the size of the plot in points
+# Widths, left to right: 41.22 for the y-axis title and tick labels, 240 for the plot box, and 41.22
+# left blank, so that the plot box is centred on the page. Heights, top to bottom: 16.31 for
+# the plot title, 160 for the plot box (a 3:2 aspect ratio), and 25.67 for the
+# x-axis title and tick labels (see plot-sizing.jl).
+# The sqrt(3) conversion means that (41.22 + 240 + 41.22, 16.31 + 160 + 25.67) is the size of the plot in points
 # to specify in latex to correctly size the embedded fonts.
-# (275, 183) itself is just visually nice.
-gr(size = (275 + 6 + 6, 183 + 6) .* sqrt(3))
+gr(size = (41.22 + 240 + 41.22, 16.31 + 160 + 25.67) .* sqrt(3))
 fontfamily = "Computer Modern" # Close to Latin Modern.
 default(framestyle = :box,
         grid = true,
@@ -37,11 +40,7 @@ linear_drift_profile_plt = plot(
         title = "Linear drift profile \$(η=1)\$",
         xlabel = "Time index, \$t\$", 
         ylabel = "Optimal weight, \$w_t\$",
-        xticks = ([0, 25, 50, 75, 100]),
-        topmargin = 0pt, 
-        rightmargin = 6pt, # Padding.
-        bottommargin = 6pt, # Padding.
-        leftmargin = 6pt) # Padding.
+        xticks = ([0, 25, 50, 75, 100]))
 
 ε = 90
 ρ = 1
@@ -72,6 +71,8 @@ xlims!((-0, 100))
 yl = ylims(linear_drift_profile_plt)
 ylims!((0, yl[2])) # (But keep natural upper limit.)
 
+place_plot_boxes!(linear_drift_profile_plt, left = 41.22, right = 41.22, top = 16.31, bottom = 25.67)
+
 display(linear_drift_profile_plt)
 savefig(linear_drift_profile_plt, "figures/linear-drift-profile-optimal-weights-for-p=1-to-5.pdf")
 
@@ -82,11 +83,7 @@ for q in 1:4
                 title = "Linear drift profile \$(η=1)\$",
                 xlabel = "Time index, \$t\$", 
                 ylabel = "Optimal weight, \$w_t\$",
-                xticks = ([0, 25, 50, 75, 100]),
-                topmargin = 0pt, 
-                rightmargin = 6pt,
-                bottommargin = 6pt, 
-                leftmargin = 6pt)
+                xticks = ([0, 25, 50, 75, 100]))
 
         for p in 1:q
                 plot!(1:T, 
@@ -104,6 +101,8 @@ for q in 1:4
         yl = ylims(plt)
         ylims!((0, yl[2]))
 
+        place_plot_boxes!(plt, left = 41.22, right = 41.22, top = 16.31, bottom = 25.67)
+
         display(plt)
         savefig(plt, "figures/linear-drift-profile-optimal-weights-for-p=1-to-$q.pdf")
 end
@@ -117,10 +116,7 @@ square_root_drift_profile_plt = plot(
         xlabel = "Time index, \$t\$", 
         ylabel = "Optimal weight, \$w_t\$",
         xticks = ([0, 25, 50, 75, 100]),
-        topmargin = 0pt, 
-        rightmargin = 6pt, # Padding.
-        bottommargin = 6pt, # Padding.
-        leftmargin = 12pt) # Padding. Consume more of the left margin to make up for the extra width of the y-axis label.
+        size = (36.37 + 240 + 36.37, 16.16 + 160 + 25.52) .* sqrt(3)) # (Its tick labels differ from the linear drift profile plot's, so its own size.)
 
 for p in P
         plot!(1:T, 
@@ -139,6 +135,8 @@ xlims!((-0, 100))
 yl = ylims(square_root_drift_profile_plt)
 ylims!((0, yl[2])) # (But keep natural upper limit.)
 
+place_plot_boxes!(square_root_drift_profile_plt, left = 36.37, right = 36.37, top = 16.16, bottom = 25.52)
+
 display(square_root_drift_profile_plt)
 savefig(square_root_drift_profile_plt, "figures/square-root-drift-profile-optimal-weights-for-p=1-to-5.pdf")
 
@@ -151,22 +149,14 @@ linear_drift_profile_two_pane_plt = plot(
         xlabel = "Time index, \$t\$",
         ylabel = "Optimal weight, \$w_t\$",
         xticks = ([0, 25, 50, 75, 100]),
-        legend = :topleft,
-        topmargin = 6pt,
-        rightmargin = 0pt,
-        bottommargin = 12pt,
-        leftmargin = 12pt)
+        legend = :topleft)
 
 square_root_drift_profile_two_pane_plt = plot(
         title = "Square-root drift profile \$(η=1/2)\$",
         xlabel = "Time index, \$t\$",
         xticks = ([0, 25, 50, 75, 100]),
         yformatter = _ -> "", # (Shared y-axis: tick numbers only on the left pane.)
-        legend = false, # (Legend only on the left pane.)
-        topmargin = 6pt,
-        rightmargin = 6pt,
-        bottommargin = 12pt,
-        leftmargin = 0pt)
+        legend = false) # (Legend only on the left pane.)
 
 for p in P
         plot!(linear_drift_profile_two_pane_plt,
@@ -201,10 +191,13 @@ two_pane_drift_profile_plt = plot(
         linear_drift_profile_two_pane_plt,
         square_root_drift_profile_two_pane_plt,
         layout = (1, 2),
-        size = (451, 183 + 12 + 6) .* sqrt(3)) # The width of an A4 piece of paper (exlcuding two 1-inch margins) is 451 points.
+        size = (40.57 + 177.91 + 16 + 177.91 + 40.57, 18.27 + 160 + 27.62) .* sqrt(3)) # The width of an A4 piece of paper (excluding two 1-inch margins) is 452.97 points.
+
+place_plot_boxes!(two_pane_drift_profile_plt, left = 40.57, gap = 16, right = 40.57, top = 18.27, bottom = 27.62)
 
 display(two_pane_drift_profile_plt)
 savefig(two_pane_drift_profile_plt, "figures/optimal-weights-for-p=1-to-5.pdf")
+savefig(two_pane_drift_profile_plt, "figures/optimal-weights-for-p=1-to-5.svg") # (For the README.)
 
 
 
@@ -216,22 +209,14 @@ squished_linear_drift_profile_two_pane_plt = plot(
         xlabel = "Time index, \$t\$",
         ylabel = "Optimal weight, \$w_t\$",
         xticks = ([0, 10, 20, 30, 40, 50]),
-        legend = :topleft,
-        topmargin = 6pt,
-        rightmargin = 0pt,
-        bottommargin = 12pt,
-        leftmargin = 12pt)
+        legend = :topleft)
 
 squished_square_root_drift_profile_two_pane_plt = plot(
         title = "Square-root drift profile \$(η=1/2)\$",
         xlabel = "Time index, \$t\$",
         xticks = ([0, 10, 20, 30, 40, 50]),
         yformatter = _ -> "", # (Shared y-axis: tick numbers only on the left pane.)
-        legend = false, # (Legend only on the left pane.)
-        topmargin = 6pt,
-        rightmargin = 6pt,
-        bottommargin = 12pt,
-        leftmargin = 0pt)
+        legend = false) # (Legend only on the left pane.)
 
 T = 50
 
@@ -268,7 +253,9 @@ squished_two_pane_drift_profile_plt = plot(
         squished_linear_drift_profile_two_pane_plt,
         squished_square_root_drift_profile_two_pane_plt,
         layout = (1, 2),
-        size = (451, 183 + 12 + 6) .* sqrt(3)) # The width of an A4 piece of paper (exlcuding two 1-inch margins) is 451 points.
+        size = (40.57 + 177.91 + 16 + 177.91 + 40.57, 18.27 + 160 + 27.62) .* sqrt(3)) # The width of an A4 piece of paper (excluding two 1-inch margins) is 452.97 points.
+
+place_plot_boxes!(squished_two_pane_drift_profile_plt, left = 40.57, gap = 16, right = 40.57, top = 18.27, bottom = 27.62)
 
 display(squished_two_pane_drift_profile_plt)
 savefig(squished_two_pane_drift_profile_plt, "figures/squished-optimal-weights-for-p=1-to-5.pdf")

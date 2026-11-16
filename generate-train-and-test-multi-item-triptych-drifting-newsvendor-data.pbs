@@ -6,7 +6,6 @@
 
 module load tools/prod
 module load Julia/1.11.6-linux-x86_64
-module load Gurobi/11.0.0-GCCcore-12.3.0
 
 cd "$HOME/dont-look-back-in-anger" || exit 1
 

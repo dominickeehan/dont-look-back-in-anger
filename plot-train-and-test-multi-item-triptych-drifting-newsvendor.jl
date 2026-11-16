@@ -1,6 +1,8 @@
 using CSV
 using Plots, Measures
 
+include("plot-sizing.jl")
+
 # Draws the triptych from the small processed table written by
 # process-train-and-test-multi-item-triptych-drifting-newsvendor-data.jl, so
 # the plot setup can be adjusted without rereading the raw HPC output.
@@ -122,14 +124,20 @@ function load_processed_train_and_test_data(file = processed_data_file)
     )
 end
 
-5
 
 function plot_train_and_test_results(processed_results)
     default()
-    a4_width_points = 210.0 / 25.4 * 72.0
+    # Widths, left to right: 40.41 for the y-axis title and tick labels, three 113.38 plot
+    # boxes 16 apart, and 40.41 left blank, so that the plot boxes are centred on the page
+    # and fill the 452.97 width of the text column. Heights, top to bottom: 18.27 for the
+    # plot titles, 160 for the plot boxes (as in every figure), and 27.62 for the x-axis
+    # titles and tick labels (see plot-sizing.jl).
+    # The sqrt(3) conversion means that
+    # (40.41 + 113.38 + 16 + 113.38 + 16 + 113.38 + 40.41, 18.27 + 160 + 27.62) is the size of the plot
+    # in points to specify in latex to correctly size the embedded fonts.
     gr(size = (
-        a4_width_points - 2.0 * 72.0,
-        183 + 9 + 9,
+        40.41 + 113.38 + 16 + 113.38 + 16 + 113.38 + 40.41,
+        18.27 + 160 + 27.62,
     ) .* sqrt(3))
 
     fontfamily = "Computer Modern"
@@ -189,6 +197,7 @@ function plot_train_and_test_results(processed_results)
     )
     marker_outline_color = :black
     marker_outline_width = 1.0
+    fillalpha = 0.1 # (Standard-error bands, as in the single-item plot.)
 
     # (Log-scaled cost ratios, labelled as percentage differences.)
     ytick_values = [0.8, 0.9, 1.0, 1.1, 1.2, 1.4, 1.8]
@@ -207,7 +216,7 @@ function plot_train_and_test_results(processed_results)
             ylabel = drift_index == firstindex(
                 processed_results.drifts,
             ) ? "Expected cost (% difference)" : "",
-            title = "\$γ = $drift\$",
+            title = "\$δ = $drift\$",
             xticks = processed_results.item_counts,
             xlims = (
                 0.9999 * first(processed_results.item_counts),
@@ -222,12 +231,6 @@ function plot_train_and_test_results(processed_results)
             legend = drift_index == lastindex(
                 processed_results.drifts,
             ) ? :right : false,
-            topmargin = 6.0pt,
-            leftmargin = drift_index == firstindex(
-                processed_results.drifts,
-            ) ? 9.0pt : 0.0pt,
-            bottommargin = 9.0pt,
-            rightmargin = 0.0pt,
         )
 
         for method in processed_results.methods
@@ -244,24 +247,12 @@ function plot_train_and_test_results(processed_results)
                 ].relative_standard_errors[drift_index]
                 for number_of_items in processed_results.item_counts
             ]
-            # Plots uses markerstrokecolor and markerstrokewidth for error
-            # bars, so draw them separately with method colours.
-            scatter!(
-                panel,
-                processed_results.item_counts,
-                relative_average_costs;
-                yerror = relative_standard_errors,
-                color = style.color,
-                markershape = :none,
-                markersize = 3.0,
-                markerstrokecolor = style.color,
-                markerstrokewidth = marker_outline_width,
-                label = false,
-            )
             plot!(
                 panel,
                 processed_results.item_counts,
                 relative_average_costs;
+                ribbon = relative_standard_errors,
+                fillalpha = fillalpha,
                 color = style.color,
                 linestyle = style.linestyle,
                 linewidth = style.linewidth,
@@ -302,6 +293,7 @@ function plot_train_and_test_results(processed_results)
         layout = (1, length(panel_plots)),
         link = :y,
     )
+    place_plot_boxes!(plt, left = 40.41, gap = 16, right = 40.41, top = 18.27, bottom = 27.62)
     return plt
 end
 

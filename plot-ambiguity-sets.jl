@@ -2,14 +2,17 @@ using Statistics, StatsBase
 using Plots, Measures
 
 include("weights.jl")
+include("plot-sizing.jl")
 
 default() # Reset plot settings to defaults.
 
-# A 3:2 aspect ratio for the plot, excluding + 6 padding of the bottom and left margins. 
-# The sqrt(3) conversion means that (275 + 6, 183 + 6) is the size of the plot in points
-# to specify in latex to correctly size the embedded fonts. 
-# (275, 183) itself is just visually nice.
-gr(size = (275 + 6, 183 + 6) .* sqrt(3))
+# Widths, left to right: 24.17 for the y-axis title and tick labels, 240 for the plot box, and 24.17
+# left blank, so that the plot box is centred on the page. Heights, top to bottom: 4.93 for
+# the top tick label to stick out into, 160 for the plot box (a 3:2 aspect ratio), and 25.16 for the
+# x-axis title and tick labels (see plot-sizing.jl).
+# The sqrt(3) conversion means that (24.17 + 240 + 24.17, 4.93 + 160 + 25.16) is the size of the plot in points
+# to specify in latex to correctly size the embedded fonts.
+gr(size = (24.17 + 240 + 24.17, 4.93 + 160 + 25.16) .* sqrt(3))
 fontfamily = "Computer Modern" # Close to Latin Modern.
 default(framestyle = :box,
         grid = true,
@@ -92,10 +95,7 @@ plt = plot(
         xlims = (mean_range[begin], mean_range[end]),
         ylims = (standard_deviation_range[begin], standard_deviation_range[end]),
         #legend = :horizontal,
-        topmargin = 0pt, 
-        rightmargin = 0pt,
-        bottommargin = 6pt, # Padding.
-        leftmargin = 6pt) # Padding.
+        )
 
 linewidth = 1.5
 alpha = 1
@@ -154,6 +154,8 @@ scatter!(samples,
         labels = nothing)
 
 for i in eachindex(samples); annotate!(samples[i], 0, text(" \$\\xi_$i\$", :black, :bottom, 12)); end
+
+place_plot_boxes!(plt, left = 24.17, right = 24.17, top = 4.93, bottom = 25.16)
 
 display(plt)
 savefig(plt, "figures/ambiguity-sets.pdf")

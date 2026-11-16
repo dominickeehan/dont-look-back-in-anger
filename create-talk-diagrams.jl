@@ -50,7 +50,7 @@ plot!(Ξ,
         label = nothing)
 
 display(plt)
-savefig(plt,"figures\\prob.svg")
+savefig(plt,"figures/prob.svg")
 
 
 
@@ -100,7 +100,7 @@ plot!(Ξ,
         label = nothing)
 
 display(plt)
-savefig(plt,"figures\\qrob.svg")
+savefig(plt,"figures/qrob.svg")
 
 
 
@@ -176,7 +176,7 @@ end
 #xlims!((-outer_increment-1,history_length+1+outer_increment).*horizontal_increment)
 
 display(plt)
-savefig(plt,"figures\\probs.svg")
+savefig(plt,"figures/probs.svg")
 
 
 
@@ -259,4 +259,4 @@ end
 #xlims!((-outer_increment-1,history_length+1+outer_increment).*horizontal_increment)
 
 display(plt)
-savefig(plt,"figures\\qrobs.svg")
+savefig(plt,"figures/qrobs.svg")
