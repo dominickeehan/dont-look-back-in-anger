@@ -14,7 +14,7 @@ include("plot-sizing.jl")
 #
 # which takes about 25 to 40 minutes on 8 threads. That saves the fine data to data_file, and
 # redraws the figure at the new centred size (see plot-sizing.jl). Then, in main.tex, include
-# the figure at width=\dimexpr 33.18pt + 240pt + 33.18pt\relax, without the \hspace{-0.75cm}.
+# the figure at width=\dimexpr 35.04pt + 240pt + 35.04pt\relax, without the \hspace{-0.75cm}.
 
 # The worst-case efficiencies take a long time to compute, so they are saved to data_file and
 # the plot is drawn from it. They are only computed (and saved) if data_file is missing, so
@@ -137,13 +137,13 @@ all(exponents == drift_exponents for exponents in plotted_drift_exponents) ||
 
 default() # Reset plot settings to defaults.
 
-# Widths, left to right: 33.18 for the y-axis title and tick labels, 240 for the plot box, and 33.18
-# left blank, so that the plot box is centred on the page. Heights, top to bottom: 4.93 for
-# the top tick label to stick out into, 160 for the plot box (a 3:2 aspect ratio), and 25.43 for the
+# Widths, left to right: 35.04 for the y-axis title and tick labels, 240 for the plot box, and 35.04
+# left blank, so that the plot box is centred on the page. Heights, top to bottom: 6.68 for
+# the top tick label to stick out into, 160 for the plot box (a 3:2 aspect ratio), and 27.23 for the
 # x-axis title and tick labels (see plot-sizing.jl).
-# The sqrt(3) conversion means that (33.18 + 240 + 33.18, 4.93 + 160 + 25.43) is the size of the plot in points
+# The sqrt(3) conversion means that (35.04 + 240 + 35.04, 6.68 + 160 + 27.23) is the size of the plot in points
 # to specify in latex to correctly size the embedded fonts.
-gr(size = (33.18 + 240 + 33.18, 4.93 + 160 + 25.43) .* sqrt(3))
+gr(size = (35.04 + 240 + 35.04, 6.68 + 160 + 27.23) .* sqrt(3))
 fontfamily = "Computer Modern" # Close to Latin Modern.
 default(framestyle = :box,
         grid = true,
@@ -187,7 +187,7 @@ end
 xlims!((0, wasserstein_order_range[end]))
 ylims!((0.5, 1))
 
-place_plot_boxes!(plt, left = 33.18, right = 33.18, top = 4.93, bottom = 25.43)
+place_plot_boxes!(plt, left = 35.04, right = 35.04, top = 6.68, bottom = 27.23)
 
 display(plt)
 savefig(plt, "figures/worst-case-weighting-efficiencies.pdf")

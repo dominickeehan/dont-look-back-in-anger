@@ -6,13 +6,13 @@ include("plot-sizing.jl")
 
 default() # Reset plot settings to defaults.
 
-# Widths, left to right: 24.17 for the y-axis title and tick labels, 240 for the plot box, and 24.17
-# left blank, so that the plot box is centred on the page. Heights, top to bottom: 4.93 for
-# the top tick label to stick out into, 160 for the plot box (a 3:2 aspect ratio), and 25.16 for the
+# Widths, left to right: 26.03 for the y-axis title and tick labels, 240 for the plot box, and 26.03
+# left blank, so that the plot box is centred on the page. Heights, top to bottom: 6.68 for
+# the top tick label to stick out into, 160 for the plot box (a 3:2 aspect ratio), and 26.96 for the
 # x-axis title and tick labels (see plot-sizing.jl).
-# The sqrt(3) conversion means that (24.17 + 240 + 24.17, 4.93 + 160 + 25.16) is the size of the plot in points
+# The sqrt(3) conversion means that (26.03 + 240 + 26.03, 6.68 + 160 + 26.96) is the size of the plot in points
 # to specify in latex to correctly size the embedded fonts.
-gr(size = (24.17 + 240 + 24.17, 4.93 + 160 + 25.16) .* sqrt(3))
+gr(size = (26.03 + 240 + 26.03, 6.68 + 160 + 26.96) .* sqrt(3))
 fontfamily = "Computer Modern" # Close to Latin Modern.
 default(framestyle = :box,
         grid = true,
@@ -155,7 +155,7 @@ scatter!(samples,
 
 for i in eachindex(samples); annotate!(samples[i], 0, text(" \$\\xi_$i\$", :black, :bottom, 12)); end
 
-place_plot_boxes!(plt, left = 24.17, right = 24.17, top = 4.93, bottom = 25.16)
+place_plot_boxes!(plt, left = 26.03, right = 26.03, top = 6.68, bottom = 26.96)
 
 display(plt)
 savefig(plt, "figures/ambiguity-sets.pdf")

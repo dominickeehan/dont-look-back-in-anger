@@ -7,13 +7,13 @@ default() # Reset plot settings to defaults.
 
 # Single pane plots.
 
-# Widths, left to right: 41.22 for the y-axis title and tick labels, 240 for the plot box, and 41.22
-# left blank, so that the plot box is centred on the page. Heights, top to bottom: 16.31 for
-# the plot title, 160 for the plot box (a 3:2 aspect ratio), and 25.67 for the
+# Widths, left to right: 43.08 for the y-axis title and tick labels, 240 for the plot box, and 43.08
+# left blank, so that the plot box is centred on the page. Heights, top to bottom: 18.12 for
+# the plot title, 160 for the plot box (a 3:2 aspect ratio), and 27.47 for the
 # x-axis title and tick labels (see plot-sizing.jl).
-# The sqrt(3) conversion means that (41.22 + 240 + 41.22, 16.31 + 160 + 25.67) is the size of the plot in points
+# The sqrt(3) conversion means that (43.08 + 240 + 43.08, 18.12 + 160 + 27.47) is the size of the plot in points
 # to specify in latex to correctly size the embedded fonts.
-gr(size = (41.22 + 240 + 41.22, 16.31 + 160 + 25.67) .* sqrt(3))
+gr(size = (43.08 + 240 + 43.08, 18.12 + 160 + 27.47) .* sqrt(3))
 fontfamily = "Computer Modern" # Close to Latin Modern.
 default(framestyle = :box,
         grid = true,
@@ -71,7 +71,7 @@ xlims!((-0, 100))
 yl = ylims(linear_drift_profile_plt)
 ylims!((0, yl[2])) # (But keep natural upper limit.)
 
-place_plot_boxes!(linear_drift_profile_plt, left = 41.22, right = 41.22, top = 16.31, bottom = 25.67)
+place_plot_boxes!(linear_drift_profile_plt, left = 43.08, right = 43.08, top = 18.12, bottom = 27.47)
 
 display(linear_drift_profile_plt)
 savefig(linear_drift_profile_plt, "figures/linear-drift-profile-optimal-weights-for-p=1-to-5.pdf")
@@ -101,7 +101,7 @@ for q in 1:4
         yl = ylims(plt)
         ylims!((0, yl[2]))
 
-        place_plot_boxes!(plt, left = 41.22, right = 41.22, top = 16.31, bottom = 25.67)
+        place_plot_boxes!(plt, left = 43.08, right = 43.08, top = 18.12, bottom = 27.47)
 
         display(plt)
         savefig(plt, "figures/linear-drift-profile-optimal-weights-for-p=1-to-$q.pdf")
@@ -116,7 +116,7 @@ square_root_drift_profile_plt = plot(
         xlabel = "Time index, \$t\$", 
         ylabel = "Optimal weight, \$w_t\$",
         xticks = ([0, 25, 50, 75, 100]),
-        size = (36.37 + 240 + 36.37, 16.16 + 160 + 25.52) .* sqrt(3)) # (Its tick labels differ from the linear drift profile plot's, so its own size.)
+        size = (38.22 + 240 + 38.22, 17.97 + 160 + 27.32) .* sqrt(3)) # (Its tick labels differ from the linear drift profile plot's, so its own size.)
 
 for p in P
         plot!(1:T, 
@@ -135,7 +135,7 @@ xlims!((-0, 100))
 yl = ylims(square_root_drift_profile_plt)
 ylims!((0, yl[2])) # (But keep natural upper limit.)
 
-place_plot_boxes!(square_root_drift_profile_plt, left = 36.37, right = 36.37, top = 16.16, bottom = 25.52)
+place_plot_boxes!(square_root_drift_profile_plt, left = 38.22, right = 38.22, top = 17.97, bottom = 27.32)
 
 display(square_root_drift_profile_plt)
 savefig(square_root_drift_profile_plt, "figures/square-root-drift-profile-optimal-weights-for-p=1-to-5.pdf")
@@ -191,9 +191,9 @@ two_pane_drift_profile_plt = plot(
         linear_drift_profile_two_pane_plt,
         square_root_drift_profile_two_pane_plt,
         layout = (1, 2),
-        size = (40.57 + 177.91 + 16 + 177.91 + 40.57, 18.27 + 160 + 27.62) .* sqrt(3)) # The width of an A4 piece of paper (excluding two 1-inch margins) is 452.97 points.
+        size = (42.32 + 176.16 + 16 + 176.16 + 42.32, 20.02 + 160 + 29.37) .* sqrt(3)) # The width of an A4 piece of paper (excluding two 1-inch margins) is 452.97 points.
 
-place_plot_boxes!(two_pane_drift_profile_plt, left = 40.57, gap = 16, right = 40.57, top = 18.27, bottom = 27.62)
+place_plot_boxes!(two_pane_drift_profile_plt, left = 42.32, gap = 16, right = 42.32, top = 20.02, bottom = 29.37)
 
 display(two_pane_drift_profile_plt)
 savefig(two_pane_drift_profile_plt, "figures/optimal-weights-for-p=1-to-5.pdf")
@@ -253,9 +253,9 @@ squished_two_pane_drift_profile_plt = plot(
         squished_linear_drift_profile_two_pane_plt,
         squished_square_root_drift_profile_two_pane_plt,
         layout = (1, 2),
-        size = (40.57 + 177.91 + 16 + 177.91 + 40.57, 18.27 + 160 + 27.62) .* sqrt(3)) # The width of an A4 piece of paper (excluding two 1-inch margins) is 452.97 points.
+        size = (42.32 + 176.16 + 16 + 176.16 + 42.32, 20.02 + 160 + 29.37) .* sqrt(3)) # The width of an A4 piece of paper (excluding two 1-inch margins) is 452.97 points.
 
-place_plot_boxes!(squished_two_pane_drift_profile_plt, left = 40.57, gap = 16, right = 40.57, top = 18.27, bottom = 27.62)
+place_plot_boxes!(squished_two_pane_drift_profile_plt, left = 42.32, gap = 16, right = 42.32, top = 20.02, bottom = 29.37)
 
 display(squished_two_pane_drift_profile_plt)
 savefig(squished_two_pane_drift_profile_plt, "figures/squished-optimal-weights-for-p=1-to-5.pdf")

@@ -14,12 +14,16 @@ latex_point = sqrt(3) * Plots.px
 gr_y_title_offset = 0.03
 gr_x_title_offset = 0.015
 gr_title_gap = 0.015
-bleed = 0.25 # (GR's text boxes for labels with maths can fall up to 0.17 points short.)
+# Every title and tick label also gets 2 points of clear space from the edge of the figure.
+# (GR's text boxes for labels with maths, such as "Optimal weight, $w_t$", can fall 0.17 points
+# short of the glyphs, so a smaller padding can leave them touching the edge.)
+padding = 2
 
 
 # Moves the margins so that the plot boxes sit exactly left, right, top, and bottom points in
 # from the edges of the figure, and gap points apart. Then checks that these spaces exactly
-# fit the titles and tick labels, so that nothing is clipped and no space is wasted.
+# fit the titles and tick labels plus their padding, so that nothing touches the edge and no
+# space is wasted.
 function place_plot_boxes!(plt; left, gap = 0, right, top, bottom)
 
     subplots = plt.subplots
@@ -61,15 +65,15 @@ function place_plot_boxes!(plt; left, gap = 0, right, top, bottom)
     end
     Plots.GR.restorestate()
 
-    exact(W) = (left = gr_y_title_offset * W + y_text + bleed,
-                top = (sp[:title] == "" ? 0 : gr_title_gap * W) + top_text + bleed,
-                bottom = gr_x_title_offset * W + x_text + bleed)
+    exact(W) = (left = gr_y_title_offset * W + y_text + padding,
+                top = (sp[:title] == "" ? 0 : gr_title_gap * W) + top_text + padding,
+                bottom = gr_x_title_offset * W + x_text + padding)
 
     needed = exact(W)
     if !(isapprox(left, needed.left, atol = 0.01) && isapprox(top, needed.top, atol = 0.01) && isapprox(bottom, needed.bottom, atol = 0.01))
         # Keeping the plot boxes and gaps as they are, with right = left, solve for left.
         rest = points(width) - left - right
-        exact_left = (gr_y_title_offset * rest + y_text + bleed) / (1 - 2 * gr_y_title_offset)
+        exact_left = (gr_y_title_offset * rest + y_text + padding) / (1 - 2 * gr_y_title_offset)
         needed = exact(rest + 2 * exact_left)
         error("The titles and tick labels do not fit exactly. Keeping the plot boxes and gaps as they are, set " *
               "left = right = $(round(needed.left, digits = 2)), top = $(round(needed.top, digits = 2)), " *

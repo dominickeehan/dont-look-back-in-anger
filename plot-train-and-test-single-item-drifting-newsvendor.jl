@@ -89,13 +89,13 @@ drifts, results = load_single_item_costs()
 
 default() # Reset plot defaults.
 
-# Widths, left to right: 36.2 for the y-axis title and tick labels, 240 for the plot box, and 36.2
-# left blank, so that the plot box is centred on the page. Heights, top to bottom: 4.93 for
-# the top tick label to stick out into, 160 for the plot box (a 3:2 aspect ratio), and 28.84 for the
+# Widths, left to right: 38.06 for the y-axis title and tick labels, 240 for the plot box, and 38.06
+# left blank, so that the plot box is centred on the page. Heights, top to bottom: 6.68 for
+# the top tick label to stick out into, 160 for the plot box (a 3:2 aspect ratio), and 30.64 for the
 # x-axis title and tick labels (see plot-sizing.jl).
-# The sqrt(3) conversion means that (36.2 + 240 + 36.2, 4.93 + 160 + 28.84) is the size of the plot in points
+# The sqrt(3) conversion means that (38.06 + 240 + 38.06, 6.68 + 160 + 30.64) is the size of the plot in points
 # to specify in latex to correctly size the embedded fonts.
-gr(size = (36.2 + 240 + 36.2, 4.93 + 160 + 28.84) .* sqrt(3))
+gr(size = (38.06 + 240 + 38.06, 6.68 + 160 + 30.64) .* sqrt(3))
 
 fontfamily = "Computer Modern"
 default(
@@ -187,7 +187,7 @@ yticks!(
 )
 ylims!((0.79999, 1.50001))
 
-place_plot_boxes!(plt, left = 36.2, right = 36.2, top = 4.93, bottom = 28.84)
+place_plot_boxes!(plt, left = 38.06, right = 38.06, top = 6.68, bottom = 30.64)
 
 display(plt)
 savefig(plt, figure_file)

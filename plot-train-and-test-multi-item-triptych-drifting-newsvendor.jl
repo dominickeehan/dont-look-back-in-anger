@@ -127,17 +127,17 @@ end
 
 function plot_train_and_test_results(processed_results)
     default()
-    # Widths, left to right: 40.41 for the y-axis title and tick labels, three 113.38 plot
-    # boxes 16 apart, and 40.41 left blank, so that the plot boxes are centred on the page
-    # and fill the 452.97 width of the text column. Heights, top to bottom: 18.27 for the
-    # plot titles, 160 for the plot boxes (as in every figure), and 27.62 for the x-axis
+    # Widths, left to right: 42.16 for the y-axis title and tick labels, three 112.21 plot
+    # boxes 16 apart, and 42.16 left blank, so that the plot boxes are centred on the page
+    # and fill the 452.97 width of the text column. Heights, top to bottom: 20.02 for the
+    # plot titles, 160 for the plot boxes (as in every figure), and 29.37 for the x-axis
     # titles and tick labels (see plot-sizing.jl).
     # The sqrt(3) conversion means that
-    # (40.41 + 113.38 + 16 + 113.38 + 16 + 113.38 + 40.41, 18.27 + 160 + 27.62) is the size of the plot
+    # (42.16 + 112.21 + 16 + 112.21 + 16 + 112.21 + 42.16, 20.02 + 160 + 29.37) is the size of the plot
     # in points to specify in latex to correctly size the embedded fonts.
     gr(size = (
-        40.41 + 113.38 + 16 + 113.38 + 16 + 113.38 + 40.41,
-        18.27 + 160 + 27.62,
+        42.16 + 112.21 + 16 + 112.21 + 16 + 112.21 + 42.16,
+        20.02 + 160 + 29.37,
     ) .* sqrt(3))
 
     fontfamily = "Computer Modern"
@@ -293,7 +293,7 @@ function plot_train_and_test_results(processed_results)
         layout = (1, length(panel_plots)),
         link = :y,
     )
-    place_plot_boxes!(plt, left = 40.41, gap = 16, right = 40.41, top = 18.27, bottom = 27.62)
+    place_plot_boxes!(plt, left = 42.16, gap = 16, right = 42.16, top = 20.02, bottom = 29.37)
     return plt
 end
 
