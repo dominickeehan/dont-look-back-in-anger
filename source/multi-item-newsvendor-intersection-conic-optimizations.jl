@@ -38,9 +38,10 @@ function REMK_intersection_W2_DRO_multi_item_newsvendor_objective_value_and_orde
         d = [demand/number_of_consumers for demand in demands]
         radii = REMK_intersection_ball_radii(K, ε, weights[end])/number_of_consumers # Every entry of weights is ρ╱ε (see REMK_intersection_weights).
 
-        # A distribution within r of the point mass at d[k] has ‖ mean - d[k] ‖^2 + E‖ demand - mean ‖^2 <= r^2.
-        # So if the balls only meet after the increase then the only distribution left is the point mass at
-        # the shared point ξ. In this case, ordering ξ costs nothing as the demand is ξ for certain.
+        # Smallest increase in the radii for which the balls share a point. A distribution within r of the
+        # point mass at d[k] has ‖ mean - d[k] ‖^2 + E‖ demand - mean ‖^2 <= r^2. So if the balls only meet
+        # after the increase then the only distribution left is the point mass at the shared point ξ. In
+        # this case, ordering ξ costs nothing as the demand is ξ for certain.
         increase, ξ = smallest_radius_increase(d, radii)
         if increase >= -1e-6; return 0.0, number_of_consumers*ξ; end
 

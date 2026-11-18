@@ -7,9 +7,9 @@ using ProgressBars
 # HPC results with one file per job. The selected runs file keeps the run of each method with the
 # smallest average training cost in every repetition for every number of items and drift. The plot
 # data file averages these runs over the repetitions.
-results_directory = "triptych-drifting-newsvendor-results"
-selected_runs_file = "multi-item-triptych-selected-runs.tsv"
-plot_data_file = "multi-item-triptych-plot-data.tsv"
+results_directory = "data/triptych-drifting-newsvendor-results"
+selected_runs_file = "data/multi-item-triptych-selected-runs.tsv"
+plot_data_file = "data/multi-item-triptych-plot-data.tsv"
 
 number_of_jobs = 300 # Size of the .pbs job array.
 number_of_repetitions_per_job = 10 # As in the generate script.
@@ -35,6 +35,7 @@ for job_number in ProgressBar(0:number_of_jobs-1)
 
         end
 
+        # Kept runs with their repetition index counted across all jobs.
         for run in values(best_runs)
                 push!(selected_runs, (number_of_items = run.number_of_items,
                                       drift = run.drift,

@@ -49,7 +49,7 @@ scale_radii = 1.65 # Radii scaled so the two ambiguity sets are of comparable si
 intersection_ε = scale_radii * weighted_ε
 intersection_ρ = weighted_ρ
 
-# Balls of the two approaches in the (mean, standard deviation) plane. In one dimension Gelbrich's
+# Ball of the weighted approach in the (mean, standard deviation) plane. In one dimension Gelbrich's
 # bound states that for any distributions P and Q
 #
 #       W2(P,Q)^2 >= (E[P]-E[Q])^2 + (std[P]-std[Q])^2.
@@ -58,6 +58,7 @@ intersection_ρ = weighted_ρ
 P = [samples, Wp_power_law_drift_profile_weights(p, length(samples), weighted_ρ/weighted_ε, 1)]
 weighted_ball = [mean(P[1], Weights(P[2])), std(P[1], Weights(P[2])), weighted_ε]
 
+# Balls of the intersection approach around the samples.
 intersection_ball_radii = REMK_intersection_ball_radii(length(samples), intersection_ε, intersection_ρ/intersection_ε)
 intersection_balls = [[samples[j], 0.0, intersection_ball_radii[j]] for j in eachindex(samples)]
 

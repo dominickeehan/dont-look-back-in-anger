@@ -16,15 +16,16 @@ latex_point = sqrt(3) * Plots.px
 gr_y_title_offset = 0.03
 gr_x_title_offset = 0.015
 gr_title_gap = 0.015
+
 # Every title and tick label also gets 2 points of clear space from the edge of the figure. GR's
 # text boxes for labels with maths, such as "Optimal weight, $w_t$", can fall 0.17 points short of
 # the glyphs, so a smaller padding can leave them touching the edge.
 padding = 2
 
 
-# Moves the margins so that the plot boxes sit exactly left, right, top, and bottom points in from
-# the edges of the figure, and gap points apart. Then checks that these spaces exactly fit the
-# titles and tick labels plus their padding, so that nothing touches the edge and no space is wasted.
+# Moves the margins so that the plot boxes sit left, right, top, and bottom points in from the edges
+# of the figure, and gap points apart. Then checks that these spaces fit the titles and tick labels
+# plus their padding, so that nothing touches the edge and no space is wasted.
 function place_plot_boxes!(plt; left, gap = 0, right, top, bottom)
 
         subplots = plt.subplots
@@ -32,7 +33,7 @@ function place_plot_boxes!(plt; left, gap = 0, right, top, bottom)
         points(length) = length.value / latex_point.value
         plot_boxes() = (Plots.prepare_output(plt); [Plots.plotarea(sp) for sp in subplots])
 
-        # The layout is linear in the margins, so one correction places the plot boxes exactly.
+        # Move the margins once to place the plot boxes. Once is enough as the layout is linear in the margins.
         boxes = plot_boxes()
         subplots[1][:left_margin] += left * latex_point - Plots.left(boxes[1])
         for i in 2:length(subplots)
@@ -52,7 +53,7 @@ function place_plot_boxes!(plt; left, gap = 0, right, top, bottom)
         @assert isapprox(points(Plots.top(boxes[1])), top, atol = 1e-6)
         @assert isapprox(points(height - Plots.bottom(boxes[1])), bottom, atol = 1e-6)
 
-        # The text sizes in points, from GR's text boxes. Every figure here is wider than it is tall.
+        # Text sizes in points. GR gives them as fractions of the larger figure dimension W.
         sp = subplots[1]
         W = maximum(plt[:size]) / sqrt(3)
         y_text = Plots.gr_axis_width(sp, sp[:yaxis]) * W # Tick labels and title.

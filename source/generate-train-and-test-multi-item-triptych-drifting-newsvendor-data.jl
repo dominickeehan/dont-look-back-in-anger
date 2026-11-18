@@ -1,6 +1,6 @@
 using Random, Statistics, StatsBase, Distributions
 
-# Generates one job's worth of data for the process-train-and-test-multi-item-triptych-drifting-newsvendor-data.jl script
+# Generates one job's worth of data for the process-train-and-test-multi-item-triptych-drifting-newsvendor-data.jl script.
 # 
 # Expected to be run on an HPC (see the .pbs script).
 
@@ -49,7 +49,7 @@ methods = [("SAA", SO_multi_item_newsvendor_objective_value_and_order, false, "w
            ("Weighted", W2_DRO_multi_item_newsvendor_objective_value_and_order, true, "rho_over_epsilon", ambiguity_radius_ratio_grid, weight_vector_table(W2_linear_drift_profile_weights, ambiguity_radius_ratio_grid))]
 
 # Results file with one row per run.
-results_file = open("multi-item-triptych-$job_number.csv", "w")
+results_file = open("data/triptych-drifting-newsvendor-results/multi-item-triptych-$job_number.csv", "w")
 println(results_file, "job_number,number_of_items,drift,repetition_index,method,ambiguity_radius,weight_parameter_name,weight_parameter,average_training_cost,objective_value,expected_next_period_cost,order,underage_costs,overage_costs,mixture_weights,initial_demand_probabilities,time_elapsed")
 
 

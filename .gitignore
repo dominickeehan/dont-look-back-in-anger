@@ -1,17 +1,9 @@
-.vscode/*
-
-temp/*
-*.zip
-*.csv
-train-and-test-multi-modal-drifting-newsvendor-data/*.csv
-train-and-test-multi-modal-drifting-newsvendor-data/hpc-output.zip
-*-newsvendor-results/*
-multi-item-newsvendor-results/*.csv
-multi-item-newsvendor-results.zip
-train-and-test-multi-modal-drifting-newsvendor-data/hpc-output.zip
 .DS_Store
-upload.txt
+.vscode/
 
-# Per-repetition triptych selections (tens of megabytes; regenerate with
-# process-train-and-test-multi-item-triptych-drifting-newsvendor-data.jl).
-#multi-item-triptych-selected-runs.tsv
+# Raw results of the HPC jobs are too large to host.
+data/triptych-drifting-newsvendor-results/
+data/triptych-drifting-newsvendor-results.zip
+
+# Personal notes with the HPC upload commands.
+upload.txt

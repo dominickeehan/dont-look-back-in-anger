@@ -92,7 +92,9 @@ function _certified_two_ball_radius_increase(demands, ball_radii, pair_distances
         end
         candidate_increase = _required_radius_increase_at_point(candidate, demands, ball_radii)
         tolerance = 1.0e-6 * max(1.0, abs(lower_bound), abs(candidate_increase))
-        # A point strictly inside every ball is enough so its increase is returned even if it is not the smallest.
+        # A point strictly inside every ball is enough so its increase is returned even if it is not the
+        # smallest. Otherwise the bound is the smallest increase only if the point is in every ball once the
+        # radii grow by it.
         candidate_increase < -tolerance && return (candidate_increase, candidate), critical_indices
         candidate_increase <= lower_bound + tolerance || return nothing, critical_indices
 
@@ -103,9 +105,9 @@ end
 # Smallest δ for which a point ξ has ‖ ξ - d_k ‖ = r_k + δ for every ball k of the support. Returns
 # δ and ξ.
 #
-# The point is in the affine hull of the centres. Subtracting the square of the first equation from
-# the squares of the others leaves equations that are linear in ξ and δ. The first equation is then
-# a quadratic in δ.
+# ξ lies in the affine hull of the centres. Subtracting the square of the first equation from the
+# squares of the others leaves equations that are linear in ξ and δ. The first equation is then a
+# quadratic in δ.
 function _ball_from_support(demands, ball_radii, support)
 
         first_index = first(support)
@@ -119,7 +121,8 @@ function _ball_from_support(demands, ball_radii, support)
         gram = differences' * differences
         radius_differences = ball_radii[other_indices] .- first_radius
         right_hand_sides = hcat(0.5 .* (diag(gram) .- (ball_radii[other_indices] .^ 2 .- first_radius^2)), -radius_differences)
-        # Returns nothing if the centres are affinely dependent.
+        # Solve the linear equations for the point in terms of δ. Returns nothing if the centres are
+        # affinely dependent.
         factorization = cholesky(Symmetric(gram); check = false)
         issuccess(factorization) || return nothing
         coordinates = factorization \ right_hand_sides
@@ -176,15 +179,17 @@ end
 # Fischer and Gärtner doi:10.1142/S0218195904001500).
 function _active_set_radius_increase(demands, ball_radii, indices, support, count)
 
-        # Stops once the support has number_of_items + 1 balls without looking at the balls left.
+        # Stops when no balls are left or once the support has number_of_items + 1 balls without looking at
+        # the balls left.
         if count == 0 || length(support) == length(first(demands)) + 1; return _smallest_supported_ball(demands, ball_radii, support); end
 
-        # Solve without the last ball and solve again with it in the support if the point is outside it.
+        # Solve without the last ball and keep the result if the point is in that ball.
         geometry = _active_set_radius_increase(demands, ball_radii, indices, support, count - 1)
         increase, point = geometry
         index = indices[count]
         _euclidean_distance(point, demands[index]) <= increase + ball_radii[index] + 1.0e-6 && return geometry
 
+        # Otherwise solve again with the last ball in the support.
         push!(support, index)
         geometry = _active_set_radius_increase(demands, ball_radii, indices, support, count - 1)
         pop!(support)
@@ -239,11 +244,11 @@ end
 # for Λ = Σ_k λ[k] and c = Σ_k λ[k]*d[k][i]/Λ. So each supremum is that of a single ball with
 # multiplier Λ and demand c.
 #
-# The suprema of the underage and overage pieces are attained at the upper atom
-# c + min(1 - c, u[i]/(2Λ)) and the lower atom c - min(c, o[i]/(2Λ)). The best order is where the
-# two pieces cross. The gradient in λ[k] is radii[k]^2 minus the expected squared distance to d[k]
-# under the worst-case distribution. For item i this puts probability o[i]/(u[i] + o[i]) on the
-# upper atom and u[i]/(u[i] + o[i]) on the lower atom.
+# Underage and overage pieces attain their suprema at the upper atom c + min(1 - c, u[i]/(2Λ)) and
+# the lower atom c - min(c, o[i]/(2Λ)). The best order is where the two pieces cross. The gradient
+# in λ[k] is radii[k]^2 minus the expected squared distance to d[k] under the worst-case
+# distribution. For item i this puts probability o[i]/(u[i] + o[i]) on the upper atom and
+# u[i]/(u[i] + o[i]) on the lower atom.
 
 
 # Dual objective value at λ.

@@ -10,12 +10,12 @@ include("plot-sizing.jl")
 # Computing the worst-case efficiencies takes a long time so they are saved to data_file and only
 # recomputed if it is missing. Delete it to recompute them with
 #
-#     julia -t auto plot-worst-case-weighting-efficiencies.jl
+#     julia -t auto source/plot-worst-case-weighting-efficiencies.jl
 #
 # which takes about 15 minutes on 18 threads.
 # In main.tex include the figure at width=\dimexpr 35.04pt + 240pt + 35.04pt\relax as it is drawn at
 # the centred size (see plot-sizing.jl).
-data_file = "worst-case-weighting-efficiency-data.tsv"
+data_file = "data/worst-case-weighting-efficiency-data.tsv"
 
 LogRange(start, stop, len) = exp.(LinRange(log(start), log(stop), len))
 
@@ -26,8 +26,7 @@ weighting_scheme_discretisation_fidelity = 1000
 T = 1000 # Larger T can only lower the worst-case efficiencies but they barely change beyond 1000.
 wasserstein_order_range = [1.0, 5.0]
 drift_exponents = sort(unique([0.0; LogRange(1.0e-9, 1.0e-0, 100); 1 .- LogRange(1.0e-9, 1.0e-0, 100); LogRange(1.0e-0, 5.0e-0, 200)])) # Exponents ηp of the drift terms (T-t+1)^(ηp).
-# For a drift exponent ηp the orders p∈[1,5] with η = ηp/p ≤ 1 are [max(1,ηp), 5].
-wasserstein_orders(drift_exponent) = LogRange(max(wasserstein_order_range[begin], drift_exponent), wasserstein_order_range[end], 200)
+wasserstein_orders(drift_exponent) = LogRange(max(wasserstein_order_range[begin], drift_exponent), wasserstein_order_range[end], 200) # For a drift exponent ηp the orders p∈[1,5] with η = ηp/p ≤ 1 are [max(1,ηp), 5].
 drift_ratios = [0; LogRange(1.0e-9, 1.0e0, 1000)] # Values of ρ╱ε.
 
 horizons(start, stop, len) = sort(unique([LogRange(start, stop, Int(len/2)); 1 ./ LinRange(0.0, 1/stop, Int(len/2))])) # Goes beyond stop to 1/0 = Inf for uniform weights.
@@ -84,7 +83,8 @@ if !isfile(data_file)
 
         end
 
-        # Optimal weights for the drift terms which fall to zero at the horizon.
+        # Optimal weights in closed form for a given horizon. They fall to zero where the drift term reaches
+        # the horizon and a line search over the horizon below finds the optimal weights without Ipopt.
         function optimal_weights(drift_terms, horizon)
 
                 if drift_terms[end]/horizon >= 1.0; weights = zeros(T); weights[T] = 1.0; return weights; end
@@ -105,7 +105,7 @@ if !isfile(data_file)
 
                 drift_terms = [(T-t+1)^drift_exponents[drift_exponent_index] for t in 1:T]
 
-                # Reusable terms of the optimal weights and of every scheme.
+                # Reusable terms of the optimal weights for every horizon of the line search and of every scheme.
                 optimal_weighting_scheme_terms = [reusable_objective_terms(optimal_weights(drift_terms, horizon), drift_terms)
                                                   for horizon in horizons(drift_terms[end], drift_terms[begin], weighting_scheme_discretisation_fidelity)]
                 weighting_scheme_terms = [[reusable_objective_terms(w, drift_terms) for w in weightings] for weightings in weighting_schemes]
@@ -122,9 +122,10 @@ if !isfile(data_file)
 
                         for ρ╱ε in [drift_ratios; switching_drift_ratios]
 
-                                # Efficiency of each scheme against the optimal weights.
+                                # Optimal objective value from the line search over horizons.
                                 optimal_objective_value = maximum(objective_value(sums, p, ρ╱ε) for sums in optimal_weighting_scheme_terms)
 
+                                # Efficiency of each scheme against the optimal weights.
                                 for scheme_index in eachindex(weighting_schemes)
 
                                         scheme_best_objective_value = maximum(objective_value(sums, p, ρ╱ε) for sums in weighting_scheme_terms[scheme_index])
@@ -139,8 +140,8 @@ if !isfile(data_file)
                 end
         end
 
-        println()
         # Print the worst-case efficiency of each scheme.
+        println()
         for scheme_index in eachindex(weighting_schemes)
 
                 worst_index = argmin(worst_case_efficiencies[scheme_index, :])
@@ -168,7 +169,7 @@ end
 
 
 
-# Draw the plot from the saved worst-case efficiencies.
+# Read the saved worst-case efficiencies and check they are on this script's grid of drift exponents.
 efficiency_data = collect(CSV.File(data_file; delim = '\t'))
 plotted_drift_exponents = [[row.drift_exponent for row in efficiency_data if row.method == name] for name in weighting_scheme_names]
 plotted_worst_case_efficiencies = [[row.worst_case_efficiency for row in efficiency_data if row.method == name] for name in weighting_scheme_names]

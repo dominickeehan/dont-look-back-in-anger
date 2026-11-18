@@ -183,6 +183,7 @@ end
 
 # Tight axis limits.
 for plt in (linear_drift_profile_two_pane_plt, square_root_drift_profile_two_pane_plt); xlims!(plt, (0, 100)); end
+
 # Shared y-axis limits (and hence tick positions) across both panes.
 for plt in (linear_drift_profile_two_pane_plt, square_root_drift_profile_two_pane_plt)
         ylims!(plt, (0, ylims(square_root_drift_profile_two_pane_plt)[2]))
@@ -244,6 +245,7 @@ end
 
 # Tight axis limits.
 for plt in (squished_linear_drift_profile_two_pane_plt, squished_square_root_drift_profile_two_pane_plt); xlims!(plt, (0, T)); end
+
 # Shared y-axis limits (and hence tick positions) across both panes.
 for plt in (squished_linear_drift_profile_two_pane_plt, squished_square_root_drift_profile_two_pane_plt)
         ylims!(plt, (0, ylims(squished_square_root_drift_profile_two_pane_plt)[2]))

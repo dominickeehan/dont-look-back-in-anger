@@ -44,7 +44,7 @@ methods = [("SAA", SO_multi_item_newsvendor_objective_value_and_order, [0.0], we
            ("Weighted", W2_DRO_multi_item_newsvendor_objective_value_and_order, ambiguity_radius_grid, weight_vector_table(W2_linear_drift_profile_weights, ambiguity_radius_ratio_grid))]
 
 # Results file with one row per repetition and method for each drift.
-results_file = open("single-item-drifting-newsvendor-costs.tsv", "w")
+results_file = open("data/single-item-drifting-newsvendor-costs.tsv", "w")
 println(results_file, join(("drift", "repetition_index", "method", "expected_next_period_cost"), '\t'))
 
 

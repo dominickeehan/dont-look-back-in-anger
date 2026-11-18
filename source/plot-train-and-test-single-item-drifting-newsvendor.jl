@@ -5,7 +5,7 @@ using Plots, Measures
 
 include("plot-sizing.jl")
 
-costs = collect(CSV.File("single-item-drifting-newsvendor-costs.tsv", delim = '\t'))
+costs = collect(CSV.File("data/single-item-drifting-newsvendor-costs.tsv", delim = '\t'))
 
 drifts = sort(unique(row.drift for row in costs))
 methods = ["SAA", "Smoothing", "Intersection", "Weighted"]
@@ -70,11 +70,11 @@ for method in methods
 
 end
 
-# Tight axis limits.
 xticks!([1.0e-5, 1.0e-4, 1.0e-3, 1.0e-2, 1.0e-1, 1.0e0])
+yticks!([0.8, 0.9, 1.0, 1.1, 1.2, 1.4], ["−20", "−10", "0", "+10", "+20", "+40"]) # Log-scaled cost ratios labelled as percentage differences.
+
+# Tight axis limits.
 xlims!((0.99999*drifts[begin], 1.00001*drifts[end]))
-# Log-scaled cost ratios labelled as percentage differences.
-yticks!([0.8, 0.9, 1.0, 1.1, 1.2, 1.4], ["−20", "−10", "0", "+10", "+20", "+40"])
 ylims!((0.79999, 1.50001))
 
 place_plot_boxes!(plt, left = 38.06, right = 38.06, top = 6.68, bottom = 30.64)

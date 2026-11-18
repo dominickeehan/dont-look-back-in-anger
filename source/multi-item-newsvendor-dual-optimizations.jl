@@ -112,15 +112,16 @@ function W2_DRO_multi_item_newsvendor_objective_value_and_order(ε, demands, wei
 
         order = zeros(number_of_items)
 
-        # Weighted quantiles of the demands (the same for every λ).
+        # Weighted quantiles of the demands (the same for every λ) and the dual objective at λ.
         quantile_demands = [_weighted_newsvendor_quantile([demand[i] for demand in normalized_demands], weights, instance_underage_costs[i] / (instance_underage_costs[i] + instance_overage_costs[i])) for i in 1:number_of_items]
         evaluate(λ) = _W2_dual_objective!(order, quantile_demands, λ, normalized_demands, weights, instance_underage_costs, instance_overage_costs, normalized_epsilon)
 
-        # Golden-section search over λ in [0, upper] for the minimum of the convex dual objective. For λ
-        # beyond upper the worst-case demands are within ε of the samples so the objective is nondecreasing there.
+        # Bracket [0, upper] for λ. For λ beyond upper the worst-case demands are within ε of the samples so
+        # the objective is nondecreasing there.
         lower = 0.0
         upper = sqrt(sum(max(instance_underage_costs[i], instance_overage_costs[i])^2 for i in 1:number_of_items)) / (2.0 * normalized_epsilon)
 
+        # Golden-section search over λ for the minimum of the convex dual objective.
         golden_ratio_fraction = (sqrt(5.0) - 1.0) / 2.0
         first_λ = upper - golden_ratio_fraction * (upper - lower)
         second_λ = lower + golden_ratio_fraction * (upper - lower)

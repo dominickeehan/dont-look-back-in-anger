@@ -11,7 +11,4 @@ cd "$HOME/dont-look-back-in-anger" || exit 1
 
 export JULIA_CPU_TARGET="${JULIA_CPU_TARGET:-generic}"
 
-julia --startup-file=no \
-      --project=. \
-      --threads=1 \
-      generate-train-and-test-multi-item-triptych-drifting-newsvendor-data.jl
+julia --startup-file=no --project=. --threads=1 source/generate-train-and-test-multi-item-triptych-drifting-newsvendor-data.jl

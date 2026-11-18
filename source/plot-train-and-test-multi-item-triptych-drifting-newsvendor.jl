@@ -5,7 +5,7 @@ using Plots, Measures
 
 include("plot-sizing.jl")
 
-plot_data = collect(CSV.File("multi-item-triptych-plot-data.tsv", delim = '\t'))
+plot_data = collect(CSV.File("data/multi-item-triptych-plot-data.tsv", delim = '\t'))
 
 item_counts = 1:10
 drifts = [0.01, 0.05, 0.1]
