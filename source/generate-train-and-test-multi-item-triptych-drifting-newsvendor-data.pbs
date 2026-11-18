@@ -8,6 +8,7 @@ module load tools/prod
 module load Julia/1.11.6-linux-x86_64
 
 cd "$HOME/dont-look-back-in-anger" || exit 1
+mkdir -p data/triptych-drifting-newsvendor-results
 
 export JULIA_CPU_TARGET="${JULIA_CPU_TARGET:-generic}"
 
