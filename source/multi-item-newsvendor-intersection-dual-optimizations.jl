@@ -225,6 +225,7 @@ function _active_set_radius_increase(demands, ball_radii, preferred_indices = In
         indices = vcat(preferred_indices, filter(index -> index ∉ preferred_indices, indices))
         increase, point = _active_set_radius_increase(demands, ball_radii, indices, Int[], length(demands))
 
+        # Fischer and Gärtner show that Welzl's algorithm can fail under certain conditions.
         # Check that the point is in every ball and otherwise solve again by pivoting.
         if any(_euclidean_distance(point, demands[k]) > increase + ball_radii[k] + 1.0e-6 for k in eachindex(demands)); return _pivoting_radius_increase(demands, ball_radii); end
 
